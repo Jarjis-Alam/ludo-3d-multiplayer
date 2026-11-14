@@ -1,0 +1,707 @@
+# PROJECT: LUDO — Real-Time Multiplayer 3D Web Game
+
+## 1. YOUR ROLE
+
+Act as a senior full-stack engineer, multiplayer game developer, 3D graphics engineer, UI/UX designer, and software architect.
+
+Build a complete, production-quality, browser-based multiplayer Ludo game for exactly four friends.
+
+This is not a static prototype, UI mockup, or frontend-only demonstration. The application must have a working multiplayer backend, a functional Ludo game engine, real-time synchronization, room management, and a polished 3D gaming experience.
+
+Do not stop after creating the landing page. Implement the complete application.
+
+## 2. PRODUCT VISION
+
+Create a premium online Ludo experience where four friends can play together using a private room.
+
+The game should work as follows:
+
+1. A user visits the website.
+2. The user enters a username.
+3. The user creates a private room.
+4. The application generates a unique six-character room code and invitation link.
+5. The host shares the invitation with three friends.
+6. Friends join using the invitation link or room code.
+7. All four players enter a multiplayer lobby.
+8. The host starts the match.
+9. All players play the same synchronized Ludo game in real time.
+10. The first player to bring all four tokens home wins.
+
+No registration, email verification, or password should be required.
+
+## 3. DESIGN DIRECTION
+
+Visual style: Premium 3D board game.
+
+Create an experience inspired by polished modern tabletop games and premium casual gaming platforms.
+
+Visual characteristics:
+
+- Dimensional 3D board.
+- Isometric or elevated camera perspective.
+- Glossy game tokens.
+- Realistic 3D dice.
+- Soft shadows and lighting.
+- Smooth animations.
+- Subtle depth and perspective.
+- Refined typography.
+- Clean layouts.
+- High-quality micro-interactions.
+
+Use a restrained background that makes the colorful Ludo board the visual centerpiece.
+
+Player colors:
+
+- Red: #E94B4B
+- Green: #36B96B
+- Yellow: #F4C542
+- Blue: #4389E8
+
+Avoid excessive gradients, neon effects, unnecessary glassmorphism, cluttered layouts, and oversized decorative elements.
+
+The game should feel like a professionally designed commercial board game.
+
+## 4. TECHNOLOGY STACK
+
+Frontend:
+- React
+- TypeScript
+- Vite
+- Tailwind CSS
+- Three.js
+- React Three Fiber
+- Drei
+- Framer Motion where appropriate
+
+Backend:
+- Node.js
+- Express
+- TypeScript
+- Socket.IO
+
+Database:
+- PostgreSQL
+- Supabase for managed PostgreSQL hosting
+
+Deployment:
+- Vercel for frontend
+- Render for backend
+
+Use a modular, maintainable architecture.
+
+Keep game rules independent of UI components.
+
+Do not place the entire game engine inside a React component.
+
+## 5. APPLICATION PAGES
+
+### A. Landing Page
+
+Create a premium homepage containing:
+
+- LUDO branding.
+- Attractive 3D Ludo board hero illustration.
+- Floating dice and token animations.
+- Play Now CTA.
+- Create Room action.
+- Join Room action.
+- How to Play section.
+- Brief multiplayer explanation.
+- Footer.
+
+The primary CTA should take the user to the guest username entry flow.
+
+### B. Guest Identity
+
+Users should enter a username before joining or creating a room.
+
+Requirements:
+
+- Username validation.
+- Maximum username length of 16 characters.
+- Guest session identifier.
+- Persistent guest identity across page refreshes.
+- No account registration.
+- No password.
+
+Use a secure server-issued session identifier. Do not trust client-provided player IDs as proof of identity.
+
+### C. Create Room
+
+When a user creates a room:
+
+- Generate a unique six-character alphanumeric room code.
+- Create a private room.
+- Assign the creator as host.
+- Assign the host a player color.
+- Generate a shareable invitation URL.
+- Navigate to the lobby.
+
+Room codes must be unique and case-insensitive.
+
+### D. Join Room
+
+Allow users to:
+
+- Enter a room code.
+- Join through an invitation URL.
+- See room availability.
+- Receive appropriate error messages.
+
+Validate:
+- Room exists.
+- Room is not full.
+- Match has not already started.
+- Player is not already occupying another seat.
+- Session is valid.
+
+Maximum players: exactly four.
+
+### E. Multiplayer Lobby
+
+Create a premium lobby interface with four player slots.
+
+Each player slot should show:
+
+- Username.
+- Assigned color.
+- Avatar or initials.
+- Connection status.
+- Host indicator.
+
+Display:
+
+- Room code.
+- Copy room code button.
+- Copy invitation link button.
+- Player count.
+- Start Game button.
+- Leave Room button.
+
+The Start Game button should only be available to the host and enabled when all four players are connected.
+
+The host must not be able to start a partially filled game.
+
+## 6. LUDO GAME ENGINE
+
+This is the highest-priority component.
+
+Implement a complete and independently testable Ludo game engine.
+
+### Board structure
+
+Implement a traditional four-player Ludo board with:
+
+- Four home bases.
+- Four tokens per player.
+- 52 shared outer-path cells.
+- Four player-specific home lanes.
+- Four starting positions.
+- Safe cells.
+- Central finishing area.
+
+Every token must have a well-defined position.
+
+Use a canonical path-coordinate system with player-relative offsets so all four players use the same movement logic.
+
+Do not create four unrelated movement implementations.
+
+### Dice mechanics
+
+- Six-sided dice.
+- Dice result generated exclusively by the backend.
+- Only the active player can roll.
+- Dice rolling animation on the frontend.
+- Dice result broadcast to all players.
+- A six allows a token to leave its base.
+- Rolling a six grants an extra turn.
+- Three consecutive sixes forfeit the turn, resetting the consecutive-six counter.
+- If the player has no legal moves, automatically pass the turn.
+- Enforce all dice and turn rules on the server.
+
+### Token movement
+
+Implement:
+
+- Selecting a legal token.
+- Moving according to dice value.
+- Entering the board after rolling six.
+- Capturing opposing tokens.
+- Returning captured tokens to their base.
+- Safe-cell protection.
+- Entering the home lane.
+- Requiring an exact roll to reach the final home position.
+- Preventing movement beyond the finishing position.
+
+Tokens must move smoothly between individual board cells.
+
+The server must calculate and validate every movement before broadcasting the resulting state.
+
+### Important rule details
+
+- Tokens cannot capture tokens on safe cells.
+- Multiple tokens can occupy a safe cell if permitted by the selected rule implementation.
+- A token cannot move if its movement violates the board path.
+- A player wins only after all four tokens have reached their final home positions.
+
+Document the rules in a dedicated game-rules module.
+
+## 7. REAL-TIME MULTIPLAYER
+
+Use Socket.IO.
+
+Create a server-authoritative architecture.
+
+The backend must maintain the actual game state.
+
+Suggested socket events:
+
+Client to server:
+- create_room
+- join_room
+- leave_room
+- player_ready
+- start_game
+- roll_dice
+- move_token
+- request_game_state
+- request_rematch
+
+Server to client:
+- room_created
+- room_joined
+- player_joined
+- player_left
+- lobby_updated
+- game_started
+- dice_rolled
+- token_moved
+- turn_changed
+- token_captured
+- player_disconnected
+- player_reconnected
+- game_finished
+- rematch_started
+- game_error
+
+All events must validate the session, room membership, game phase, and player permissions.
+
+Important:
+
+- Do not trust dice results sent by clients.
+- Do not trust token positions sent by clients.
+- Do not trust player turn information sent by clients.
+- Reject invalid or duplicate commands.
+- Prevent simultaneous actions from corrupting game state.
+- Use atomic game-state transitions.
+- Broadcast authoritative state updates to every player.
+
+Use server-generated dice randomness and secure session validation.
+
+## 8. DISCONNECTION AND RECONNECTION
+
+Implement robust reconnection handling.
+
+When a player disconnects:
+
+- Keep their player slot reserved.
+- Display disconnected status.
+- Start a configurable reconnection countdown.
+- Preserve their tokens and game progress.
+- Allow them to reconnect using their original guest session.
+
+When they reconnect:
+
+- Restore the current game state.
+- Restore their player identity.
+- Restore their assigned color.
+- Resume normal gameplay.
+
+Do not automatically remove a player just because their browser temporarily loses connection.
+
+If the host disconnects, transfer host privileges to another connected player according to a deterministic rule.
+
+Handle reconnection during both lobby and active gameplay.
+
+## 9. GAMEPLAY UI
+
+The game screen must include:
+
+- Central 3D Ludo board.
+- Four player information panels.
+- Player names and colors.
+- Active turn indicator.
+- Dice object.
+- Roll dice button.
+- Legal token selection indicators.
+- Connection status.
+- Game menu.
+- Sound toggle.
+- Exit confirmation.
+
+The board must remain the primary visual focus.
+
+Use responsive layouts for desktop, tablet, and mobile.
+
+On mobile:
+- Scale the board proportionally.
+- Keep all game controls accessible.
+- Avoid horizontal overflow.
+- Keep dice and turn information visible.
+- Support touch interaction.
+
+Use accessible buttons and clear visual feedback.
+
+## 10. 3D IMPLEMENTATION
+
+Use React Three Fiber and Three.js where appropriate.
+
+Create:
+
+- 3D board geometry.
+- Four colored home bases.
+- Raised or dimensional path cells.
+- Glossy pawn tokens.
+- Realistic six-sided dice.
+- Soft shadows.
+- Appropriate lighting.
+- Smooth camera positioning.
+
+Animations:
+
+- Dice rolling.
+- Dice settling.
+- Token movement.
+- Token capture.
+- Token entering home.
+- Winning celebration.
+
+The 3D animation must never control the actual game logic.
+
+The backend determines the result first. The frontend animates the confirmed result.
+
+Use animation completion states carefully so players cannot issue another move while an animation is still being presented.
+
+Optimize 3D assets and rendering for mobile devices.
+
+## 11. RESULTS AND REMATCH
+
+When a player wins:
+
+- End the game.
+- Display the winner.
+- Show final player standings.
+- Display a celebratory animation.
+- Provide a Play Again option.
+- Provide an Exit Room option.
+
+Rematch requirements:
+
+- Preserve the same room.
+- Preserve the existing players.
+- Preserve assigned colors.
+- Reset token positions.
+- Reset dice and turn counters.
+- Start a fresh match only when the host initiates it and the room is ready.
+
+## 12. OPTIONAL FEATURES
+
+If the core game is stable, implement:
+
+- Emoji reactions.
+- Basic room chat.
+- Dice sound effects.
+- Token movement sound effects.
+- Fullscreen gameplay.
+- Sound settings.
+- Rematch notifications.
+
+Do not let optional features delay the core multiplayer implementation.
+
+## 13. DATABASE AND DATA MODELS
+
+Create appropriate models for:
+
+PlayerSession:
+- id
+- sessionTokenHash
+- username
+- createdAt
+- lastSeenAt
+
+GameRoom:
+- id
+- roomCode
+- hostPlayerId
+- status
+- createdAt
+- updatedAt
+
+RoomPlayer:
+- id
+- roomId
+- playerSessionId
+- username
+- color
+- seatIndex
+- connectionStatus
+- isReady
+
+GameState:
+- id
+- roomId
+- currentPlayerIndex
+- diceValue
+- consecutiveSixCount
+- playerTokenPositions
+- gameStatus
+- winnerId
+- version
+- updatedAt
+
+Use appropriate relationships, indexes, and constraints.
+
+Never store plaintext guest session tokens in the database.
+
+Implement room expiry and cleanup for abandoned rooms.
+
+Use persistent snapshots or an equivalent recovery mechanism so active games are not permanently lost after a backend restart.
+
+## 14. SECURITY AND RELIABILITY
+
+Implement:
+
+- Input validation.
+- Username sanitization.
+- Secure guest sessions.
+- Rate limiting for room creation and joining.
+- Room access validation.
+- Socket event authorization.
+- Server-side dice generation.
+- Server-side game-rule validation.
+- Protection against duplicate event processing.
+- Protection against unauthorized room access.
+- Graceful error handling.
+- Proper cleanup of disconnected sockets.
+
+Do not expose internal session tokens or sensitive game-server information.
+
+## 15. TESTING
+
+Create automated tests.
+
+### Game engine tests
+
+Test:
+- Initial token positions.
+- Dice generation.
+- Moving a token out of base.
+- Normal movement.
+- Invalid movement.
+- Capturing an opponent.
+- Safe-cell protection.
+- Home-lane entry.
+- Exact finishing roll.
+- Six granting an extra turn.
+- Three consecutive sixes.
+- Automatic turn passing.
+- Winning conditions.
+
+### Multiplayer tests
+
+Test:
+- Room creation.
+- Room joining.
+- Full room rejection.
+- Duplicate player rejection.
+- Host permissions.
+- Invalid dice requests.
+- Invalid token movement.
+- Simultaneous action handling.
+- State synchronization.
+- Disconnection.
+- Reconnection.
+- Rematch.
+
+### Frontend tests
+
+Test:
+- Landing page.
+- Guest username entry.
+- Create room.
+- Join room.
+- Lobby updates.
+- Game controls.
+- Token selection.
+- Responsive layout.
+
+Do not claim a feature is implemented merely because its UI exists.
+
+## 16. PROJECT STRUCTURE
+
+Use a clean monorepo structure.
+
+Suggested:
+
+ludo/
+  apps/
+    web/
+      src/
+        components/
+        pages/
+        game/
+        three/
+        hooks/
+        services/
+        styles/
+    server/
+      src/
+        socket/
+        rooms/
+        game/
+        services/
+        middleware/
+        database/
+        utils/
+  packages/
+    game-engine/
+      src/
+        board/
+        rules/
+        movement/
+        state/
+        types/
+  package.json
+  README.md
+  .env.example
+
+Adjust this structure if a better maintainable architecture is necessary.
+
+Keep frontend, backend, and game engine responsibilities separate.
+
+## 17. DEPLOYMENT
+
+Prepare the application for public deployment.
+
+Frontend:
+- Vercel.
+
+Backend:
+- Render.
+
+Database:
+- Supabase PostgreSQL.
+
+Configure environment variables:
+
+Frontend:
+VITE_SERVER_URL=
+
+Backend:
+PORT=
+FRONTEND_URL=
+DATABASE_URL=
+SESSION_SECRET=
+NODE_ENV=
+
+Never commit actual secrets.
+
+Configure CORS, WebSocket connections, health checks, and production builds.
+
+Ensure the deployed frontend connects to the deployed backend, not localhost.
+
+Provide detailed setup and deployment instructions in README.md.
+
+## 18. DEVELOPMENT EXECUTION PLAN
+
+Build in the following phases.
+
+PHASE 1 — Foundation
+- Initialize monorepo.
+- Configure React and Node.js.
+- Create landing page.
+- Implement guest identity.
+
+PHASE 2 — Room system
+- Create rooms.
+- Generate room codes.
+- Join rooms.
+- Implement invitation URLs.
+- Build multiplayer lobby.
+
+PHASE 3 — Game engine
+- Build board coordinates.
+- Implement token positions.
+- Implement dice rules.
+- Implement movement.
+- Implement captures.
+- Implement winning conditions.
+- Write automated tests.
+
+PHASE 4 — Multiplayer
+- Integrate Socket.IO.
+- Synchronize game state.
+- Validate actions on server.
+- Implement turn management.
+- Implement reconnection.
+
+PHASE 5 — 3D GAMEPLAY
+- Create 3D board.
+- Create tokens and dice.
+- Add animations.
+- Integrate game engine with the rendering layer.
+
+PHASE 6 — Polish
+- Results screen.
+- Rematch.
+- Sound effects.
+- Responsive improvements.
+- Error handling.
+
+PHASE 7 — Production
+- Complete tests.
+- Fix all critical bugs.
+- Configure database.
+- Prepare deployment.
+- Write documentation.
+
+## 19. STRICT DEVELOPMENT RULES
+
+1. Do not create a frontend-only mockup.
+2. Do not use fake multiplayer.
+3. Do not simulate other players with bots.
+4. Do not hardcode dice results.
+5. Do not let clients control game state.
+6. Do not use local storage as a multiplayer synchronization mechanism.
+7. Do not leave buttons nonfunctional.
+8. Do not use placeholder content for actual gameplay.
+9. Do not sacrifice game logic for visual effects.
+10. Do not skip automated testing.
+11. Do not proceed with an architecture that cannot support four simultaneous players.
+12. Do not claim completion until the actual application has been tested.
+
+If a feature is not implemented, explicitly identify it rather than presenting it as completed.
+
+## 20. FINAL DELIVERABLE
+
+Deliver:
+
+- Fully functional multiplayer Ludo website.
+- Working private room system.
+- Guest player identity.
+- Four-player synchronized game.
+- Complete classic Ludo rules.
+- Premium 3D-style board.
+- Responsive desktop and mobile interface.
+- Reconnection support.
+- Results and rematch system.
+- Automated tests.
+- Database migrations.
+- Environment variable template.
+- README with local setup and deployment instructions.
+
+Start by inspecting the existing workspace. If it is empty, initialize the project. If code already exists, inspect it before modifying anything.
+
+Build the application incrementally, test each phase, and keep the application runnable throughout development.
+
+**FINAL OBJECTIVE: Four people on four different devices, accessing the same website from anywhere, joining one private room and successfully playing a complete synchronized Ludo match.**

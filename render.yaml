@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: ludo-backend
+    env: node
+    plan: free
+    buildCommand: corepack enable && pnpm --dir ludo install --frozen-lockfile && pnpm --dir ludo --filter @ludo/game-engine build && pnpm --dir ludo --filter @ludo/server build
+    startCommand: node ludo/apps/server/dist/index.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: 24.22.3
+      - key: PORT
+        value: 10000
+      - key: CLIENT_ORIGIN
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true

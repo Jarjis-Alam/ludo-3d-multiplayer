@@ -1,0 +1,114 @@
+NEXT MILESTONE: CRITICAL MULTIPLAYER SYNCHRONIZATION REPAIR.
+
+The release candidate failed its full four-client randomized match around authoritative game version 664, during a move by seat 1.
+
+Do not add new features, redesign the UI, or restart the project.
+
+Your only priority is identifying and fixing the multiplayer synchronization failure.
+
+PHASE 1 — REPRODUCE THE FAILURE
+
+1. Inspect the existing Socket.IO server and game-state management code.
+2. Inspect the complete multiplayer test driver.
+3. Reproduce the failure using four independent Socket.IO clients.
+4. Capture detailed logs around the failing action.
+5. Record:
+   - Room ID
+   - Player seat
+   - Action ID
+   - Previous authoritative version
+   - New authoritative version
+   - Event emission timestamps
+   - Client acknowledgement status
+   - Snapshot received by each client
+   - Any rejected or duplicate actions.
+
+Do not assume the cause.
+
+PHASE 2 — IDENTIFY THE ROOT CAUSE
+
+Investigate:
+- Concurrent game-state mutations.
+- Socket.IO event ordering.
+- Missed broadcasts.
+- Incorrect room membership.
+- Duplicate event processing.
+- Stale client snapshots.
+- Version-number inconsistencies.
+- Asynchronous database or persistence operations.
+- Race conditions between dice rolls and token movements.
+
+Identify the exact root cause before implementing a fix.
+
+PHASE 3 — HARDEN STATE SYNCHRONIZATION
+
+Implement an appropriate synchronization strategy.
+
+Requirements:
+
+- Monotonically increasing authoritative state versions.
+- Atomic state transitions.
+- Server-authoritative action validation.
+- Unique action IDs.
+- Duplicate-action suppression.
+- Reliable acknowledgement handling.
+- Snapshot resynchronization when a client detects a version gap.
+- Recovery from missed events.
+- Consistent state delivery to all four clients.
+
+Do not blindly broadcast stale snapshots.
+
+Ensure that a client can recover from a missed update without restarting the match.
+
+PHASE 4 — EXPAND TESTING
+
+Create deterministic tests for:
+- Four simultaneous clients.
+- Hundreds and thousands of consecutive actions.
+- Concurrent action attempts.
+- Duplicate actions.
+- Out-of-order client messages.
+- Disconnection during an action.
+- Reconnection during gameplay.
+- Missing snapshot recovery.
+- Version mismatches.
+- Complete match and rematch.
+
+Run at least 20 complete randomized match simulations with four clients.
+
+Use reproducible random seeds so failed matches can be replayed.
+
+PHASE 5 — PERSISTENCE AND SECURITY
+
+After synchronization is fixed:
+
+- Implement persistent guest sessions in PostgreSQL.
+- Use SESSION_SECRET appropriately.
+- Add rate limiting.
+- Add room-code abuse protection.
+- Implement duplicate-event suppression.
+- Verify backend recovery behavior.
+
+Do not claim PostgreSQL support is verified without an actual database connection.
+
+PHASE 6 — FINAL REPORT
+
+Report:
+
+1. Exact root cause of version 664 failure.
+2. Files changed.
+3. Fix implemented.
+4. Number of complete matches attempted.
+5. Number of complete matches passed.
+6. Number of failed matches.
+7. Whether all four clients maintained identical authoritative versions.
+8. Whether rematches completed.
+9. Remaining security and persistence issues.
+
+STRICT RULE:
+
+Do not declare the synchronization issue fixed merely because unit tests pass.
+
+The four-client complete-match test must pass repeatedly.
+
+Keep the project zero-budget and preserve the existing architecture.
