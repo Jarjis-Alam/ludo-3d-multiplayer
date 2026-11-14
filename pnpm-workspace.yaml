@@ -1,0 +1,3 @@
+packages:
+  - ludo/apps/*
+  - ludo/packages/*
