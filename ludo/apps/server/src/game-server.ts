@@ -4,6 +4,7 @@ import { initialState, startGame, roll, moveToken, type GameState, type Player, 
 import type { Persistence, PersistedRoom } from './persistence.js';
 
 const COLORS = ['red', 'green', 'yellow', 'blue'] as const;
+const MIN_PLAYERS = 2;
 const MAX_PLAYERS = 4;
 const SESSION_GRACE_MS = 60_000;
 const MAX_PROCESSED_ACTIONS = 2_000;
@@ -319,10 +320,17 @@ export class LudoService {
         if (room.state.status !== 'lobby') return this.sendError(ack, 'Game already started');
         if (room.players.size >= MAX_PLAYERS) return this.sendError(ack, 'Room is full');
 
-        const seat = room.players.size as PlayerIndex;
+        const takenSeats = new Set([...room.players.values()].map((p) => p.seat));
+        let seat: PlayerIndex = 0;
+        for (let s = 0; s < MAX_PLAYERS; s++) {
+          if (!takenSeats.has(s as PlayerIndex)) {
+            seat = s as PlayerIndex;
+            break;
+          }
+        }
         const player: RoomPlayer = { id: session.id, name, color: COLORS[seat], seat, connected: true, socketId: socket.id, lastSeenAt: Date.now() };
         room.players.set(session.id, player);
-        room.state = initialState([...room.players.values()]);
+        room.state = initialState([...room.players.values()], room.state.version);
         this.attach(socket, session, room);
         this.recordSnapshot(room);
         await this.save(room);
@@ -347,7 +355,7 @@ export class LudoService {
             await this.trackPersistence(this.persistence.deleteRoom(room.code));
           } else {
             if (room.host === session.id) room.host = [...room.players.keys()][0];
-            room.state = { ...room.state, players: [...room.players.values()] };
+            room.state = initialState([...room.players.values()], room.state.version);
             this.recordSnapshot(room);
             await this.save(room);
             this.emitRoom(io, room, 'lobby_updated');
@@ -369,13 +377,24 @@ export class LudoService {
 
         const result = await this.queueAction(room, actionId, async () => {
           if (room.host !== session.id) return { ok: false, error: 'Host only' };
-          if (room.players.size !== MAX_PLAYERS || [...room.players.values()].some((p) => !p.connected)) {
-            return { ok: false, error: 'Four connected players required' };
+          if (room.players.size < MIN_PLAYERS) {
+            return { ok: false, error: 'Need at least 2 players to start' };
+          }
+          if (room.players.size > MAX_PLAYERS) {
+            return { ok: false, error: 'Room is full' };
+          }
+          if ([...room.players.values()].some((p) => !p.connected)) {
+            return { ok: false, error: 'All players must be connected' };
           }
           if (room.state.status !== 'lobby') {
             return { ok: false, error: 'Game already started' };
           }
-          room.state = startGame({ ...room.state, players: [...room.players.values()] });
+          const currentVer = room.state.version;
+          room.state = startGame({
+            ...initialState([...room.players.values()], currentVer),
+            players: [...room.players.values()],
+            version: currentVer,
+          });
           await this.save(room);
           this.emitRoom(io, room, 'game_started');
           return { ok: true, version: room.state.version, state: this.snapshot(room) };
@@ -401,8 +420,11 @@ export class LudoService {
         const result = await this.queueAction(room, actionId, async () => {
           if (room.host !== session.id) return { ok: false, error: 'Host only' };
           if (room.state.status !== 'finished') return { ok: false, error: 'Match is not finished' };
-          if (room.players.size !== MAX_PLAYERS || [...room.players.values()].some((p) => !p.connected)) {
-            return { ok: false, error: 'Four connected players required' };
+          if (room.players.size < MIN_PLAYERS || room.players.size > MAX_PLAYERS) {
+            return { ok: false, error: 'Need at least 2 players to rematch' };
+          }
+          if ([...room.players.values()].some((p) => !p.connected)) {
+            return { ok: false, error: 'All players must be connected' };
           }
 
           // MONOTONIC VERSION PRESERVATION: Keep current room version so rematch continues sequence
@@ -575,7 +597,7 @@ export class LudoService {
           const currentPlayer = room.players.get(current.id);
           if (currentPlayer && !currentPlayer.connected) {
             room.players.delete(current.id);
-            room.state = { ...room.state, players: [...room.players.values()] };
+            room.state = initialState([...room.players.values()], room.state.version);
             await this.save(room);
             this.emitRoom(io, room, 'lobby_updated');
           }

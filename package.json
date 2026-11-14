@@ -15,7 +15,8 @@
     "test:server": "pnpm --dir ludo --filter @ludo/server test",
     "test:all": "pnpm --dir ludo -r --if-present test",
     "sim:20": "pnpm --dir ludo --filter @ludo/server exec tsx test/run-20-matches.mts",
-    "qa": "pnpm --dir ludo --filter @ludo/server exec tsx test/ludo-qa-match.mts"
+    "qa": "pnpm --dir ludo --filter @ludo/server exec tsx test/ludo-qa-match.mts",
+    "qa:players": "pnpm --dir ludo --filter @ludo/server exec tsx test/multiplayer-qa-2-3-4-players.mts"
   },
   "devDependencies": {
     "tsx": "^4.19.2",

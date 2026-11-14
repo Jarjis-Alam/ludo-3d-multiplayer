@@ -66,4 +66,88 @@ describe('four-player multiplayer', () => {
       process.env.NODE_ENV = oldEnv;
     }
   });
+
+  it('prevents starting with fewer than 2 players, then starts cleanly with 2 players', async () => {
+    const server = await createLudoServer();
+    await new Promise<void>((resolve) => server.httpServer.listen(0, resolve));
+    const url = `http://127.0.0.1:${(server.httpServer.address() as any).port}`;
+
+    const [host, guest] = await Promise.all([client(url), client(url)]);
+    const room = await new Promise<any>((resolve) => host.socket.emit('create_room', { name: 'Host' }, resolve));
+    expect(room.ok).toBe(true);
+
+    // Host tries to start alone with 1 player -> rejected
+    const aloneStart = await new Promise<any>((resolve) => host.socket.emit('start_game', room.roomCode, resolve));
+    expect(aloneStart).toEqual({ ok: false, error: 'Need at least 2 players to start' });
+
+    // Guest joins room -> 2 players present
+    const joinResult = await new Promise<any>((resolve) => guest.socket.emit('join_room', { roomCode: room.roomCode, name: 'Guest' }, resolve));
+    expect(joinResult.ok).toBe(true);
+    expect(joinResult.state.players).toHaveLength(2);
+
+    // Host starts match with 2 players -> succeeds
+    const guestStartedEvent = event(guest.socket, 'game_started');
+    const startResult = await new Promise<any>((resolve) => host.socket.emit('start_game', room.roomCode, resolve));
+    expect(startResult.ok).toBe(true);
+    expect(startResult.state.status).toBe('playing');
+    expect(startResult.state.currentPlayer).toBe(0);
+    const guestSnap = await guestStartedEvent;
+    expect(guestSnap.status).toBe('playing');
+    expect(guestSnap.tokens[0]).toHaveLength(4);
+    expect(guestSnap.tokens[1]).toHaveLength(4);
+    expect(guestSnap.tokens[2]).toHaveLength(0);
+    expect(guestSnap.tokens[3]).toHaveLength(0);
+
+    // Allow any buffered start_game events to flush before attaching listener for roll
+    await new Promise((resolve) => setTimeout(resolve, 30));
+
+    // Turn alternation in 2-player match:
+    // Host rolls non-6 with all in base -> passes turn directly to Guest (seat 1), skipping seats 2 and 3
+    const rollGuestEvent = event(guest.socket, 'room_state');
+    const rollHost = await new Promise<any>((resolve) => host.socket.emit('roll_dice', { roomCode: room.roomCode, deterministicDice: 4 }, resolve));
+    expect(rollHost.ok).toBe(true);
+    expect(rollHost.state.currentPlayer).toBe(1);
+    const guestStateAfterPass = await rollGuestEvent;
+    expect(guestStateAfterPass.currentPlayer).toBe(1);
+
+    // Guest rolls non-6 -> passes turn directly back to Host (seat 0)
+    const rollHostEvent = event(host.socket, 'room_state');
+    const rollGuest = await new Promise<any>((resolve) => guest.socket.emit('roll_dice', { roomCode: room.roomCode, deterministicDice: 2 }, resolve));
+    expect(rollGuest.ok).toBe(true);
+    expect(rollGuest.state.currentPlayer).toBe(0);
+    const hostStateAfterPass = await rollHostEvent;
+    expect(hostStateAfterPass.currentPlayer).toBe(0);
+
+    server.httpServer.close();
+  });
+
+  it('runs a 3-player match with turn rotation skipping the empty 4th seat', async () => {
+    const server = await createLudoServer();
+    await new Promise<void>((resolve) => server.httpServer.listen(0, resolve));
+    const url = `http://127.0.0.1:${(server.httpServer.address() as any).port}`;
+
+    const [p0, p1, p2] = await Promise.all([client(url), client(url), client(url)]);
+    const room = await new Promise<any>((resolve) => p0.socket.emit('create_room', { name: 'P0' }, resolve));
+    await new Promise<any>((resolve) => p1.socket.emit('join_room', { roomCode: room.roomCode, name: 'P1' }, resolve));
+    const join2 = await new Promise<any>((resolve) => p2.socket.emit('join_room', { roomCode: room.roomCode, name: 'P2' }, resolve));
+    expect(join2.state.players).toHaveLength(3);
+
+    const start = await new Promise<any>((resolve) => p0.socket.emit('start_game', room.roomCode, resolve));
+    expect(start.ok).toBe(true);
+    expect(start.state.currentPlayer).toBe(0);
+
+    // P0 rolls 3 -> auto-pass to P1 (seat 1)
+    const roll0 = await new Promise<any>((resolve) => p0.socket.emit('roll_dice', { roomCode: room.roomCode, deterministicDice: 3 }, resolve));
+    expect(roll0.state.currentPlayer).toBe(1);
+
+    // P1 rolls 2 -> auto-pass to P2 (seat 2)
+    const roll1 = await new Promise<any>((resolve) => p1.socket.emit('roll_dice', { roomCode: room.roomCode, deterministicDice: 2 }, resolve));
+    expect(roll1.state.currentPlayer).toBe(2);
+
+    // P2 rolls 5 -> auto-pass directly back to P0 (seat 0), skipping seat 3!
+    const roll2 = await new Promise<any>((resolve) => p2.socket.emit('roll_dice', { roomCode: room.roomCode, deterministicDice: 5 }, resolve));
+    expect(roll2.state.currentPlayer).toBe(0);
+
+    server.httpServer.close();
+  });
 });

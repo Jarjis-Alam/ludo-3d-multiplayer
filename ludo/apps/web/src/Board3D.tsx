@@ -24,6 +24,7 @@ const palette: Record<string, string> = {
   blue: '#4389e8',
 };
 
+const SEAT_COLORS = ['red', 'green', 'yellow', 'blue'] as const;
 const offsets = [0, 13, 26, 39];
 const safe = new Set([0, 8, 13, 21, 26, 34, 39, 47]);
 
@@ -213,8 +214,8 @@ export function Board3D({
         <boxGeometry args={[15.6, 0.5, 15.6]} />
         <meshStandardMaterial color="#3a342e" roughness={0.8} />
       </mesh>
-      {players.map((player, seat) => (
-        <Base key={player.color} seat={seat} color={player.color} />
+      {[0, 1, 2, 3].map((seat) => (
+        <Base key={SEAT_COLORS[seat]} seat={seat} color={SEAT_COLORS[seat]} />
       ))}
       {path.map((index) => {
         const [x, z] = pathCell(index);
@@ -224,20 +225,20 @@ export function Board3D({
           <mesh key={index} position={[x, 0.25, z]} receiveShadow>
             <boxGeometry args={[0.86, 0.18, 0.86]} />
             <meshStandardMaterial
-              color={isSafe ? '#fff7da' : owner >= 0 ? palette[players[owner]?.color || 'red'] : '#efe8dc'}
+              color={isSafe ? '#fff7da' : owner >= 0 ? palette[SEAT_COLORS[owner]] : '#efe8dc'}
               roughness={0.45}
             />
           </mesh>
         );
       })}
-      {players.map((player, seat) =>
+      {[0, 1, 2, 3].map((seat) =>
         Array.from({ length: 6 }, (_, lane) => {
           const [sx, sz] = pathCell(offsets[seat]);
           const t = (lane + 1) / 7;
           return (
-            <mesh key={`${player.color}-home-${lane}`} position={[sx * (1 - t), 0.27, sz * (1 - t)]}>
+            <mesh key={`${SEAT_COLORS[seat]}-home-${lane}`} position={[sx * (1 - t), 0.27, sz * (1 - t)]}>
               <boxGeometry args={[0.76, 0.14, 0.76]} />
-              <meshStandardMaterial color={palette[player.color]} roughness={0.45} />
+              <meshStandardMaterial color={palette[SEAT_COLORS[seat]]} roughness={0.45} />
             </mesh>
           );
         })
@@ -247,7 +248,7 @@ export function Board3D({
         <meshStandardMaterial color="#fff7da" />
       </mesh>
       {tokens.map((playerTokens, seat) =>
-        playerTokens.map((token, index) => (
+        (playerTokens || []).map((token, index) => (
           <Token
             key={`${seat}-${index}`}
             token={token}

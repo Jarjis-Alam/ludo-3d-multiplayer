@@ -164,7 +164,7 @@ function App() {
     snapshot && navigator.clipboard?.writeText(`${location.origin}/?room=${snapshot.roomCode}`);
 
   const localSeat = snapshot?.players.find((player) => player.id === sessionId)?.seat ?? -1;
-  const activePlayer = snapshot?.players[snapshot.currentPlayer];
+  const activePlayer = snapshot?.players.find((player) => player.seat === snapshot.currentPlayer);
   const legal = useMemo(
     () =>
       snapshot && snapshot.dice !== null && localSeat === snapshot.currentPlayer
@@ -219,18 +219,18 @@ function App() {
           <div className="brand">
             LUDO<span>•</span>
           </div>
-          <div className="badge">PRIVATE TABLE · 4 PLAYERS</div>
+          <div className="badge">PRIVATE TABLE · 2-4 PLAYERS</div>
         </header>
         <section className="hero">
           <div className="copy">
             <p className="eyebrow">YOUR TABLE, ANYWHERE</p>
             <h1>
-              Four friends.
+              Two to four friends.
               <br />
               <i>One perfect roll.</i>
             </h1>
             <p className="lede">
-              A private, server-authoritative Ludo table built for reliable play across four separate devices.
+              A private, server-authoritative Ludo table built for reliable play across two to four separate devices.
             </p>
             <input value={name} onChange={(e) => setName(e.target.value)} maxLength={16} placeholder="Enter your name" />
             <div className="actions">
@@ -271,7 +271,7 @@ function App() {
           <div className="brand">
             LUDO<span>•</span>
           </div>
-          <div className="badge">PRIVATE LOBBY · {connected ? 'CONNECTED' : 'RECONNECTING'}</div>
+          <div className="badge">PRIVATE LOBBY · {snapshot.players.length}/4 PLAYERS · {connected ? 'CONNECTED' : 'RECONNECTING'}</div>
         </header>
         <section className="lobby">
           <div className="lobby-head">
@@ -280,7 +280,7 @@ function App() {
               <h1>
                 Room <i>{snapshot.roomCode}</i>
               </h1>
-              <p className="lede">Share the code or invitation link. Start when all four connected seats are ready.</p>
+              <p className="lede">Share the code or invitation link. Start when 2 to 4 players have joined and are ready.</p>
             </div>
             <div className="room-actions">
               <button onClick={copyInvite}>Copy invitation link</button>
@@ -319,17 +319,24 @@ function App() {
             })}
           </div>
           <div className="lobby-footer">
-            <span>{snapshot.players.filter((p) => p.connected).length}/4 connected</span>
+            <span>
+              {snapshot.players.length}/4 Players · {snapshot.players.filter((p) => p.connected).length}/4 connected
+            </span>
             <div className="actions">
               <button
                 onClick={start}
                 disabled={
                   snapshot.host !== sessionId ||
-                  snapshot.players.length !== 4 ||
+                  snapshot.players.length < 2 ||
+                  snapshot.players.length > 4 ||
                   snapshot.players.some((p) => !p.connected)
                 }
               >
-                Start game
+                {snapshot.host === sessionId
+                  ? snapshot.players.length >= 2
+                    ? `Start game (${snapshot.players.length} Players)`
+                    : 'Start game (min 2 players)'
+                  : 'Waiting for host'}
               </button>
               <button className="secondary" onClick={leave}>
                 Leave room
@@ -353,7 +360,7 @@ function App() {
         <section className="results">
           <p className="eyebrow">VICTORY</p>
           <h1>
-            <i>{snapshot.players[snapshot.winner ?? 0]?.name}</i> wins
+            <i>{snapshot.players.find((p) => p.seat === snapshot.winner)?.name || 'Player'}</i> wins
           </h1>
           <p className="lede">All four tokens reached home. The table is ready for another match.</p>
           <div className="standings">
@@ -369,7 +376,14 @@ function App() {
             ))}
           </div>
           <div className="actions">
-            <button onClick={rematch} disabled={snapshot.host !== sessionId || snapshot.players.some((p) => !p.connected)}>
+            <button
+              onClick={rematch}
+              disabled={
+                snapshot.host !== sessionId ||
+                snapshot.players.length < 2 ||
+                snapshot.players.some((p) => !p.connected)
+              }
+            >
               Play rematch
             </button>
             <button className="secondary" onClick={leave}>

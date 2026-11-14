@@ -11,7 +11,8 @@
     "test:server": "pnpm --filter @ludo/server test",
     "test:all": "pnpm -r --if-present test",
     "build": "pnpm -r build",
-    "dev": "pnpm --parallel --filter @ludo/server --filter @ludo/web dev"
+    "dev": "pnpm --parallel --filter @ludo/server --filter @ludo/web dev",
+    "qa:players": "pnpm --filter @ludo/server exec tsx test/multiplayer-qa-2-3-4-players.mts"
   },
   "devDependencies": {
     "playwright": "^1.65.1",
