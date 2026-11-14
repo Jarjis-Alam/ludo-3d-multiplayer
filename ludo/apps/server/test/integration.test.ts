@@ -150,4 +150,60 @@ describe('four-player multiplayer', () => {
 
     server.httpServer.close();
   });
+
+  it('rejects start_game if any player in a 2-player room is disconnected, then starts on reconnect', async () => {
+    const server = await createLudoServer();
+    await new Promise<void>((resolve) => server.httpServer.listen(0, resolve));
+    const url = `http://127.0.0.1:${(server.httpServer.address() as any).port}`;
+
+    const [host, guest] = await Promise.all([client(url), client(url)]);
+    const room = await new Promise<any>((resolve) => host.socket.emit('create_room', { name: 'Host' }, resolve));
+    await new Promise<any>((resolve) => guest.socket.emit('join_room', { roomCode: room.roomCode, name: 'Guest' }, resolve));
+
+    // Guest disconnects
+    guest.socket.disconnect();
+    await new Promise((resolve) => setTimeout(resolve, 30));
+
+    // Host attempts to start with disconnected guest -> rejected
+    const startRejected = await new Promise<any>((resolve) =>
+      host.socket.emit('start_game', { roomCode: room.roomCode, actionId: 'start_dc_test' }, resolve)
+    );
+    expect(startRejected.ok).toBe(false);
+    expect(startRejected.error).toBe('All players must be connected');
+
+    // Guest reconnects using session token
+    const resumed = connect(url, { auth: { sessionToken: guest.token }, autoConnect: false });
+    clients.push(resumed);
+    const resumedSession = event(resumed, 'session');
+    resumed.connect();
+    await resumedSession;
+    await new Promise<any>((resolve) => resumed.emit('request_game_state', room.roomCode, resolve));
+
+    // Host starts again -> now succeeds cleanly
+    const startSucceeded = await new Promise<any>((resolve) =>
+      host.socket.emit('start_game', { roomCode: room.roomCode, actionId: 'start_recon_test' }, resolve)
+    );
+    expect(startSucceeded.ok).toBe(true);
+    expect(startSucceeded.state.status).toBe('playing');
+    expect(startSucceeded.state.players).toHaveLength(2);
+
+    server.httpServer.close();
+  });
+
+  it('reports minPlayers: 2 and supported capabilities on the /health diagnostic endpoint', async () => {
+    const server = await createLudoServer();
+    await new Promise<void>((resolve) => server.httpServer.listen(0, resolve));
+    const port = (server.httpServer.address() as any).port;
+
+    const res = await fetch(`http://127.0.0.1:${port}/health`);
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.ok).toBe(true);
+    expect(data.minPlayers).toBe(2);
+    expect(data.maxPlayers).toBe(4);
+    expect(data.version).toBe('0.2.0');
+    expect(data.supportedFeatures).toContain('2-4-players');
+
+    server.httpServer.close();
+  });
 });

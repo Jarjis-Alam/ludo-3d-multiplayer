@@ -47,6 +47,8 @@ function App() {
   const [message, setMessage] = useState('');
   const [connected, setConnected] = useState(false);
   const [rolling, setRolling] = useState(false);
+  const [starting, setStarting] = useState(false);
+  const [rematching, setRematching] = useState(false);
   const [lastDice, setLastDice] = useState<number | null>(null);
   const canJoin = name.trim().length > 0 && name.trim().length <= 16;
 
@@ -142,23 +144,53 @@ function App() {
       });
   };
 
-  const start = () =>
-    snapshot &&
-    socket.emit('start_game', { roomCode: snapshot.roomCode, actionId: `start_${Date.now()}` }, (result: any) => {
-      if (!result.ok) setMessage(result.error);
-      else if (result.state) setSnapshot(result.state);
-    });
+  const start = () => {
+    if (!snapshot || starting) return;
+    setStarting(true);
+    setMessage('Starting match…');
+    socket.emit(
+      'start_game',
+      { roomCode: snapshot.roomCode, actionId: `start_${Date.now()}` },
+      (result: any) => {
+        setStarting(false);
+        if (!result) {
+          setMessage('No response from server. Check backend connection.');
+          return;
+        }
+        if (!result.ok) {
+          setMessage(result.error || 'Server rejected match start');
+          if (result.state) setSnapshot(result.state);
+        } else {
+          setMessage('');
+          if (result.state) setSnapshot(result.state);
+        }
+      }
+    );
+  };
 
-  const rematch = () =>
-    snapshot &&
+  const rematch = () => {
+    if (!snapshot || rematching) return;
+    setRematching(true);
+    setMessage('Starting rematch…');
     socket.emit(
       'request_rematch',
       { roomCode: snapshot.roomCode, actionId: `rematch_${snapshot.version}_${Date.now()}` },
       (result: any) => {
-        if (!result.ok) setMessage(result.error);
-        else if (result.state) setSnapshot(result.state);
+        setRematching(false);
+        if (!result) {
+          setMessage('No response from server. Check backend connection.');
+          return;
+        }
+        if (!result.ok) {
+          setMessage(result.error || 'Server rejected rematch');
+          if (result.state) setSnapshot(result.state);
+        } else {
+          setMessage('');
+          if (result.state) setSnapshot(result.state);
+        }
       }
     );
+  };
 
   const copyInvite = () =>
     snapshot && navigator.clipboard?.writeText(`${location.origin}/?room=${snapshot.roomCode}`);
@@ -326,13 +358,16 @@ function App() {
               <button
                 onClick={start}
                 disabled={
+                  starting ||
                   snapshot.host !== sessionId ||
                   snapshot.players.length < 2 ||
                   snapshot.players.length > 4 ||
                   snapshot.players.some((p) => !p.connected)
                 }
               >
-                {snapshot.host === sessionId
+                {starting
+                  ? 'Starting match…'
+                  : snapshot.host === sessionId
                   ? snapshot.players.length >= 2
                     ? `Start game (${snapshot.players.length} Players)`
                     : 'Start game (min 2 players)'
@@ -379,12 +414,13 @@ function App() {
             <button
               onClick={rematch}
               disabled={
+                rematching ||
                 snapshot.host !== sessionId ||
                 snapshot.players.length < 2 ||
                 snapshot.players.some((p) => !p.connected)
               }
             >
-              Play rematch
+              {rematching ? 'Starting rematch…' : 'Play rematch'}
             </button>
             <button className="secondary" onClick={leave}>
               Return to lobby

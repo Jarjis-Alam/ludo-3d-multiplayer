@@ -40,6 +40,10 @@ export async function createLudoServer(persistence = createPersistence()): Promi
     res.json({
       ok: true,
       service: 'ludo-server',
+      version: '0.2.0',
+      minPlayers: 2,
+      maxPlayers: 4,
+      supportedFeatures: ['2-4-players', 'dynamic-seat-skipping', 'monotonic-versioning'],
       persistence: process.env.DATABASE_URL ? 'postgres' : 'memory-local',
     })
   );

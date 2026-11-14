@@ -117,7 +117,7 @@ Render hosts the persistent Node.js Express server running the authoritative Lud
 | **Branch** | `main` | Production branch |
 | **Root Directory** | *(leave empty)* | Uses repository root |
 | **Runtime** | `Node` | Standard Node runtime |
-| **Build Command** | `corepack enable && pnpm --dir ludo install --frozen-lockfile && pnpm --dir ludo --filter @ludo/game-engine build && pnpm --dir ludo --filter @ludo/server build` | Installs workspace deps and builds packages |
+| **Build Command** | `npm install -g pnpm@9.15.0 && pnpm --dir ludo install --frozen-lockfile && pnpm --dir ludo --filter @ludo/game-engine build && pnpm --dir ludo --filter @ludo/server build` | Installs workspace deps and builds packages |
 | **Start Command** | `node ludo/apps/server/dist/index.js` | Runs the compiled server entry point |
 | **Instance Type** | `Free` | Zero cost |
 
@@ -152,11 +152,11 @@ Under **Advanced**:
 - **Health Check Path**: `/health`
 - Render periodically checks this path. The server returns HTTP 200:
   ```json
-  {"ok":true,"service":"ludo-server","persistence":"postgres"}
+  {"ok":true,"service":"ludo-server","version":"0.2.0","minPlayers":2,"maxPlayers":4,"supportedFeatures":["2-4-players","dynamic-seat-skipping","monotonic-versioning"],"persistence":"postgres"}
   ```
 
 ### Step 6: Deploy & Verify
-1. Click **Create Web Service**.
+1. Click **Create Web Service** (or **Manual Deploy -> Deploy latest commit** if updating an existing service).
 2. Wait for the build and deployment logs to display:
    ```
    Ludo server listening on 10000
@@ -165,7 +165,7 @@ Under **Advanced**:
    ```bash
    curl -i https://ludo-backend.onrender.com/health
    ```
-   Confirm HTTP `200 OK` and `"persistence":"postgres"`.
+   Confirm HTTP `200 OK`, `"version":"0.2.0"`, `"minPlayers":2`, and `"persistence":"postgres"`. If `"minPlayers"` is missing, Render is running an outdated cached commit and must be redeployed with **Manual Deploy -> Deploy latest commit**.
 
 ---
 
