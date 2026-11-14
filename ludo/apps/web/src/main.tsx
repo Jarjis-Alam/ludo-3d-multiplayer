@@ -356,7 +356,7 @@ function App() {
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     maxLength={16}
-                    placeholder="Enter your name (e.g. Alex)"
+                    placeholder="Enter your name"
                     autoFocus
                   />
                 </div>
@@ -369,7 +369,7 @@ function App() {
                       value={roomInput}
                       onChange={(e) => setRoomInput(e.target.value.toUpperCase())}
                       maxLength={6}
-                      placeholder="e.g. NW84K2"
+                      placeholder="ROOM CODE"
                     />
                   </div>
                 )}
@@ -482,8 +482,8 @@ function App() {
                   ? 'Starting match…'
                   : snapshot.host === sessionId
                   ? snapshot.players.length >= 2
-                    ? `Start Match (${snapshot.players.length} Players)`
-                    : 'Start Match (min 2 players)'
+                    ? `Start game (${snapshot.players.length} Players)`
+                    : 'Start game (min 2 players)'
                   : 'Waiting for Host to start…'}
               </button>
               <button type="button" className="btn-secondary" onClick={leave}>
@@ -559,15 +559,17 @@ function App() {
         <div className="game-main-stage">
           {/* Main 2D Board Center Stage */}
           <div className="flex flex-col items-center gap-3">
-            <Board2D
-              players={snapshot.players}
-              tokens={snapshot.tokens}
-              currentPlayer={snapshot.currentPlayer}
-              localSeat={localSeat}
-              diceDisplay={rolling ? lastDice : snapshot.dice}
-              legal={legal}
-              onTokenClick={moveToken}
-            />
+            <div className="game-board">
+              <Board2D
+                players={snapshot.players}
+                tokens={snapshot.tokens}
+                currentPlayer={snapshot.currentPlayer}
+                localSeat={localSeat}
+                diceDisplay={rolling ? lastDice : snapshot.dice}
+                legal={legal}
+                onTokenClick={moveToken}
+              />
+            </div>
 
             {/* Accessible Mobile Bottom Sheet Token Picker */}
             {legal.length > 0 && isMyTurn && (
