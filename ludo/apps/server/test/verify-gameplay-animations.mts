@@ -133,6 +133,62 @@ server.listen(4175, async () => {
 
   await page.screenshot({ path: path.join(outDir, 'verified_desktop_match_no_buttons.png') });
 
+  // Test 4: Opponent Turn (Bob's turn, Bob rolled 4)
+  console.log('\n[TEST 4] Verifying Opponent Turn with rolled 4...');
+  const mockOpponentRolled4 = {
+    roomCode: 'TESTOPP',
+    host: 'p1',
+    invitationPath: '/?room=TESTOPP',
+    status: 'playing',
+    currentPlayer: 1, // Bob (Green)
+    dice: 4,
+    winner: null,
+    rankings: [],
+    version: 14,
+    turnExpiresAt: Date.now() + 12000,
+    players: [
+      { id: 'p1', name: 'Alice', color: 'red', seat: 0, connected: true },
+      { id: 'p2', name: 'Bob', color: 'green', seat: 1, connected: true },
+    ],
+    tokens: [
+      [{ kind: 'base' }, { kind: 'base' }, { kind: 'base' }, { kind: 'base' }],
+      [{ kind: 'path', progress: 0 }, { kind: 'base' }, { kind: 'base' }, { kind: 'base' }],
+      [],
+      [],
+    ],
+  };
+  await page.evaluate((s) => (window as any).__SET_MOCK_SNAPSHOT__(s), mockOpponentRolled4);
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: path.join(outDir, 'verified_desktop_opponent_rolled_four.png') });
+
+  // Test 5: Your Turn before rolling (dice: null)
+  console.log('\n[TEST 5] Verifying Your Turn before rolling (dice: null)...');
+  const mockMyTurnReadyToRoll = {
+    roomCode: 'TESTRDY',
+    host: 'p1',
+    invitationPath: '/?room=TESTRDY',
+    status: 'playing',
+    currentPlayer: 0, // Alice (Red)
+    dice: null,
+    winner: null,
+    rankings: [],
+    version: 15,
+    turnExpiresAt: Date.now() + 15000,
+    players: [
+      { id: 'p1', name: 'Alice', color: 'red', seat: 0, connected: true },
+      { id: 'p2', name: 'Bob', color: 'green', seat: 1, connected: true },
+    ],
+    tokens: [
+      [{ kind: 'base' }, { kind: 'base' }, { kind: 'base' }, { kind: 'base' }],
+      [{ kind: 'path', progress: 4 }, { kind: 'base' }, { kind: 'base' }, { kind: 'base' }],
+      [],
+      [],
+    ],
+  };
+  await page.evaluate((s) => (window as any).__SET_MOCK_SNAPSHOT__(s), mockMyTurnReadyToRoll);
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: path.join(outDir, 'verified_desktop_ready_to_roll.png') });
+
   console.log('\n======================================================');
   console.log('ALL GAMEPLAY & INTERACTION AUDITS VERIFIED 100%!');
   console.log('======================================================\n');

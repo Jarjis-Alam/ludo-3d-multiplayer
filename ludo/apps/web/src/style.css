@@ -1459,15 +1459,91 @@ body {
   justify-content: center;
 }
 
-.pip-dot {
+.pip-dot,
+.dice-pip-dot {
   width: 9px;
   height: 9px;
   border-radius: 50%;
   box-shadow: inset 0 1.5px 2px rgba(0, 0, 0, 0.7);
+  display: block;
 }
 
 .pip-dark { background-color: #1e1b18; }
 .pip-red { background-color: #dc2626; }
+
+.dice-svg-face {
+  display: block;
+  user-select: none;
+  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.45));
+}
+
+.dice-rolled-callout {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 5px 16px;
+  border-radius: 9999px;
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(30, 41, 59, 0.9) 100%);
+  border: 1.5px solid var(--accent-gold);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  margin-top: 6px;
+  margin-bottom: 2px;
+}
+
+.dice-rolled-number {
+  font-family: var(--font-heading);
+  font-size: 1.15rem;
+  font-weight: 900;
+  color: #fde68a;
+  text-shadow: 0 0 10px rgba(245, 158, 11, 0.7);
+}
+
+.dice-rolled-desc {
+  font-family: var(--font-heading);
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  color: #fef08a;
+}
+
+.dice-corner-badge {
+  position: absolute;
+  bottom: -4px;
+  right: -4px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  border: 1.8px solid var(--accent-gold);
+  color: #fde68a;
+  font-family: var(--font-heading);
+  font-size: 11px;
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  z-index: 20;
+  user-select: none;
+  pointer-events: none;
+}
+
+.dice-corner-badge.mini {
+  width: 17px;
+  height: 17px;
+  font-size: 9px;
+  bottom: -3px;
+  right: -3px;
+  border-width: 1.2px;
+}
+
+.dice-corner-badge.badge-six {
+  background: linear-gradient(135deg, #7f1d1d 0%, #dc2626 100%);
+  border-color: #fca5a5;
+  color: #ffffff;
+  box-shadow: 0 0 10px rgba(220, 38, 38, 0.7);
+}
 
 .roll-action-pill {
   padding: 8px 20px;

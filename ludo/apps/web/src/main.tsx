@@ -108,7 +108,7 @@ const PlayerTelemetryCard: React.FC<PlayerTelemetryCardProps> = ({
 
         {isActiveTurn && (
           <div className="hud-turn-badge animate-pulse">
-            <span>{dice === null ? '🎲 ROLL' : '♟ MOVE'}</span>
+            <span>{dice === null ? '🎲 ROLL' : `🎲 ${dice} · MOVE`}</span>
             <span className="ml-1 opacity-80">{turnTimeLeft}s</span>
           </div>
         )}
@@ -401,6 +401,15 @@ function App() {
       return () => clearInterval(interval);
     }
   }, [snapshot?.status, snapshot?.turnExpiresAt, snapshot?.currentPlayer, snapshot?.version]);
+
+  // Synchronize lastDice with snapshot whenever a dice roll occurs or is reported in state/notice
+  useEffect(() => {
+    if (snapshot?.dice !== null && snapshot?.dice !== undefined) {
+      setLastDice(snapshot.dice);
+    } else if (snapshot?.lastNotice && typeof (snapshot.lastNotice as any).dice === 'number') {
+      setLastDice((snapshot.lastNotice as any).dice);
+    }
+  }, [snapshot?.dice, snapshot?.lastNotice]);
 
   useEffect(() => {
     const onSession = (data: { sessionToken: string; playerId: string }) => {
@@ -1058,6 +1067,8 @@ function App() {
     </div>
   );
 
+  const displayDiceValue = rolling ? lastDice : (snapshot.dice ?? lastDice);
+
   return (
     <main className="game-screen-main">
       {renderHeader(`ROOM #${snapshot.roomCode} · 2D ROYAL ARENA`, roomActions)}
@@ -1146,7 +1157,7 @@ function App() {
                 tokens={snapshot.tokens}
                 currentPlayer={snapshot.currentPlayer}
                 localSeat={localSeat}
-                diceDisplay={rolling ? lastDice : snapshot.dice}
+                diceDisplay={displayDiceValue}
                 legal={legal}
                 isMoving={isMoving}
                 onTokenClick={moveToken}
@@ -1157,7 +1168,7 @@ function App() {
             <MobileBottomDock
               isMyTurn={isMyTurn}
               dice={snapshot.dice}
-              displayDice={rolling ? lastDice : snapshot.dice}
+              displayDice={displayDiceValue}
               rolling={rolling}
               turnTimeLeft={turnTimeLeft}
               legal={legal}
@@ -1177,7 +1188,8 @@ function App() {
             <div className="dice-tray-card">
               <span className="hero-eyebrow text-center mb-1">ROYAL DICE TRAY</span>
               <DiceRoller
-                value={rolling ? lastDice : snapshot.dice}
+                value={displayDiceValue}
+                activeDice={snapshot.dice}
                 rolling={rolling}
                 canRoll={isMyTurn && snapshot.dice === null}
                 isMyTurn={isMyTurn}
