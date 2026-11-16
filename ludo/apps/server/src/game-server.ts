@@ -341,10 +341,12 @@ export class LudoService {
       const timedOutPlayer = [...room.players.values()].find((p) => p.seat === timedOutSeat);
       const timedOutPlayerName = timedOutPlayer?.name || `Player ${timedOutSeat + 1}`;
 
-      // Next candidate seats: prioritize connected active players, skip vacant seats
-      const connectedSeats = [...room.players.values()].filter((p) => p.connected).map((p) => p.seat);
-      const allOccupiedSeats = [...room.players.values()].map((p) => p.seat);
-      const targetSeats = connectedSeats.length > 0 ? connectedSeats : allOccupiedSeats;
+      // Next candidate seats: prioritize connected active players, skip vacant seats and finished players
+      const finishedSet = new Set(room.state.rankings || []);
+      const connectedSeats = [...room.players.values()].filter((p) => p.connected && !finishedSet.has(p.seat)).map((p) => p.seat);
+      const allOccupiedSeats = [...room.players.values()].filter((p) => !finishedSet.has(p.seat)).map((p) => p.seat);
+      const fallbackSeats = [...room.players.values()].map((p) => p.seat);
+      const targetSeats = connectedSeats.length > 0 ? connectedSeats : (allOccupiedSeats.length > 0 ? allOccupiedSeats : fallbackSeats);
 
       const previousDice = room.state.dice;
       const now = Date.now();
@@ -611,10 +613,17 @@ export class LudoService {
             : randomInt(1, 7);
 
           try {
+            const moves = legalTokens(room.state, player.seat, value);
             room.state = roll(room.state, player.seat, value);
             this.resetTurnTimer(room);
             await this.save(room);
-            this.emitRoom(io, room);
+            this.emitRoom(io, room, 'dice_rolled', {
+              seat: player.seat,
+              playerName: player.name,
+              value,
+              hasLegalMoves: moves.length > 0,
+              isExtraTurn: value === 6,
+            });
             return { ok: true, value, version: room.state.version, state: this.snapshot(room) };
           } catch (error) {
             return isObj
@@ -662,10 +671,19 @@ export class LudoService {
           }
 
           try {
-            room.state = moveToken(room.state, player.seat, token, room.state.dice).state;
+            const moveResult = moveToken(room.state, player.seat, token, room.state.dice);
+            room.state = moveResult.state;
             this.resetTurnTimer(room);
             await this.save(room);
-            this.emitRoom(io, room);
+            this.emitRoom(io, room, 'token_moved', {
+              seat: player.seat,
+              playerName: player.name,
+              token,
+              captured: moveResult.captured,
+              winner: moveResult.winner,
+              finished: moveResult.finished,
+              rank: moveResult.rank,
+            });
             return { ok: true, version: room.state.version, state: this.snapshot(room) };
           } catch (error) {
             return isObj

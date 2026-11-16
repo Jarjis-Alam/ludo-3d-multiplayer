@@ -1216,6 +1216,93 @@ body {
 }
 
 /* ==========================================================================
+   Smooth Waypoint Pawn Movement & Capture Animation Layer
+   ========================================================================== */
+.board-anim-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 60;
+  overflow: hidden;
+}
+
+.animating-pawn-wrapper {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  will-change: left, top, transform;
+  pointer-events: none;
+  z-index: 70;
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.45));
+}
+
+.hop-arc {
+  animation: pawn-hop-bounce 115ms ease-out;
+}
+
+@keyframes pawn-hop-bounce {
+  0% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    transform: translate(-50%, -85%) scale(1.18);
+    filter: drop-shadow(0 10px 14px rgba(0, 0, 0, 0.55));
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+.captured-return-arc {
+  animation: captured-shrink-spin 90ms linear infinite;
+  filter: drop-shadow(0 0 10px rgba(239, 68, 68, 0.8));
+}
+
+@keyframes captured-shrink-spin {
+  0% {
+    transform: translate(-50%, -50%) rotate(0deg) scale(0.95);
+  }
+  50% {
+    transform: translate(-50%, -50%) rotate(180deg) scale(0.85);
+  }
+  100% {
+    transform: translate(-50%, -50%) rotate(360deg) scale(0.95);
+  }
+}
+
+.capture-shockwave-ring {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 3px solid #ef4444;
+  box-shadow: 0 0 16px #ef4444, inset 0 0 10px #f59e0b;
+  animation: shockwave-expand 0.4s ease-out forwards;
+  pointer-events: none;
+  z-index: 65;
+}
+
+@keyframes shockwave-expand {
+  0% {
+    transform: translate(-50%, -50%) scale(0.2);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(2.2);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hop-arc,
+  .captured-return-arc,
+  .capture-shockwave-ring {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* ==========================================================================
    Tactile Royal Dice Tray & Roller
    ========================================================================== */
 .dice-tray-card {
@@ -1862,41 +1949,71 @@ body {
   animation: urgentPulse 0.9s infinite alternate;
 }
 
-.mobile-pawn-select-row {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-  gap: 8px;
-  width: 100%;
-}
-
-.mobile-pawn-quick-btn {
-  min-height: 48px;
-  padding: 8px 12px;
-  background: linear-gradient(180deg, #1b3c75 0%, #0d1e3e 100%);
-  border: 1.5px solid var(--accent-gold);
-  border-radius: 10px;
-  color: #fff;
-  font-family: var(--font-heading);
-  font-size: 0.85rem;
-  font-weight: 700;
-  cursor: pointer;
+.mobile-roll-result-row {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-  transition: all 0.15s ease;
-  touch-action: manipulation;
+  gap: 12px;
+  width: 100%;
+  padding: 6px 12px;
+  background: linear-gradient(135deg, rgba(30, 58, 110, 0.7) 0%, rgba(12, 28, 56, 0.85) 100%);
+  border: 1.5px solid var(--accent-gold);
+  border-radius: 14px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
-.mobile-pawn-quick-btn:active {
-  transform: scale(0.96);
-  background: rgba(212, 175, 55, 0.3);
+.mobile-dock-dice-btn.dice-result-six {
+  border-color: #ef4444;
+  box-shadow: 0 0 18px rgba(239, 68, 68, 0.7);
+  animation: sixGlowPulse 1.2s infinite alternate;
 }
 
-.pawn-btn-icon {
-  font-size: 1.15rem;
-  color: var(--accent-gold-bright);
+.mobile-dock-dice-btn.dice-result-active {
+  border-color: var(--accent-gold-bright);
+  box-shadow: 0 0 14px rgba(245, 158, 11, 0.6);
+}
+
+.mobile-result-details {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.mobile-result-title {
+  font-family: var(--font-heading);
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #fef3c7;
+  letter-spacing: 0.03em;
+}
+
+.mobile-result-subtitle {
+  font-size: 0.8rem;
+  color: #cbd5e1;
+  font-weight: 600;
+}
+
+.mobile-result-timer {
+  flex-shrink: 0;
+}
+
+.mobile-result-timer .timer-badge {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: #fef08a;
+  background: rgba(0, 0, 0, 0.4);
+  padding: 4px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(212, 175, 55, 0.5);
+}
+
+.mobile-result-timer .timer-badge.urgent {
+  color: #fca5a5;
+  border-color: #ef4444;
+  background: rgba(185, 28, 28, 0.4);
+  animation: urgentPulse 0.9s infinite alternate;
 }
 
 .mobile-waiting-row {

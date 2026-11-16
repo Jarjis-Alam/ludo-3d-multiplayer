@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AudioEngine } from './AudioEngine';
 import { PawnToken, PawnDefs } from './PawnToken';
 
@@ -12,11 +12,253 @@ export interface Board2DProps {
   localSeat: number;
   diceDisplay: number | null;
   legal: number[];
+  isMoving?: boolean;
   onTokenClick: (tokenIdx: number) => void;
 }
 
 const SEAT_COLORS = ['red', 'green', 'yellow', 'blue'] as const;
 const START_OFFSETS = [0, 13, 26, 39];
+const SAFE_CELLS = new Set([0, 8, 13, 21, 26, 34, 39, 47]);
+
+export const cellToPercent = (col: number, row: number) => ({
+  x: ((col + 0.5) / 15) * 100,
+  y: ((row + 0.5) / 15) * 100,
+});
+
+export const TRACK_COORDS: Array<{ col: number; row: number }> = [
+  /* 0..4 (Row 6, Cols 1..5 - Red out of base) */
+  { col: 1, row: 6 },
+  { col: 2, row: 6 },
+  { col: 3, row: 6 },
+  { col: 4, row: 6 },
+  { col: 5, row: 6 },
+  /* 5..10 (Col 6, Rows 5..0 - Going UP top arm) */
+  { col: 6, row: 5 },
+  { col: 6, row: 4 },
+  { col: 6, row: 3 },
+  { col: 6, row: 2 },
+  { col: 6, row: 1 },
+  { col: 6, row: 0 },
+  /* 11 (Top bridge) */
+  { col: 7, row: 0 },
+  /* 12..17 (Col 8, Rows 0..5 - Going DOWN top arm, Green start is 13 at row 1) */
+  { col: 8, row: 0 },
+  { col: 8, row: 1 },
+  { col: 8, row: 2 },
+  { col: 8, row: 3 },
+  { col: 8, row: 4 },
+  { col: 8, row: 5 },
+  /* 18..23 (Row 6, Cols 9..14 - Going RIGHT into right arm) */
+  { col: 9, row: 6 },
+  { col: 10, row: 6 },
+  { col: 11, row: 6 },
+  { col: 12, row: 6 },
+  { col: 13, row: 6 },
+  { col: 14, row: 6 },
+  /* 24 (Right bridge) */
+  { col: 14, row: 7 },
+  /* 25..30 (Row 8, Cols 14..9 - Going LEFT out of right arm, Yellow start is 26 at col 13) */
+  { col: 14, row: 8 },
+  { col: 13, row: 8 },
+  { col: 12, row: 8 },
+  { col: 11, row: 8 },
+  { col: 10, row: 8 },
+  { col: 9, row: 8 },
+  /* 31..36 (Col 8, Rows 9..14 - Going DOWN bottom arm) */
+  { col: 8, row: 9 },
+  { col: 8, row: 10 },
+  { col: 8, row: 11 },
+  { col: 8, row: 12 },
+  { col: 8, row: 13 },
+  { col: 8, row: 14 },
+  /* 37 (Bottom bridge) */
+  { col: 7, row: 14 },
+  /* 38..43 (Col 6, Rows 14..9 - Going UP bottom arm, Blue start is 39 at row 13) */
+  { col: 6, row: 14 },
+  { col: 6, row: 13 },
+  { col: 6, row: 12 },
+  { col: 6, row: 11 },
+  { col: 6, row: 10 },
+  { col: 6, row: 9 },
+  /* 44..49 (Row 8, Cols 5..0 - Going LEFT into left arm) */
+  { col: 5, row: 8 },
+  { col: 4, row: 8 },
+  { col: 3, row: 8 },
+  { col: 2, row: 8 },
+  { col: 1, row: 8 },
+  { col: 0, row: 8 },
+  /* 50 (Left bridge) */
+  { col: 0, row: 7 },
+  /* 51 (Row 6, Col 0 - Turn into Red start) */
+  { col: 0, row: 6 },
+];
+
+export const HOME_LANE_COORDS: Record<number, Array<{ col: number; row: number }>> = {
+  // Red (seat 0): Row 7, Cols 1..5
+  0: [
+    { col: 1, row: 7 },
+    { col: 2, row: 7 },
+    { col: 3, row: 7 },
+    { col: 4, row: 7 },
+    { col: 5, row: 7 },
+  ],
+  // Green (seat 1): Col 7, Rows 1..5
+  1: [
+    { col: 7, row: 1 },
+    { col: 7, row: 2 },
+    { col: 7, row: 3 },
+    { col: 7, row: 4 },
+    { col: 7, row: 5 },
+  ],
+  // Yellow (seat 2): Row 7, Cols 13..9
+  2: [
+    { col: 13, row: 7 },
+    { col: 12, row: 7 },
+    { col: 11, row: 7 },
+    { col: 10, row: 7 },
+    { col: 9, row: 7 },
+  ],
+  // Blue (seat 3): Col 7, Rows 13..9
+  3: [
+    { col: 7, row: 13 },
+    { col: 7, row: 12 },
+    { col: 7, row: 11 },
+    { col: 7, row: 10 },
+    { col: 7, row: 9 },
+  ],
+};
+
+export const GOAL_COORDS: Record<number, { col: number; row: number }> = {
+  0: { col: 6.5, row: 7 },
+  1: { col: 7, row: 6.5 },
+  2: { col: 7.5, row: 7 },
+  3: { col: 7, row: 7.5 },
+};
+
+export const BASE_SOCKET_PERCENTS: Record<number, Array<{ x: number; y: number }>> = {
+  0: [
+    { x: 15.5, y: 15.5 },
+    { x: 28.5, y: 15.5 },
+    { x: 15.5, y: 28.5 },
+    { x: 28.5, y: 28.5 },
+  ],
+  1: [
+    { x: 71.5, y: 15.5 },
+    { x: 84.5, y: 15.5 },
+    { x: 71.5, y: 28.5 },
+    { x: 84.5, y: 28.5 },
+  ],
+  2: [
+    { x: 71.5, y: 71.5 },
+    { x: 84.5, y: 71.5 },
+    { x: 71.5, y: 84.5 },
+    { x: 84.5, y: 84.5 },
+  ],
+  3: [
+    { x: 15.5, y: 71.5 },
+    { x: 28.5, y: 71.5 },
+    { x: 15.5, y: 84.5 },
+    { x: 28.5, y: 84.5 },
+  ],
+};
+
+function getCoordForPos(
+  pos: BoardToken,
+  seat: number,
+  tokenIdx: number
+): { x: number; y: number } {
+  if (pos.kind === 'base') {
+    return BASE_SOCKET_PERCENTS[seat]?.[tokenIdx] || { x: 20, y: 20 };
+  }
+  if (pos.kind === 'home') {
+    if (pos.progress >= 6) {
+      return cellToPercent(GOAL_COORDS[seat].col, GOAL_COORDS[seat].row);
+    }
+    const step = Math.min(4, Math.max(0, pos.progress - 1));
+    const c = HOME_LANE_COORDS[seat][step];
+    return cellToPercent(c.col, c.row);
+  }
+  // Path
+  const absCell = (START_OFFSETS[seat] + pos.progress) % 52;
+  const c = TRACK_COORDS[absCell];
+  return cellToPercent(c.col, c.row);
+}
+
+function computeWaypoints(
+  oldPos: BoardToken,
+  newPos: BoardToken,
+  seat: number,
+  tokenIdx: number
+): Array<{ x: number; y: number }> {
+  const waypoints: Array<{ x: number; y: number }> = [];
+
+  if (oldPos.kind === 'base' && newPos.kind === 'path') {
+    // Deploying from base socket to starting track cell
+    waypoints.push(getCoordForPos(oldPos, seat, tokenIdx));
+    waypoints.push(getCoordForPos(newPos, seat, tokenIdx));
+    return waypoints;
+  }
+
+  if (oldPos.kind === 'path') {
+    const startProgress = oldPos.progress;
+    const endProgress = newPos.kind === 'path' ? newPos.progress : 50 + newPos.progress;
+
+    waypoints.push(getCoordForPos(oldPos, seat, tokenIdx));
+    for (let p = startProgress + 1; p <= endProgress; p++) {
+      if (p <= 50) {
+        const absCell = (START_OFFSETS[seat] + p) % 52;
+        const c = TRACK_COORDS[absCell];
+        waypoints.push(cellToPercent(c.col, c.row));
+      } else {
+        const homeProg = p - 50;
+        if (homeProg >= 6) {
+          waypoints.push(cellToPercent(GOAL_COORDS[seat].col, GOAL_COORDS[seat].row));
+        } else {
+          const step = Math.min(4, Math.max(0, homeProg - 1));
+          const c = HOME_LANE_COORDS[seat][step];
+          waypoints.push(cellToPercent(c.col, c.row));
+        }
+      }
+    }
+    return waypoints;
+  }
+
+  if (oldPos.kind === 'home') {
+    const startProg = oldPos.progress;
+    const endProg = newPos.progress;
+    waypoints.push(getCoordForPos(oldPos, seat, tokenIdx));
+    for (let p = startProg + 1; p <= endProg; p++) {
+      if (p >= 6) {
+        waypoints.push(cellToPercent(GOAL_COORDS[seat].col, GOAL_COORDS[seat].row));
+      } else {
+        const step = Math.min(4, Math.max(0, p - 1));
+        const c = HOME_LANE_COORDS[seat][step];
+        waypoints.push(cellToPercent(c.col, c.row));
+      }
+    }
+    return waypoints;
+  }
+
+  return [getCoordForPos(newPos, seat, tokenIdx)];
+}
+
+function computeCaptureReturnWaypoints(
+  oppOldPos: BoardToken,
+  oppSeat: number,
+  oppTokenIdx: number
+): Array<{ x: number; y: number }> {
+  const waypoints: Array<{ x: number; y: number }> = [];
+  if (oppOldPos.kind === 'path') {
+    for (let p = oppOldPos.progress; p >= 0; p--) {
+      const absCell = (START_OFFSETS[oppSeat] + p) % 52;
+      const c = TRACK_COORDS[absCell];
+      waypoints.push(cellToPercent(c.col, c.row));
+    }
+  }
+  // Finish inside base socket
+  waypoints.push(BASE_SOCKET_PERCENTS[oppSeat]?.[oppTokenIdx] || { x: 20, y: 20 });
+  return waypoints;
+}
 
 export const StarMedal: React.FC<{ size?: number }> = ({ size = 26 }) => (
   <svg
@@ -77,9 +319,170 @@ export const Board2D: React.FC<Board2DProps> = ({
   currentPlayer,
   localSeat,
   legal,
+  isMoving = false,
   onTokenClick,
 }) => {
   const activeSeats = useMemo(() => new Set(players.map((p) => p.seat)), [players]);
+
+  // Animation states
+  const [animatingPawn, setAnimatingPawn] = useState<{
+    seat: number;
+    tokenIdx: number;
+    x: number;
+    y: number;
+    hopIndex: number;
+  } | null>(null);
+
+  const [capturedPawnAnim, setCapturedPawnAnim] = useState<{
+    seat: number;
+    tokenIdx: number;
+    x: number;
+    y: number;
+  } | null>(null);
+
+  const [captureEffect, setCaptureEffect] = useState<{ x: number; y: number } | null>(null);
+  const [isAnimating, setIsAnimating] = useState<boolean>(false);
+
+  const prevTokensRef = useRef<BoardToken[][] | null>(null);
+  const animTimeoutsRef = useRef<NodeJS.Timeout[]>([]);
+
+  // Clear pending animation timers on unmount
+  useEffect(() => {
+    return () => {
+      animTimeoutsRef.current.forEach(clearTimeout);
+    };
+  }, []);
+
+  // Detect state transitions and trigger cell-by-cell pawn movement & capture return
+  useEffect(() => {
+    const prevTokens = prevTokensRef.current;
+    prevTokensRef.current = tokens;
+
+    if (!prevTokens || prevTokens.length === 0) return;
+
+    // Check prefers-reduced-motion
+    const prefersReducedMotion =
+      typeof window !== 'undefined' &&
+      window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+
+    if (prefersReducedMotion) return;
+
+    // Find which player's token moved
+    let movedSeat: number | null = null;
+    let movedTokenIdx: number | null = null;
+    let oldPos: BoardToken | null = null;
+    let newPos: BoardToken | null = null;
+
+    // Check for captured token (went from path -> base)
+    let capturedSeat: number | null = null;
+    let capturedTokenIdx: number | null = null;
+    let capturedOldPos: BoardToken | null = null;
+
+    for (let s = 0; s < tokens.length; s++) {
+      const sTokens = tokens[s] || [];
+      const prevSTokens = prevTokens[s] || [];
+      for (let t = 0; t < sTokens.length; t++) {
+        const cur = sTokens[t];
+        const prev = prevSTokens[t];
+        if (!cur || !prev) continue;
+
+        if (cur.kind !== prev.kind || cur.progress !== prev.progress) {
+          // If went from path to base, this is a captured token!
+          if (prev.kind === 'path' && cur.kind === 'base') {
+            capturedSeat = s;
+            capturedTokenIdx = t;
+            capturedOldPos = prev;
+          } else {
+            movedSeat = s;
+            movedTokenIdx = t;
+            oldPos = prev;
+            newPos = cur;
+          }
+        }
+      }
+    }
+
+    if (movedSeat !== null && movedTokenIdx !== null && oldPos && newPos) {
+      const waypoints = computeWaypoints(oldPos, newPos, movedSeat, movedTokenIdx);
+      if (waypoints.length <= 1) return;
+
+      // Clear any running animation timers
+      animTimeoutsRef.current.forEach(clearTimeout);
+      animTimeoutsRef.current = [];
+
+      setIsAnimating(true);
+      const stepDuration = 110; // ~110ms per cell hop
+
+      waypoints.forEach((wp, idx) => {
+        const t = setTimeout(() => {
+          setAnimatingPawn({
+            seat: movedSeat!,
+            tokenIdx: movedTokenIdx!,
+            x: wp.x,
+            y: wp.y,
+            hopIndex: idx,
+          });
+          AudioEngine.playHop();
+
+          // Last hop of moving token
+          if (idx === waypoints.length - 1) {
+            // Check capture
+            if (capturedSeat !== null && capturedTokenIdx !== null && capturedOldPos) {
+              AudioEngine.playStrike();
+              setCaptureEffect({ x: wp.x, y: wp.y });
+
+              const returnWaypoints = computeCaptureReturnWaypoints(
+                capturedOldPos,
+                capturedSeat,
+                capturedTokenIdx
+              );
+
+              // Animate captured pawn returning backwards along track
+              const returnStepMs = 50;
+              returnWaypoints.forEach((rwp, rIdx) => {
+                const rt = setTimeout(() => {
+                  setCapturedPawnAnim({
+                    seat: capturedSeat!,
+                    tokenIdx: capturedTokenIdx!,
+                    x: rwp.x,
+                    y: rwp.y,
+                  });
+
+                  if (rIdx === returnWaypoints.length - 1) {
+                    AudioEngine.playExit();
+                    setTimeout(() => {
+                      setAnimatingPawn(null);
+                      setCapturedPawnAnim(null);
+                      setCaptureEffect(null);
+                      setIsAnimating(false);
+                    }, 120);
+                  }
+                }, rIdx * returnStepMs);
+                animTimeoutsRef.current.push(rt);
+              });
+            } else {
+              // Non-capture landing: play landing sound on safe cell
+              const landedAbsCell =
+                newPos!.kind === 'path'
+                  ? (START_OFFSETS[movedSeat!] + newPos!.progress) % 52
+                  : null;
+              if (landedAbsCell !== null && SAFE_CELLS.has(landedAbsCell)) {
+                AudioEngine.playLand();
+              }
+
+              setTimeout(() => {
+                setAnimatingPawn(null);
+                setCaptureEffect(null);
+                setIsAnimating(false);
+              }, 120);
+            }
+          }
+        }, idx * stepDuration);
+
+        animTimeoutsRef.current.push(t);
+      });
+    }
+  }, [tokens]);
 
   // Map tokens to their visual cells:
   // Key: "track-X", "home-SEAT-INDEX", "base-SEAT-TOKEN", "goal-SEAT"
@@ -89,7 +492,12 @@ export const Board2D: React.FC<Board2DProps> = ({
     tokens.forEach((seatTokens, seat) => {
       if (!activeSeats.has(seat)) return;
       seatTokens.forEach((token, tokenIdx) => {
-        const isLegal = localSeat === currentPlayer && seat === localSeat && legal.includes(tokenIdx);
+        const isLegal =
+          !isAnimating &&
+          !isMoving &&
+          localSeat === currentPlayer &&
+          seat === localSeat &&
+          legal.includes(tokenIdx);
 
         if (token.kind === 'base') {
           const key = `base-${seat}-${tokenIdx}`;
@@ -101,7 +509,8 @@ export const Board2D: React.FC<Board2DProps> = ({
             if (!map[key]) map[key] = [];
             map[key].push({ seat, tokenIdx, isLegal });
           } else {
-            const step = Math.min(4, Math.max(0, token.progress));
+            // Home lane progress 1..5 maps to cell 0..4
+            const step = Math.min(4, Math.max(0, token.progress - 1));
             const key = `home-${seat}-${step}`;
             if (!map[key]) map[key] = [];
             map[key].push({ seat, tokenIdx, isLegal });
@@ -117,9 +526,17 @@ export const Board2D: React.FC<Board2DProps> = ({
     });
 
     return map;
-  }, [tokens, activeSeats, localSeat, currentPlayer, legal]);
+  }, [tokens, activeSeats, localSeat, currentPlayer, legal, isAnimating, isMoving]);
 
   const renderPawn = (seat: number, tokenIdx: number, isLegal: boolean, size = 36) => {
+    // If this token is currently in flight on the animation overlay, hide its static cell instance
+    if (
+      (animatingPawn && animatingPawn.seat === seat && animatingPawn.tokenIdx === tokenIdx) ||
+      (capturedPawnAnim && capturedPawnAnim.seat === seat && capturedPawnAnim.tokenIdx === tokenIdx)
+    ) {
+      return null;
+    }
+
     const colorKey = SEAT_COLORS[seat] || 'red';
 
     return (
@@ -130,7 +547,7 @@ export const Board2D: React.FC<Board2DProps> = ({
         size={size}
         onClick={(e) => {
           e.stopPropagation();
-          if (isLegal) {
+          if (isLegal && !isAnimating && !isMoving) {
             AudioEngine.playHop();
             onTokenClick(tokenIdx);
           }
@@ -145,21 +562,34 @@ export const Board2D: React.FC<Board2DProps> = ({
   function renderCellTokens(trackIndex: number) {
     const occupants = tokensOnBoard[`track-${trackIndex}`] || [];
     if (occupants.length === 0) return null;
-    const isClustered = occupants.length > 1;
-    // Single pawn on track fills cell prominently (size 36); clustered fills 26
+    const visibleOccupants = occupants.filter(
+      (occ) =>
+        !(animatingPawn && animatingPawn.seat === occ.seat && animatingPawn.tokenIdx === occ.tokenIdx) &&
+        !(capturedPawnAnim && capturedPawnAnim.seat === occ.seat && capturedPawnAnim.tokenIdx === occ.tokenIdx)
+    );
+    if (visibleOccupants.length === 0) return null;
+
+    const isClustered = visibleOccupants.length > 1;
     const pawnSize = isClustered ? 26 : 36;
 
     return (
       <div className={`tokens-cluster ${isClustered ? 'has-cluster' : ''}`}>
-        {occupants.map((occ) => renderPawn(occ.seat, occ.tokenIdx, occ.isLegal, pawnSize))}
-        {isClustered && <span className="cluster-badge">×{occupants.length}</span>}
+        {visibleOccupants.map((occ) => renderPawn(occ.seat, occ.tokenIdx, occ.isLegal, pawnSize))}
+        {isClustered && <span className="cluster-badge">×{visibleOccupants.length}</span>}
       </div>
     );
   }
 
   function renderHomeTokens(seat: number, stepIndex: number) {
     const occupants = tokensOnBoard[`home-${seat}-${stepIndex}`] || [];
-    const isClustered = occupants.length > 1;
+    if (occupants.length === 0) return null;
+    const visibleOccupants = occupants.filter(
+      (occ) =>
+        !(animatingPawn && animatingPawn.seat === occ.seat && animatingPawn.tokenIdx === occ.tokenIdx)
+    );
+    if (visibleOccupants.length === 0) return null;
+
+    const isClustered = visibleOccupants.length > 1;
     const pawnSize = isClustered ? 26 : 36;
 
     return (
@@ -167,8 +597,8 @@ export const Board2D: React.FC<Board2DProps> = ({
         <span className="home-lane-arrow">
           {seat === 0 ? '▶' : seat === 1 ? '▼' : seat === 2 ? '◀' : '▲'}
         </span>
-        {occupants.map((occ) => renderPawn(occ.seat, occ.tokenIdx, occ.isLegal, pawnSize))}
-        {isClustered && <span className="cluster-badge">×{occupants.length}</span>}
+        {visibleOccupants.map((occ) => renderPawn(occ.seat, occ.tokenIdx, occ.isLegal, pawnSize))}
+        {isClustered && <span className="cluster-badge">×{visibleOccupants.length}</span>}
       </div>
     );
   }
@@ -176,9 +606,15 @@ export const Board2D: React.FC<Board2DProps> = ({
   function renderGoalTokens(seat: number) {
     const occupants = tokensOnBoard[`goal-${seat}`] || [];
     if (occupants.length === 0) return null;
+    const visibleOccupants = occupants.filter(
+      (occ) =>
+        !(animatingPawn && animatingPawn.seat === occ.seat && animatingPawn.tokenIdx === occ.tokenIdx)
+    );
+    if (visibleOccupants.length === 0) return null;
+
     return (
       <div className="goal-occupants-cluster">
-        {occupants.map((occ) => renderPawn(occ.seat, occ.tokenIdx, occ.isLegal, 26))}
+        {visibleOccupants.map((occ) => renderPawn(occ.seat, occ.tokenIdx, occ.isLegal, 26))}
       </div>
     );
   }
@@ -187,7 +623,45 @@ export const Board2D: React.FC<Board2DProps> = ({
     <div className="ludo-arena-container">
       <PawnDefs />
       <div className="ludo-arena-frame">
-        <div className="ludo-grid" id="ludoBoard">
+        <div className="ludo-grid" id="ludoBoard" style={{ position: 'relative' }}>
+          {/* ==================== DYNAMIC ANIMATION OVERLAY LAYER ==================== */}
+          <div className="board-anim-layer" aria-hidden="true">
+            {animatingPawn && (
+              <div
+                key={`hop-${animatingPawn.hopIndex}`}
+                className="animating-pawn-wrapper hop-arc"
+                style={{
+                  left: `${animatingPawn.x}%`,
+                  top: `${animatingPawn.y}%`,
+                }}
+              >
+                <PawnToken color={SEAT_COLORS[animatingPawn.seat]} size={38} />
+              </div>
+            )}
+
+            {captureEffect && (
+              <div
+                className="capture-shockwave-ring"
+                style={{
+                  left: `${captureEffect.x}%`,
+                  top: `${captureEffect.y}%`,
+                }}
+              />
+            )}
+
+            {capturedPawnAnim && (
+              <div
+                className="animating-pawn-wrapper captured-return-arc"
+                style={{
+                  left: `${capturedPawnAnim.x}%`,
+                  top: `${capturedPawnAnim.y}%`,
+                }}
+              >
+                <PawnToken color={SEAT_COLORS[capturedPawnAnim.seat]} size={32} />
+              </div>
+            )}
+          </div>
+
           {/* ==================== 1. RED HOME YARD (Cols 1-6, Rows 1-6) ==================== */}
           <div
             className={`yard-box yard-red ${!activeSeats.has(0) ? 'inactive-seat' : ''} ${
@@ -202,6 +676,16 @@ export const Board2D: React.FC<Board2DProps> = ({
                   <div
                     key={slotIdx}
                     className={`base-socket base-socket-red ${hasLegalMove ? 'socket-can-deploy' : ''}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (hasLegalMove && !isAnimating && !isMoving) {
+                        const legalOcc = occupants.find((occ) => occ.isLegal);
+                        if (legalOcc) onTokenClick(legalOcc.tokenIdx);
+                      }
+                    }}
+                    role="button"
+                    tabIndex={hasLegalMove ? 0 : -1}
+                    aria-label={`Red Yard Socket ${slotIdx + 1}${hasLegalMove ? ' - Tap to Deploy' : ''}`}
                   >
                     {occupants.map((occ) => renderPawn(occ.seat, occ.tokenIdx, occ.isLegal, 44))}
                   </div>
@@ -266,6 +750,16 @@ export const Board2D: React.FC<Board2DProps> = ({
                   <div
                     key={slotIdx}
                     className={`base-socket base-socket-green ${hasLegalMove ? 'socket-can-deploy' : ''}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (hasLegalMove && !isAnimating && !isMoving) {
+                        const legalOcc = occupants.find((occ) => occ.isLegal);
+                        if (legalOcc) onTokenClick(legalOcc.tokenIdx);
+                      }
+                    }}
+                    role="button"
+                    tabIndex={hasLegalMove ? 0 : -1}
+                    aria-label={`Green Yard Socket ${slotIdx + 1}${hasLegalMove ? ' - Tap to Deploy' : ''}`}
                   >
                     {occupants.map((occ) => renderPawn(occ.seat, occ.tokenIdx, occ.isLegal, 44))}
                   </div>
@@ -404,6 +898,16 @@ export const Board2D: React.FC<Board2DProps> = ({
                   <div
                     key={slotIdx}
                     className={`base-socket base-socket-blue ${hasLegalMove ? 'socket-can-deploy' : ''}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (hasLegalMove && !isAnimating && !isMoving) {
+                        const legalOcc = occupants.find((occ) => occ.isLegal);
+                        if (legalOcc) onTokenClick(legalOcc.tokenIdx);
+                      }
+                    }}
+                    role="button"
+                    tabIndex={hasLegalMove ? 0 : -1}
+                    aria-label={`Blue Yard Socket ${slotIdx + 1}${hasLegalMove ? ' - Tap to Deploy' : ''}`}
                   >
                     {occupants.map((occ) => renderPawn(occ.seat, occ.tokenIdx, occ.isLegal, 44))}
                   </div>
@@ -468,6 +972,16 @@ export const Board2D: React.FC<Board2DProps> = ({
                   <div
                     key={slotIdx}
                     className={`base-socket base-socket-yellow ${hasLegalMove ? 'socket-can-deploy' : ''}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (hasLegalMove && !isAnimating && !isMoving) {
+                        const legalOcc = occupants.find((occ) => occ.isLegal);
+                        if (legalOcc) onTokenClick(legalOcc.tokenIdx);
+                      }
+                    }}
+                    role="button"
+                    tabIndex={hasLegalMove ? 0 : -1}
+                    aria-label={`Yellow Yard Socket ${slotIdx + 1}${hasLegalMove ? ' - Tap to Deploy' : ''}`}
                   >
                     {occupants.map((occ) => renderPawn(occ.seat, occ.tokenIdx, occ.isLegal, 44))}
                   </div>
@@ -483,3 +997,4 @@ export const Board2D: React.FC<Board2DProps> = ({
     </div>
   );
 };
+

@@ -6,7 +6,7 @@ export type TokenPosition =
 export type Player = { id: string; name: string; color: string; seat: PlayerIndex };
 
 export type TurnNotice = {
-  type: 'timeout' | 'auto_pass' | 'three_sixes' | 'extra_turn';
+  type: 'timeout' | 'auto_pass' | 'three_sixes' | 'extra_turn' | 'podium_finish';
   message: string;
   seat: PlayerIndex;
   playerName?: string;
@@ -22,6 +22,7 @@ export type GameState = {
   consecutiveSixes: number;
   status: 'lobby' | 'playing' | 'finished';
   winner: PlayerIndex | null;
+  rankings: PlayerIndex[];
   version: number;
   turnExpiresAt?: number | null;
   turnDurationMs?: number;
@@ -30,10 +31,21 @@ export type GameState = {
 
 export const COLORS = ['red', 'green', 'yellow', 'blue'] as const;
 export const PATH_LENGTH = 52;
+export const MAX_PATH_PROGRESS = 50;
 export const HOME_LENGTH = 6;
 export const START_OFFSETS = [0, 13, 26, 39] as const;
 export const SAFE_CELLS = new Set([0, 8, 13, 21, 26, 34, 39, 47]);
 export const DEFAULT_TURN_DURATION_MS = 15_000;
+
+export function isPlayerFinished(tokens: TokenPosition[]): boolean {
+  return tokens.length === 4 && tokens.every((p) => p.kind === 'home' && p.progress === HOME_LENGTH);
+}
+
+export function getRemainingSeats(state: GameState): PlayerIndex[] {
+  const activeSeats = state.players && state.players.length > 0 ? state.players.map((p) => p.seat) : ([0, 1, 2, 3] as PlayerIndex[]);
+  const finishedSet = new Set(state.rankings || []);
+  return activeSeats.filter((seat) => !finishedSet.has(seat));
+}
 
 export function getNextPlayer(current: PlayerIndex, activeSeats: PlayerIndex[] | Set<PlayerIndex>): PlayerIndex {
   const seats = activeSeats instanceof Set ? activeSeats : new Set(activeSeats);
@@ -62,6 +74,7 @@ export function initialState(players: Player[], initialVersion = 0, turnDuration
     consecutiveSixes: 0,
     status: 'lobby',
     winner: null,
+    rankings: [],
     version: initialVersion,
     turnExpiresAt: null,
     turnDurationMs,
@@ -79,6 +92,7 @@ export function startGame(state: GameState, now = Date.now()): GameState {
     dice: null,
     consecutiveSixes: 0,
     winner: null,
+    rankings: [],
     version: state.version + 1,
     turnExpiresAt: now + turnDurationMs,
     lastNotice: null,
@@ -92,7 +106,7 @@ export function forfeitTurn(
   notice?: TurnNotice
 ): GameState {
   if (state.status !== 'playing') return state;
-  const seats = candidateSeats ?? (state.players && state.players.length > 0 ? state.players.map((p) => p.seat) : ([0, 1, 2, 3] as PlayerIndex[]));
+  const seats = candidateSeats ?? getRemainingSeats(state);
   const nextPlayer = getNextPlayer(state.currentPlayer, seats);
   const turnDurationMs = state.turnDurationMs || DEFAULT_TURN_DURATION_MS;
   const playerName = state.players.find((p) => p.seat === state.currentPlayer)?.name || `Player ${state.currentPlayer + 1}`;
@@ -126,12 +140,16 @@ export function canLeaveBase(dice: number): boolean {
 
 export function stepsToFinish(pos: TokenPosition): number {
   if (pos.kind === 'base') return Infinity;
-  if (pos.kind === 'path') return PATH_LENGTH - pos.progress + HOME_LENGTH;
+  if (pos.kind === 'path') {
+    return (MAX_PATH_PROGRESS - pos.progress) + HOME_LENGTH;
+  }
   return HOME_LENGTH - pos.progress;
 }
 
 export function isLegalMove(pos: TokenPosition, dice: number): boolean {
-  return dice >= 1 && dice <= 6 && (pos.kind === 'base' ? canLeaveBase(dice) : dice <= stepsToFinish(pos));
+  if (!Number.isInteger(dice) || dice < 1 || dice > 6) return false;
+  if (pos.kind === 'base') return canLeaveBase(dice);
+  return dice <= stepsToFinish(pos);
 }
 
 export function legalTokens(state: GameState, player: PlayerIndex, dice: number): number[] {
@@ -145,7 +163,7 @@ export function moveToken(
   token: number,
   dice: number,
   now = Date.now()
-): { state: GameState; captured: boolean; winner: boolean } {
+): { state: GameState; captured: boolean; winner: boolean; finished: boolean; rank?: number } {
   if (state.status !== 'playing' || state.currentPlayer !== player) throw new Error('not your turn');
   if (
     !Number.isInteger(token) ||
@@ -159,11 +177,17 @@ export function moveToken(
 
   const next = state.tokens.map((ts) => ts.map((p) => ({ ...p } as TokenPosition)));
   const old = next[player][token];
-  if (old.kind === 'base') next[player][token] = { kind: 'path', progress: 0 };
-  else if (old.kind === 'path' && old.progress + dice < PATH_LENGTH) next[player][token] = { kind: 'path', progress: old.progress + dice };
-  else {
-    const travelled = old.kind === 'path' ? old.progress + dice - PATH_LENGTH : old.progress + dice;
-    next[player][token] = { kind: 'home', progress: travelled };
+  if (old.kind === 'base') {
+    next[player][token] = { kind: 'path', progress: 0 };
+  } else if (old.kind === 'path') {
+    if (old.progress + dice <= MAX_PATH_PROGRESS) {
+      next[player][token] = { kind: 'path', progress: old.progress + dice };
+    } else {
+      const homeStep = (old.progress + dice) - MAX_PATH_PROGRESS;
+      next[player][token] = { kind: 'home', progress: homeStep };
+    }
+  } else {
+    next[player][token] = { kind: 'home', progress: old.progress + dice };
   }
 
   let captured = false;
@@ -184,10 +208,102 @@ export function moveToken(
     }
   }
 
-  const winner = next[player].length === 4 && next[player].every((p) => p.kind === 'home' && p.progress === HOME_LENGTH);
-  const activeSeats = state.players && state.players.length > 0 ? state.players.map((p) => p.seat) : ([0, 1, 2, 3] as PlayerIndex[]);
-  const nextPlayer = winner ? player : (dice === 6 ? player : getNextPlayer(player, activeSeats));
+  const playerFinished = isPlayerFinished(next[player]);
+  const updatedRankings = [...(state.rankings || [])];
+  let justFinished = false;
+  let playerRank: number | undefined = undefined;
+
+  if (playerFinished && !updatedRankings.includes(player)) {
+    updatedRankings.push(player);
+    justFinished = true;
+    playerRank = updatedRankings.length;
+  }
+
+  const totalPlayers = state.players.length;
+  const remainingSeats = state.players.map((p) => p.seat).filter((s) => !updatedRankings.includes(s));
+
+  // 2-player ends when 1st place finishes; 3+ player ends when 2 players finish or only 1 player remains
+  const isMatchFinished =
+    totalPlayers <= 2
+      ? updatedRankings.length >= 1
+      : updatedRankings.length >= 2 || remainingSeats.length <= 1;
+
+  const matchWinner = updatedRankings[0] ?? null;
+
+  let nextPlayer: PlayerIndex;
+  let earnsExtraTurn = false;
+
+  if (isMatchFinished) {
+    nextPlayer = player;
+  } else if (justFinished) {
+    nextPlayer = getNextPlayer(player, remainingSeats);
+  } else if (captured || dice === 6) {
+    earnsExtraTurn = true;
+    nextPlayer = player;
+  } else {
+    nextPlayer = getNextPlayer(player, remainingSeats);
+  }
+
   const turnDurationMs = state.turnDurationMs || DEFAULT_TURN_DURATION_MS;
+  const playerName = state.players.find((p) => p.seat === player)?.name || `Player ${player + 1}`;
+
+  let notice: TurnNotice | null = null;
+  if (isMatchFinished) {
+    if (justFinished && playerRank === 2) {
+      notice = {
+        type: 'podium_finish',
+        message: `${playerName} finished in 2nd Place! Match complete.`,
+        seat: player,
+        playerName,
+        timestamp: now,
+      };
+    } else {
+      notice = {
+        type: 'podium_finish',
+        message: `${playerName} won 1st Place! Match complete.`,
+        seat: player,
+        playerName,
+        timestamp: now,
+      };
+    }
+  } else if (justFinished && playerRank === 1) {
+    notice = {
+      type: 'podium_finish',
+      message: `${playerName} finished in 1st Place! 🏆 Play continues for 2nd place.`,
+      seat: player,
+      playerName,
+      timestamp: now,
+    };
+  } else if (earnsExtraTurn) {
+    if (captured && dice === 6) {
+      notice = {
+        type: 'extra_turn',
+        message: `Captured opponent and rolled 6! Extra turn awarded.`,
+        seat: player,
+        playerName,
+        dice,
+        timestamp: now,
+      };
+    } else if (captured) {
+      notice = {
+        type: 'extra_turn',
+        message: `Captured an opponent token! Bonus turn awarded.`,
+        seat: player,
+        playerName,
+        dice,
+        timestamp: now,
+      };
+    } else {
+      notice = {
+        type: 'extra_turn',
+        message: `Rolled a 6! Extra turn awarded.`,
+        seat: player,
+        playerName,
+        dice,
+        timestamp: now,
+      };
+    }
+  }
 
   return {
     state: {
@@ -195,23 +311,18 @@ export function moveToken(
       tokens: next,
       currentPlayer: nextPlayer,
       dice: null,
-      consecutiveSixes: nextPlayer === player ? state.consecutiveSixes : 0,
-      status: winner ? 'finished' : 'playing',
-      winner: winner ? player : null,
+      consecutiveSixes: nextPlayer === player && dice === 6 ? state.consecutiveSixes : 0,
+      status: isMatchFinished ? 'finished' : 'playing',
+      winner: matchWinner,
+      rankings: updatedRankings,
       version: state.version + 1,
-      turnExpiresAt: winner ? null : now + turnDurationMs,
-      lastNotice:
-        dice === 6 && !winner
-          ? {
-              type: 'extra_turn',
-              message: `Bonus roll for rolling a 6!`,
-              seat: player,
-              timestamp: now,
-            }
-          : null,
+      turnExpiresAt: isMatchFinished ? null : now + turnDurationMs,
+      lastNotice: notice,
     },
     captured,
-    winner,
+    winner: isMatchFinished,
+    finished: justFinished,
+    rank: playerRank,
   };
 }
 
@@ -219,14 +330,14 @@ export function roll(state: GameState, player: PlayerIndex, value: number, now =
   if (state.status !== 'playing' || state.currentPlayer !== player || state.dice !== null) throw new Error('cannot roll now');
   if (!Number.isInteger(value) || value < 1 || value > 6) throw new Error('invalid dice');
   const sixes = value === 6 ? state.consecutiveSixes + 1 : 0;
-  const activeSeats = state.players && state.players.length > 0 ? state.players.map((p) => p.seat) : ([0, 1, 2, 3] as PlayerIndex[]);
+  const remainingSeats = getRemainingSeats(state);
   const turnDurationMs = state.turnDurationMs || DEFAULT_TURN_DURATION_MS;
   const playerName = state.players.find((p) => p.seat === player)?.name || `Player ${player + 1}`;
 
   if (sixes >= 3) {
     return {
       ...state,
-      currentPlayer: getNextPlayer(player, activeSeats),
+      currentPlayer: getNextPlayer(player, remainingSeats),
       dice: null,
       consecutiveSixes: 0,
       version: state.version + 1,
@@ -243,7 +354,7 @@ export function roll(state: GameState, player: PlayerIndex, value: number, now =
 
   const moves = legalTokens(state, player, value);
   if (moves.length === 0) {
-    const nextPlayer = value === 6 ? player : getNextPlayer(player, activeSeats);
+    const nextPlayer = value === 6 ? player : getNextPlayer(player, remainingSeats);
     return {
       ...state,
       currentPlayer: nextPlayer,

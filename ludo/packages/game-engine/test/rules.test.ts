@@ -10,11 +10,14 @@ describe('ludo engine',()=>{
  it('rejects wrong turns, invalid dice and illegal tokens',()=>{const s=playing(); expect(()=>roll(s,1,6)).toThrow('cannot roll now'); expect(()=>roll(s,0,7)).toThrow('invalid dice'); expect(()=>moveToken({...s,dice:5},0,0,5)).toThrow('illegal token move');});
  it('captures an opponent on a non-safe cell',()=>{let s=playing(); s={...s,currentPlayer:1,tokens:s.tokens.map((ts,i)=>i===0?[{kind:'path',progress:14},...ts.slice(1)]:i===1?[{kind:'path',progress:0},...ts.slice(1)]:ts)}; s=moveToken({...s,dice:1},1,0,1).state; expect(s.tokens[0][0]).toEqual({kind:'base'});});
  it('protects tokens on safe cells',()=>{let s=playing(); s={...s,currentPlayer:1,tokens:s.tokens.map((ts,i)=>i===0?[{kind:'path',progress:13},...ts.slice(1)]:i===1?[{kind:'path',progress:0},...ts.slice(1)]:ts)}; const moved=moveToken({...s,dice:6},1,0,6).state; expect(moved.tokens[0][0]).toEqual({kind:'path',progress:13}); expect(SAFE_CELLS.has(absoluteCell(0,13))).toBe(true);});
- it('enters the home lane and requires an exact finish',()=>{let s=playing(); s={...s,tokens:s.tokens.map((ts,i)=>i===0?[{kind:'path',progress:51},...ts.slice(1)]:ts)}; s=moveToken({...s,dice:1},0,0,1).state; expect(s.tokens[0][0]).toEqual({kind:'home',progress:0}); expect(legalTokens({...s,currentPlayer:0},0,7 as any)).toEqual([]);});
- it('does not move beyond the final home position',()=>{let s=playing(); s={...s,tokens:s.tokens.map((ts,i)=>i===0?[{kind:'home',progress:5},...ts.slice(1)]:ts)}; expect(legalTokens(s,0,2)).toEqual([]);});
+ it('enters the home lane and requires an exact finish',()=>{let s=playing(); s={...s,tokens:s.tokens.map((ts,i)=>i===0?[{kind:'path',progress:50},...ts.slice(1)]:ts)}; s=moveToken({...s,dice:1},0,0,1).state; expect(s.tokens[0][0]).toEqual({kind:'home',progress:1}); expect(legalTokens({...s,currentPlayer:0},0,7 as any)).toEqual([]);});
+ it('moves through each home-lane cell one step at a time',()=>{let s=playing(); s={...s,tokens:s.tokens.map((ts,i)=>i===0?[{kind:'home',progress:1},...ts.slice(1)]:ts)}; s=moveToken({...s,currentPlayer:0,dice:1},0,0,1).state; expect(s.tokens[0][0]).toEqual({kind:'home',progress:2}); s=moveToken({...s,currentPlayer:0,dice:1},0,0,1).state; expect(s.tokens[0][0]).toEqual({kind:'home',progress:3}); s=moveToken({...s,currentPlayer:0,dice:1},0,0,1).state; expect(s.tokens[0][0]).toEqual({kind:'home',progress:4}); s=moveToken({...s,currentPlayer:0,dice:1},0,0,1).state; expect(s.tokens[0][0]).toEqual({kind:'home',progress:5}); const finished=moveToken({...s,currentPlayer:0,dice:1},0,0,1); expect(finished.state.tokens[0][0]).toEqual({kind:'home',progress:6});});
+ it('does not move beyond the final home position',()=>{let s=playing(); s={...s,tokens:s.tokens.map((ts,i)=>i===0?[{kind:'home',progress:5},...ts.slice(1)]:ts)}; expect(legalTokens(s,0,2)).toEqual([]); expect(legalTokens(s,0,1)).toEqual([0]);});
  it('auto-passes when no token can move',()=>{const s=roll(playing(),0,4); expect(s.dice).toBeNull(); expect(s.currentPlayer).toBe(1);});
  it('forfeits after three consecutive sixes',()=>{let s=playing(); s=moveToken(roll(s,0,6),0,0,6).state; s=moveToken(roll(s,0,6),0,1,6).state; s=roll(s,0,6); expect(s.currentPlayer).toBe(1); expect(s.dice).toBeNull(); expect(s.consecutiveSixes).toBe(0);});
- it('declares a winner only when all four tokens finish exactly',()=>{let s=playing(); s={...s,tokens:[[...Array(3).fill({kind:'home',progress:6}),{kind:'home',progress:5}],...s.tokens.slice(1)]}; const out=moveToken({...s,dice:1},0,3,1); expect(out.winner).toBe(true); expect(out.state.status).toBe('finished'); expect(out.state.winner).toBe(0);});
+ it('awards bonus turn on capture',()=>{let s=playing(); s={...s,currentPlayer:0,tokens:[[{kind:'path',progress:26},{kind:'base'},{kind:'base'},{kind:'base'}],[],[{kind:'path',progress:1},{kind:'base'},{kind:'base'},{kind:'base'}],[]]}; s=roll(s,0,1); const cap=moveToken(s,0,0,1); expect(cap.captured).toBe(true); expect(cap.state.tokens[2][0]).toEqual({kind:'base'}); expect(cap.state.currentPlayer).toBe(0); expect(cap.state.lastNotice?.type).toBe('extra_turn');});
+ it('handles 2-player match ending when 1st player finishes',()=>{const twoPlayers:Player[]=[{id:'p0',name:'Alice',color:'red',seat:0},{id:'p1',name:'Bob',color:'green',seat:1}]; let s=startGame(initialState(twoPlayers)); s={...s,tokens:[[...Array(3).fill({kind:'home',progress:6}),{kind:'home',progress:5}],Array(4).fill({kind:'base'}),[],[]]}; const out=moveToken({...s,dice:1},0,3,1); expect(out.winner).toBe(true); expect(out.state.status).toBe('finished'); expect(out.state.winner).toBe(0); expect(out.state.rankings).toEqual([0]); expect(out.state.turnExpiresAt).toBeNull();});
+ it('handles 4-player match: 1st place finishes and remaining players continue until 2nd place',()=>{let s=playing(); s={...s,tokens:[[...Array(3).fill({kind:'home',progress:6}),{kind:'home',progress:5}],[{kind:'path',progress:10},{kind:'base'},{kind:'base'},{kind:'base'}],[...Array(3).fill({kind:'home',progress:6}),{kind:'home',progress:4}],[{kind:'path',progress:20},{kind:'base'},{kind:'base'},{kind:'base'}]]}; const out1=moveToken({...s,dice:1},0,3,1); expect(out1.finished).toBe(true); expect(out1.rank).toBe(1); expect(out1.winner).toBe(false); expect(out1.state.status).toBe('playing'); expect(out1.state.rankings).toEqual([0]); expect(out1.state.currentPlayer).toBe(1); let s2=out1.state; s2=moveToken(roll(s2,1,3),1,0,3).state; expect(s2.currentPlayer).toBe(2); s2=roll(s2,2,2); const out2=moveToken(s2,2,3,2); expect(out2.finished).toBe(true); expect(out2.rank).toBe(2); expect(out2.winner).toBe(true); expect(out2.state.status).toBe('finished'); expect(out2.state.rankings).toEqual([0,2]); expect(out2.state.winner).toBe(0); expect(out2.state.turnExpiresAt).toBeNull();});
 
  describe('2-player and 3-player dynamic turn rotation', () => {
    it('calculates next active player skipping empty seats', () => {
@@ -107,7 +110,7 @@ describe('ludo engine',()=>{
      const cap = moveToken(s, 0, 0, 1);
      expect(cap.captured).toBe(true);
      expect(cap.state.tokens[2][0]).toEqual({ kind: 'base' });
-     expect(cap.state.currentPlayer).toBe(2); // Passed to Charlie
+     expect(cap.state.currentPlayer).toBe(0); // Alice earns bonus turn on capture!
    });
  });
 
@@ -169,10 +172,14 @@ describe('ludo engine',()=>{
    });
 
    it('cancels turnExpiresAt when match finishes', () => {
-     let s = playing();
+     const twoP: Player[] = [
+       { id: 'p0', name: 'Alice', color: 'red', seat: 0 },
+       { id: 'p1', name: 'Bob', color: 'green', seat: 1 },
+     ];
+     let s = startGame(initialState(twoP));
      s = {
        ...s,
-       tokens: [[...Array(3).fill({ kind: 'home', progress: 6 }), { kind: 'home', progress: 5 }], ...s.tokens.slice(1)],
+       tokens: [[...Array(3).fill({ kind: 'home', progress: 6 }), { kind: 'home', progress: 5 }], Array(4).fill({ kind: 'base' }), [], []],
      };
      const res = moveToken({ ...s, dice: 1 }, 0, 3, 1, 5000);
      expect(res.winner).toBe(true);

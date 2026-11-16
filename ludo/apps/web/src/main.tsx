@@ -261,17 +261,17 @@ const MobileBottomDock: React.FC<MobileBottomDockProps> = ({
         ) : isMyTurn ? (
           dice === null ? (
             <span className="directive-highlight">
-              👉 YOUR TURN: Tap to roll the dice!
+              👉 YOUR TURN: Tap the dice to roll!
               {isUrgent && <span className="urgent-badge ml-1">⏳ {turnTimeLeft}s</span>}
             </span>
           ) : dice === 6 ? (
             <span className="directive-highlight">
-              🎉 ROLLED A 6 (BONUS ROLL!) Select a pawn:
+              🎉 ROLLED A 6 (BONUS ROLL!) Tap a glowing pawn on the board or in yard to deploy:
               {isUrgent && <span className="urgent-badge ml-1">⏳ {turnTimeLeft}s</span>}
             </span>
           ) : legal.length > 0 ? (
             <span className="directive-highlight">
-              Rolled {dice}: Select a pawn to advance {dice} {dice === 1 ? 'step' : 'steps'}
+              Rolled {dice}: Tap a glowing pawn on the board to advance {dice} {dice === 1 ? 'step' : 'steps'}
               {isUrgent && <span className="urgent-badge ml-1">⏳ {turnTimeLeft}s</span>}
             </span>
           ) : (
@@ -288,7 +288,7 @@ const MobileBottomDock: React.FC<MobileBottomDockProps> = ({
         )}
       </div>
 
-      {/* 2. Interactive Thumb Controls */}
+      {/* 2. Interactive Thumb Controls (No Deploy Buttons - Direct Pawn Tapping Only) */}
       <div className="mobile-dock-controls">
         {isMyTurn && dice === null ? (
           <div className="mobile-roll-row">
@@ -314,30 +314,22 @@ const MobileBottomDock: React.FC<MobileBottomDockProps> = ({
               )}
             </button>
           </div>
-        ) : isMyTurn && legal.length > 0 ? (
-          <div className="mobile-pawn-select-row">
-            {legal.map((tokenIdx) => {
-              const t = tokens[localSeat]?.[tokenIdx];
-              const isBase = t?.kind === 'base';
-              const isHome = t?.kind === 'home';
-              const label = isBase
-                ? `Deploy #${tokenIdx + 1}`
-                : isHome
-                ? `Home Goal #${tokenIdx + 1}`
-                : `Move #${tokenIdx + 1} (+${dice})`;
-
-              return (
-                <button
-                  key={tokenIdx}
-                  type="button"
-                  className="mobile-pawn-quick-btn"
-                  onClick={() => onMoveToken(tokenIdx)}
-                >
-                  <span className="pawn-btn-icon">♟</span>
-                  <span className="pawn-btn-text">{label}</span>
-                </button>
-              );
-            })}
+        ) : isMyTurn && dice !== null ? (
+          <div className="mobile-roll-result-row">
+            <div className={`mobile-dock-dice-btn ${dice === 6 ? 'dice-result-six' : 'dice-result-active'}`}>
+              <MiniDiceCube value={dice} />
+            </div>
+            <div className="mobile-result-details">
+              <span className="mobile-result-title">
+                {dice === 6 ? '✨ ROLLED A 6 (BONUS ROLL!)' : `🎲 ROLLED A ${dice}`}
+              </span>
+              <span className="mobile-result-subtitle">
+                {legal.length > 0 ? '👉 Tap a glowing pawn on the board' : 'No legal moves — passing turn…'}
+              </span>
+            </div>
+            <div className="mobile-result-timer">
+              <span className={`timer-badge ${isUrgent ? 'urgent' : ''}`}>⏳ {turnTimeLeft}s</span>
+            </div>
           </div>
         ) : (
           <div className="mobile-waiting-row">
@@ -376,6 +368,7 @@ function App() {
   const [starting, setStarting] = useState(false);
   const [rematching, setRematching] = useState(false);
   const [lastDice, setLastDice] = useState<number | null>(null);
+  const [isMoving, setIsMoving] = useState(false);
   const [isMuted, setIsMuted] = useState(AudioEngine.isMuted());
   const [turnTimeLeft, setTurnTimeLeft] = useState(15);
   const [activityNotice, setActivityNotice] = useState<string | null>(null);
@@ -423,6 +416,50 @@ function App() {
         return data;
       });
       setRolling(false);
+      setIsMoving(false);
+    };
+    const onDiceRolled = (data: {
+      seat: number;
+      playerName: string;
+      value: number;
+      hasLegalMoves: boolean;
+      isExtraTurn: boolean;
+    }) => {
+      setRolling(true);
+      AudioEngine.playDiceRoll();
+      setLastDice(data.value);
+
+      window.setTimeout(() => {
+        setRolling(false);
+        if (data.value === 6) {
+          AudioEngine.playSix();
+          triggerHaptic('success');
+        }
+
+        const isMe = data.seat === localSeat;
+        let noticeText = '';
+        if (isMe) {
+          if (data.value === 6) {
+            noticeText = '🎉 YOU ROLLED A 6! Bonus roll awarded — Select a glowing pawn.';
+          } else if (data.hasLegalMoves) {
+            noticeText = `🎲 YOU ROLLED A ${data.value}! Tap a glowing pawn on the board.`;
+          } else {
+            noticeText = `⚠️ YOU ROLLED A ${data.value} with no legal moves. Passing turn…`;
+          }
+        } else {
+          if (data.value === 6) {
+            noticeText = `🎉 ${data.playerName} rolled a 6! (Bonus roll awarded)`;
+          } else if (data.hasLegalMoves) {
+            noticeText = `🎲 ${data.playerName} rolled a ${data.value}.`;
+          } else {
+            noticeText = `⚠️ ${data.playerName} rolled a ${data.value} with no legal moves. Passing turn…`;
+          }
+        }
+        setActivityNotice(noticeText);
+        setTimeout(() => {
+          setActivityNotice((cur) => (cur === noticeText ? null : cur));
+        }, 3500);
+      }, 450);
     };
     const onTimeout = (data: any) => {
       AudioEngine.playTimeout();
@@ -456,6 +493,7 @@ function App() {
     socket.on('game_started', onState);
     socket.on('rematch_started', onState);
     socket.on('state', onState);
+    socket.on('dice_rolled', onDiceRolled);
     socket.on('turn_timeout', onTimeout);
     socket.on('player_disconnected', onState);
     socket.on('player_reconnected', onState);
@@ -480,6 +518,8 @@ function App() {
       socket.off('game_started', onState);
       socket.off('rematch_started', onState);
       socket.off('state', onState);
+      socket.off('dice_rolled', onDiceRolled);
+      socket.off('turn_timeout', onTimeout);
       socket.off('player_disconnected', onState);
       socket.off('player_reconnected', onState);
       socket.off('connect', onConnect);
@@ -688,7 +728,8 @@ function App() {
   };
 
   const moveToken = (token: number) => {
-    if (!snapshot || !legal.includes(token)) return;
+    if (!snapshot || isMoving || !legal.includes(token)) return;
+    setIsMoving(true);
     triggerHaptic('light');
     const currentToken = snapshot.tokens[localSeat]?.[token];
     const isDeploy = currentToken?.kind === 'base';
@@ -697,6 +738,7 @@ function App() {
       'move_token',
       { roomCode: snapshot.roomCode, token, actionId, expectedVersion: snapshot.version },
       (result: any) => {
+        setIsMoving(false);
         if (!result?.ok) {
           setMessage(result?.error || 'That pawn cannot move');
           if (result?.state) setSnapshot(result.state);
@@ -986,6 +1028,7 @@ function App() {
         <VictoryPodium
           roomCode={snapshot.roomCode}
           winnerSeat={snapshot.winner ?? 0}
+          rankings={snapshot.rankings || []}
           players={victoryPlayers}
           sessionId={sessionId}
           hostId={snapshot.host}
@@ -1105,6 +1148,7 @@ function App() {
                 localSeat={localSeat}
                 diceDisplay={rolling ? lastDice : snapshot.dice}
                 legal={legal}
+                isMoving={isMoving}
                 onTokenClick={moveToken}
               />
             </div>
