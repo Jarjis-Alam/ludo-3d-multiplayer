@@ -21,6 +21,9 @@ type Snapshot = {
   version: number;
   players: ClientPlayer[];
   tokens: Array<Array<{ kind: 'base' | 'path' | 'home'; progress: number }>>;
+  turnExpiresAt?: number | null;
+  turnDurationMs?: number;
+  lastNotice?: { type: string; message: string; seat: number; playerName?: string; dice?: number; timestamp: number } | null;
 };
 
 const socket: Socket = io(import.meta.env.VITE_SERVER_URL || 'http://localhost:3001', {
@@ -168,6 +171,7 @@ function App() {
   const [lastDice, setLastDice] = useState<number | null>(null);
   const [isMuted, setIsMuted] = useState(AudioEngine.isMuted());
   const [turnTimeLeft, setTurnTimeLeft] = useState(15);
+  const [activityNotice, setActivityNotice] = useState<string | null>(null);
 
   const canJoin = name.trim().length > 0 && name.trim().length <= 16;
 
@@ -178,16 +182,23 @@ function App() {
     }
   }, [name]);
 
-  // Turn timer countdown
+  // Synchronized server-authoritative turn timer countdown
   useEffect(() => {
     if (snapshot?.status === 'playing') {
-      setTurnTimeLeft(15);
-      const interval = setInterval(() => {
-        setTurnTimeLeft((prev) => (prev > 0 ? prev - 1 : 0));
-      }, 1000);
+      const updateCountdown = () => {
+        if (!snapshot.turnExpiresAt) {
+          setTurnTimeLeft(15);
+          return;
+        }
+        const diffMs = snapshot.turnExpiresAt - Date.now();
+        const remSec = Math.max(0, Math.ceil(diffMs / 1000));
+        setTurnTimeLeft(remSec);
+      };
+      updateCountdown();
+      const interval = setInterval(updateCountdown, 250);
       return () => clearInterval(interval);
     }
-  }, [snapshot?.status, snapshot?.currentPlayer, snapshot?.version]);
+  }, [snapshot?.status, snapshot?.turnExpiresAt, snapshot?.currentPlayer, snapshot?.version]);
 
   useEffect(() => {
     const onSession = (data: { sessionToken: string; playerId: string }) => {
@@ -203,6 +214,12 @@ function App() {
         return data;
       });
       setRolling(false);
+    };
+    const onTimeout = (data: any) => {
+      AudioEngine.playTimeout();
+      const name = data.timedOutPlayer || 'Player';
+      setActivityNotice(`⏰ ${name} timed out! Turn forfeited.`);
+      setTimeout(() => setActivityNotice(null), 4000);
     };
     const onConnect = () => {
       setConnected(true);
@@ -230,6 +247,7 @@ function App() {
     socket.on('game_started', onState);
     socket.on('rematch_started', onState);
     socket.on('state', onState);
+    socket.on('turn_timeout', onTimeout);
     socket.on('player_disconnected', onState);
     socket.on('player_reconnected', onState);
     socket.on('connect', onConnect);
@@ -743,19 +761,40 @@ function App() {
 
       <div className="game-screen-wrapper">
         {/* Floating Top Turn Status Banner */}
-        <div className={`turn-status-banner ${isMyTurn ? 'banner-my-turn' : ''}`}>
+        <div className={`turn-status-banner ${isMyTurn ? 'banner-my-turn' : ''} ${turnTimeLeft <= 5 && turnTimeLeft > 0 ? 'banner-urgent' : ''}`}>
           <div className="turn-headline">
             <span className="turn-insignia">⚜</span>
-            {isMyTurn ? (
+            {activityNotice ? (
+              <span className="turn-notice-flash animate-pulse">{activityNotice}</span>
+            ) : snapshot.lastNotice && Date.now() - (snapshot.lastNotice.timestamp || 0) < 4000 ? (
+              <span className="turn-notice-flash">
+                {snapshot.lastNotice.type === 'timeout' && '⏰ '}
+                {snapshot.lastNotice.type === 'three_sixes' && '⚠️ '}
+                {snapshot.lastNotice.type === 'auto_pass' && '⏭️ '}
+                {snapshot.lastNotice.type === 'extra_turn' && '✨ '}
+                {snapshot.lastNotice.message}
+              </span>
+            ) : isMyTurn ? (
               snapshot.dice === null ? (
-                <span className="turn-text-highlight">YOUR TURN: Tap the dice in the tray to roll!</span>
+                <span className="turn-text-highlight">
+                  YOUR TURN: Tap the dice in the tray to roll!
+                  {turnTimeLeft <= 5 && turnTimeLeft > 0 && (
+                    <span className="timer-urgent-pill ml-2">⏳ {turnTimeLeft}s left</span>
+                  )}
+                </span>
               ) : snapshot.dice === 6 ? (
                 <span className="turn-text-highlight">
                   🎉 ROLLED A 6! Deploy from yard or advance 6 (Bonus Roll awarded!). Select a glowing pawn.
+                  {turnTimeLeft <= 5 && turnTimeLeft > 0 && (
+                    <span className="timer-urgent-pill ml-2">⏳ {turnTimeLeft}s left</span>
+                  )}
                 </span>
               ) : legal.length > 0 ? (
                 <span className="turn-text-highlight">
                   YOUR TURN: Select a glowing pawn to move {snapshot.dice} {snapshot.dice === 1 ? 'space' : 'spaces'}.
+                  {turnTimeLeft <= 5 && turnTimeLeft > 0 && (
+                    <span className="timer-urgent-pill ml-2">⏳ {turnTimeLeft}s left</span>
+                  )}
                 </span>
               ) : (
                 <span>No legal moves for roll of {snapshot.dice}. Passing turn…</span>
@@ -767,6 +806,7 @@ function App() {
                   {activePlayer?.color?.toUpperCase()}
                 </span>
                 )…
+                <span className="opacity-80 text-xs ml-2 font-mono">({turnTimeLeft}s)</span>
               </span>
             )}
           </div>

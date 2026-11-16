@@ -50,19 +50,21 @@ export const DiceRoller: React.FC<DiceRollerProps> = ({
   const pips = PIP_PATTERNS[displayVal] || PIP_PATTERNS[6];
   const progressPercent = Math.max(0, Math.min(100, (timeLeft / maxTime) * 100));
   const strokeDashoffset = 100 - progressPercent;
+  const isUrgent = timeLeft <= 5 && timeLeft > 0;
+  const showTimer = (canRoll || (isMyTurn && value !== null)) && timeLeft > 0;
 
   return (
     <div className="dice-roller-container select-none">
-      <div className={`dice-tray-wrapper ${canRoll ? 'tray-active-glow' : ''}`}>
+      <div className={`dice-tray-wrapper ${canRoll ? 'tray-active-glow' : ''} ${isUrgent ? 'tray-urgent-border' : ''}`}>
         {/* Turn Countdown SVG Ring */}
-        {canRoll && (
-          <svg className="dice-timer-svg" viewBox="0 0 100 100">
+        {showTimer && (
+          <svg className={`dice-timer-svg ${isUrgent ? 'timer-urgent-pulse' : ''}`} viewBox="0 0 100 100">
             <circle
               cx="50"
               cy="50"
               r="46"
               fill="none"
-              stroke="rgba(212, 175, 55, 0.2)"
+              stroke={isUrgent ? 'rgba(239, 68, 68, 0.2)' : 'rgba(212, 175, 55, 0.2)'}
               strokeWidth="4"
             />
             <circle
@@ -70,7 +72,7 @@ export const DiceRoller: React.FC<DiceRollerProps> = ({
               cy="50"
               r="46"
               fill="none"
-              stroke="#f59e0b"
+              stroke={isUrgent ? '#ef4444' : '#f59e0b'}
               strokeWidth="4"
               strokeDasharray="289"
               strokeDashoffset={2.89 * strokeDashoffset}
@@ -98,10 +100,16 @@ export const DiceRoller: React.FC<DiceRollerProps> = ({
               {[0, 1, 2, 3, 4, 5, 6, 7, 8].map((idx) => (
                 <div key={idx} className="pip-cell">
                   {pips.includes(idx) && (
-                    <span
-                      className={`pip-dot ${
-                        displayVal === 1 || displayVal === 6 ? 'pip-red' : 'pip-dark'
-                      }`}
+                    <div
+                      className="dice-pip-dot"
+                      style={{
+                        backgroundColor:
+                          displayVal === 6
+                            ? 'var(--accent-red, #dc2626)'
+                            : displayVal === 1
+                            ? 'var(--accent-gold, #d97706)'
+                            : '#1e293b',
+                      }}
                     />
                   )}
                 </div>
@@ -115,7 +123,7 @@ export const DiceRoller: React.FC<DiceRollerProps> = ({
       {canRoll ? (
         <button
           type="button"
-          className="roll-action-pill"
+          className={`roll-action-pill ${isUrgent ? 'roll-urgent-pulse' : ''}`}
           onClick={() => {
             if (canRoll && !rolling) onRoll();
           }}
@@ -124,7 +132,7 @@ export const DiceRoller: React.FC<DiceRollerProps> = ({
           {rolling ? (
             <span className="animate-pulse">🎲 Rolling…</span>
           ) : (
-            <span>🎲 TAP TO ROLL</span>
+            <span>🎲 TAP TO ROLL {isUrgent ? `(${timeLeft}s)` : ''}</span>
           )}
         </button>
       ) : isMyTurn && value !== null ? (
@@ -134,13 +142,13 @@ export const DiceRoller: React.FC<DiceRollerProps> = ({
               <span>✨ ROLLED 6 — BONUS ROLL! ✨</span>
             </div>
           )}
-          <div className="dice-waiting-badge text-amber-300 font-bold border-amber-400/50 bg-amber-500/10">
-            ♟ Choose a pawn to move
+          <div className={`dice-waiting-badge ${isUrgent ? 'text-red-400 border-red-500/60 bg-red-950/40' : 'text-amber-300 border-amber-400/50 bg-amber-500/10'} font-bold`}>
+            ♟ Choose a pawn {isUrgent ? `(${timeLeft}s remaining)` : ''}
           </div>
         </div>
       ) : (
         <div className="dice-waiting-badge">
-          {playerName ? `Waiting for ${playerName}…` : 'Awaiting turn…'}
+          {playerName ? `Waiting for ${playerName}… (${timeLeft}s)` : 'Awaiting turn…'}
         </div>
       )}
     </div>

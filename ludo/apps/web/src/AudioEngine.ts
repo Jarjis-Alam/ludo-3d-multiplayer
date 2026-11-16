@@ -181,6 +181,46 @@ class AudioEngineManager {
       osc.stop(start + 0.45);
     });
   }
+
+  /**
+   * Sound effect: Turn timeout notification
+   */
+  public playTimeout(): void {
+    if (!this.init() || !this.ctx) return;
+    const now = this.ctx.currentTime;
+    // Descending two-tone buzzer
+    [320, 220].forEach((freq, idx) => {
+      if (!this.ctx) return;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sawtooth';
+      const start = now + idx * 0.14;
+      osc.frequency.setValueAtTime(freq, start);
+      gain.gain.setValueAtTime(0.18, start);
+      gain.gain.exponentialRampToValueAtTime(0.001, start + 0.12);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(start);
+      osc.stop(start + 0.12);
+    });
+  }
+
+  /**
+   * Sound effect: Subtle timer warning tick when <= 5s
+   */
+  public playWarningTick(): void {
+    if (!this.init() || !this.ctx) return;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, this.ctx.currentTime);
+    gain.gain.setValueAtTime(0.08, this.ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.05);
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.start();
+    osc.stop(this.ctx.currentTime + 0.05);
+  }
 }
 
 export const AudioEngine = new AudioEngineManager();

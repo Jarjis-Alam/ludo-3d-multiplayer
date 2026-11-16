@@ -1,5 +1,5 @@
 import {describe,it,expect} from 'vitest';
-import {absoluteCell,getNextPlayer,initialState,legalTokens,moveToken,roll,SAFE_CELLS,startGame,type Player} from '../src/index';
+import {absoluteCell,forfeitTurn,getNextPlayer,initialState,legalTokens,moveToken,roll,SAFE_CELLS,startGame,type Player} from '../src/index';
 const players:Player[]=[0,1,2,3].map((seat)=>({id:`p${seat}`,name:`P${seat}`,color:['red','green','yellow','blue'][seat],seat:seat as 0|1|2|3}));
 const playing=()=>startGame(initialState(players));
 describe('ludo engine',()=>{
@@ -108,6 +108,76 @@ describe('ludo engine',()=>{
      expect(cap.captured).toBe(true);
      expect(cap.state.tokens[2][0]).toEqual({ kind: 'base' });
      expect(cap.state.currentPlayer).toBe(2); // Passed to Charlie
+   });
+ });
+
+ describe('turn timer and forfeit transitions', () => {
+   it('sets initial turnExpiresAt when game starts', () => {
+     const startT = 1700000000000;
+     const s = startGame(initialState(players), startT);
+     expect(s.status).toBe('playing');
+     expect(s.turnExpiresAt).toBe(startT + 15000);
+     expect(s.currentPlayer).toBe(0);
+   });
+
+   it('forfeits turn when player does not roll in time', () => {
+     const startT = 1700000000000;
+     let s = startGame(initialState(players), startT);
+     expect(s.currentPlayer).toBe(0);
+     expect(s.dice).toBeNull();
+
+     s = forfeitTurn(s, [0, 1, 2, 3], startT + 15000);
+     expect(s.currentPlayer).toBe(1);
+     expect(s.dice).toBeNull();
+     expect(s.turnExpiresAt).toBe(startT + 30000);
+     expect(s.lastNotice?.type).toBe('timeout');
+     expect(s.lastNotice?.seat).toBe(0);
+   });
+
+   it('forfeits turn when player rolls but fails to select a token in time', () => {
+     const startT = 1700000000000;
+     let s = startGame(initialState(players), startT);
+     s = roll(s, 0, 6, startT + 2000);
+     expect(s.dice).toBe(6);
+     expect(s.currentPlayer).toBe(0);
+     expect(s.consecutiveSixes).toBe(1);
+
+     s = forfeitTurn(s, [0, 1, 2, 3], startT + 17000);
+     expect(s.currentPlayer).toBe(1);
+     expect(s.dice).toBeNull();
+     expect(s.consecutiveSixes).toBe(0);
+     expect(s.turnExpiresAt).toBe(startT + 32000);
+     expect(s.lastNotice?.type).toBe('timeout');
+     expect(s.lastNotice?.seat).toBe(0);
+   });
+
+   it('skips vacant seats during turn forfeit in 2-player game', () => {
+     const twoPlayers: Player[] = [
+       { id: 'p0', name: 'Alice', color: 'red', seat: 0 },
+       { id: 'p2', name: 'Charlie', color: 'yellow', seat: 2 },
+     ];
+     let s = startGame(initialState(twoPlayers), 1000);
+     expect(s.currentPlayer).toBe(0);
+
+     s = forfeitTurn(s, [0, 2], 16000);
+     expect(s.currentPlayer).toBe(2);
+     expect(s.turnExpiresAt).toBe(31000);
+
+     s = forfeitTurn(s, [0, 2], 31000);
+     expect(s.currentPlayer).toBe(0);
+     expect(s.turnExpiresAt).toBe(46000);
+   });
+
+   it('cancels turnExpiresAt when match finishes', () => {
+     let s = playing();
+     s = {
+       ...s,
+       tokens: [[...Array(3).fill({ kind: 'home', progress: 6 }), { kind: 'home', progress: 5 }], ...s.tokens.slice(1)],
+     };
+     const res = moveToken({ ...s, dice: 1 }, 0, 3, 1, 5000);
+     expect(res.winner).toBe(true);
+     expect(res.state.status).toBe('finished');
+     expect(res.state.turnExpiresAt).toBeNull();
    });
  });
 });

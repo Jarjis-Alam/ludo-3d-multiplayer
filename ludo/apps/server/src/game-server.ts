@@ -1,6 +1,16 @@
 import { createHmac, randomBytes, randomInt } from 'node:crypto';
 import type { Server, Socket } from 'socket.io';
-import { initialState, startGame, roll, moveToken, type GameState, type Player, type PlayerIndex, legalTokens } from '@ludo/game-engine';
+import {
+  initialState,
+  startGame,
+  roll,
+  moveToken,
+  forfeitTurn,
+  type GameState,
+  type Player,
+  type PlayerIndex,
+  legalTokens,
+} from '@ludo/game-engine';
 import type { Persistence, PersistedRoom } from './persistence.js';
 
 const COLORS = ['red', 'green', 'yellow', 'blue'] as const;
@@ -30,6 +40,8 @@ type Room = {
   players: Map<string, RoomPlayer>;
   state: GameState;
   expiry?: NodeJS.Timeout;
+  turnTimer?: NodeJS.Timeout;
+  turnTimerVersion?: number;
   actionTail: Promise<void>;
   processedActions: Map<string, ActionResult>;
   snapshotHistory: Map<number, RoomSnapshot>;
@@ -70,6 +82,7 @@ export class LudoService {
   private readonly socketRateLimits = new Map<string, { count: number; resetAt: number }>();
   private readonly failedJoins = new Map<string, { count: number; lockedUntil: number }>();
   private readonly pendingPersistence = new Set<Promise<unknown>>();
+  private io?: Server;
 
   constructor(private readonly persistence: Persistence, private readonly invitationOrigin = 'http://localhost:5173') {}
 
@@ -83,6 +96,19 @@ export class LudoService {
   public async flushPersistence(): Promise<void> {
     while (this.pendingPersistence.size > 0) {
       await Promise.all([...this.pendingPersistence]);
+    }
+  }
+
+  public close(): void {
+    for (const room of this.rooms.values()) {
+      if (room.turnTimer) {
+        clearTimeout(room.turnTimer);
+        room.turnTimer = undefined;
+      }
+      if (room.expiry) {
+        clearTimeout(room.expiry);
+        room.expiry = undefined;
+      }
     }
   }
 
@@ -162,12 +188,14 @@ export class LudoService {
   }
 
   private async save(room: Room) {
-    await this.trackPersistence(this.persistence.saveRoom({
-      code: room.code,
-      host: room.host,
-      players: [...room.players.values()].map(({ connected, socketId, lastSeenAt, ...player }) => player),
-      state: room.state,
-    }));
+    await this.trackPersistence(
+      this.persistence.saveRoom({
+        code: room.code,
+        host: room.host,
+        players: [...room.players.values()].map(({ connected, socketId, lastSeenAt, ...player }) => player),
+        state: room.state,
+      })
+    );
   }
 
   private sendError(ack: ((value: ActionResult) => void) | undefined, error: string, isObjectCall = false, room?: Room) {
@@ -178,11 +206,18 @@ export class LudoService {
     }
   }
 
-  private emitRoom(io: Server, room: Room, event = 'room_state') {
+  private emitRoom(io: Server | undefined, room: Room, event = 'room_state', extraPayload?: Record<string, unknown>) {
+    const targetIo = io || this.io;
     const snap = this.recordSnapshot(room);
-    io.to(room.code).emit(event, snap);
-    if (event !== 'room_state') {
-      io.to(room.code).emit('room_state', snap);
+    if (targetIo) {
+      if (extraPayload) {
+        targetIo.to(room.code).emit(event, { ...snap, state: snap, ...extraPayload });
+      } else {
+        targetIo.to(room.code).emit(event, snap);
+      }
+      if (event !== 'room_state') {
+        targetIo.to(room.code).emit('room_state', snap);
+      }
     }
   }
 
@@ -254,7 +289,91 @@ export class LudoService {
     return run;
   }
 
+  private resetTurnTimer(room: Room) {
+    if (room.turnTimer) {
+      clearTimeout(room.turnTimer);
+      room.turnTimer = undefined;
+    }
+    if (room.state.status !== 'playing') {
+      return;
+    }
+
+    const expectedVersion = room.state.version;
+    room.turnTimerVersion = expectedVersion;
+    const now = Date.now();
+    const duration = room.state.turnDurationMs || (Number(process.env.TURN_TIMEOUT_SECONDS || 15) * 1000);
+    const deadline = room.state.turnExpiresAt ?? (now + duration);
+    const delayMs = Math.max(0, deadline - now);
+
+    room.turnTimer = setTimeout(() => {
+      this.handleTurnTimeout(room.code, expectedVersion).catch(() => {});
+    }, delayMs);
+  }
+
+  public async forceTurnTimeout(roomCode: string): Promise<ActionResult> {
+    const room = this.rooms.get(roomCode);
+    if (!room) return { ok: false, error: 'Room not found' };
+    return this.handleTurnTimeout(roomCode, room.state.version);
+  }
+
+  public setRoomTurnDuration(roomCode: string, durationMs: number): void {
+    const room = this.rooms.get(roomCode);
+    if (room) {
+      room.state.turnDurationMs = durationMs;
+      if (room.state.status === 'playing') {
+        room.state.turnExpiresAt = Date.now() + durationMs;
+        this.resetTurnTimer(room);
+        this.emitRoom(this.io, room);
+      }
+    }
+  }
+
+  private async handleTurnTimeout(roomCode: string, expectedVersion: number): Promise<ActionResult> {
+    const room = this.rooms.get(roomCode);
+    if (!room) return { ok: false, error: 'Room not found' };
+
+    return this.queueAction(room, undefined, async () => {
+      if (room.state.status !== 'playing' || room.state.version !== expectedVersion) {
+        return { ok: false, error: 'Stale timer' };
+      }
+
+      const timedOutSeat = room.state.currentPlayer;
+      const timedOutPlayer = [...room.players.values()].find((p) => p.seat === timedOutSeat);
+      const timedOutPlayerName = timedOutPlayer?.name || `Player ${timedOutSeat + 1}`;
+
+      // Next candidate seats: prioritize connected active players, skip vacant seats
+      const connectedSeats = [...room.players.values()].filter((p) => p.connected).map((p) => p.seat);
+      const allOccupiedSeats = [...room.players.values()].map((p) => p.seat);
+      const targetSeats = connectedSeats.length > 0 ? connectedSeats : allOccupiedSeats;
+
+      const previousDice = room.state.dice;
+      const now = Date.now();
+      room.state = forfeitTurn(room.state, targetSeats, now);
+
+      this.resetTurnTimer(room);
+      await this.save(room);
+
+      this.emitRoom(this.io, room, 'turn_timeout', {
+        timedOutSeat,
+        timedOutPlayer: timedOutPlayerName,
+        hadRolled: previousDice !== null,
+        previousDice,
+        nextPlayerSeat: room.state.currentPlayer,
+      });
+
+      return { ok: true, version: room.state.version, state: this.snapshot(room) };
+    });
+  }
+
   bind(io: Server) {
+    this.io = io;
+    // Resume timers for any active games recovered from persistence
+    for (const room of this.rooms.values()) {
+      if (room.state.status === 'playing') {
+        this.resetTurnTimer(room);
+      }
+    }
+
     io.on('connection', (socket) => {
       const sessionPromise = this.session(socket);
 
@@ -275,6 +394,8 @@ export class LudoService {
           players: new Map([[session.id, player]]),
           state: initialState([player]),
           expiry: undefined,
+          turnTimer: undefined,
+          turnTimerVersion: undefined,
           actionTail: Promise.resolve(),
           processedActions: new Map(),
           snapshotHistory: new Map(),
@@ -351,11 +472,17 @@ export class LudoService {
           socket.leave(room.code);
 
           if (room.players.size === 0) {
+            if (room.turnTimer) {
+              clearTimeout(room.turnTimer);
+              room.turnTimer = undefined;
+            }
             this.rooms.delete(room.code);
             await this.trackPersistence(this.persistence.deleteRoom(room.code));
           } else {
             if (room.host === session.id) room.host = [...room.players.keys()][0];
-            room.state = initialState([...room.players.values()], room.state.version);
+            if (room.state.status === 'lobby') {
+              room.state = initialState([...room.players.values()], room.state.version);
+            }
             this.recordSnapshot(room);
             await this.save(room);
             this.emitRoom(io, room, 'lobby_updated');
@@ -395,6 +522,7 @@ export class LudoService {
             players: [...room.players.values()],
             version: currentVer,
           });
+          this.resetTurnTimer(room);
           await this.save(room);
           this.emitRoom(io, room, 'game_started');
           return { ok: true, version: room.state.version, state: this.snapshot(room) };
@@ -435,6 +563,7 @@ export class LudoService {
             version: currentVer,
           });
 
+          this.resetTurnTimer(room);
           await this.save(room);
           this.emitRoom(io, room, 'rematch_started');
           return { ok: true, version: room.state.version, state: this.snapshot(room) };
@@ -483,6 +612,7 @@ export class LudoService {
 
           try {
             room.state = roll(room.state, player.seat, value);
+            this.resetTurnTimer(room);
             await this.save(room);
             this.emitRoom(io, room);
             return { ok: true, value, version: room.state.version, state: this.snapshot(room) };
@@ -533,6 +663,7 @@ export class LudoService {
 
           try {
             room.state = moveToken(room.state, player.seat, token, room.state.dice).state;
+            this.resetTurnTimer(room);
             await this.save(room);
             this.emitRoom(io, room);
             return { ok: true, version: room.state.version, state: this.snapshot(room) };
@@ -597,9 +728,20 @@ export class LudoService {
           const currentPlayer = room.players.get(current.id);
           if (currentPlayer && !currentPlayer.connected) {
             room.players.delete(current.id);
-            room.state = initialState([...room.players.values()], room.state.version);
-            await this.save(room);
-            this.emitRoom(io, room, 'lobby_updated');
+            if (room.state.status === 'lobby') {
+              room.state = initialState([...room.players.values()], room.state.version);
+            }
+            if (room.players.size === 0) {
+              if (room.turnTimer) {
+                clearTimeout(room.turnTimer);
+                room.turnTimer = undefined;
+              }
+              this.rooms.delete(room.code);
+              await this.trackPersistence(this.persistence.deleteRoom(room.code));
+            } else {
+              await this.save(room);
+              this.emitRoom(io, room, 'lobby_updated');
+            }
           }
         }, SESSION_GRACE_MS);
       });
