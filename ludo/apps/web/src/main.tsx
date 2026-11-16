@@ -428,6 +428,9 @@ function App() {
           return;
         }
         setLastDice(result.value);
+        if (result.value === 6) {
+          AudioEngine.playSix();
+        }
         if (result.state) setSnapshot(result.state);
         window.setTimeout(() => setRolling(false), 550);
       }
@@ -436,6 +439,8 @@ function App() {
 
   const moveToken = (token: number) => {
     if (!snapshot || !legal.includes(token)) return;
+    const currentToken = snapshot.tokens[localSeat]?.[token];
+    const isDeploy = currentToken?.kind === 'base';
     const actionId = `move_${snapshot.version}_${token}_${Date.now()}`;
     socket.emit(
       'move_token',
@@ -446,6 +451,11 @@ function App() {
           if (result?.state) setSnapshot(result.state);
         } else {
           setMessage('');
+          if (isDeploy) {
+            AudioEngine.playExit();
+          } else {
+            AudioEngine.playHop();
+          }
           if (result?.state) setSnapshot(result.state);
         }
       }
@@ -739,6 +749,10 @@ function App() {
             {isMyTurn ? (
               snapshot.dice === null ? (
                 <span className="turn-text-highlight">YOUR TURN: Tap the dice in the tray to roll!</span>
+              ) : snapshot.dice === 6 ? (
+                <span className="turn-text-highlight">
+                  🎉 ROLLED A 6! Deploy from yard or advance 6 (Bonus Roll awarded!). Select a glowing pawn.
+                </span>
               ) : legal.length > 0 ? (
                 <span className="turn-text-highlight">
                   YOUR TURN: Select a glowing pawn to move {snapshot.dice} {snapshot.dice === 1 ? 'space' : 'spaces'}.

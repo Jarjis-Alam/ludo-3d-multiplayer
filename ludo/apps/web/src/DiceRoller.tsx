@@ -128,8 +128,15 @@ export const DiceRoller: React.FC<DiceRollerProps> = ({
           )}
         </button>
       ) : isMyTurn && value !== null ? (
-        <div className="dice-waiting-badge text-amber-300 font-bold border-amber-400/50 bg-amber-500/10">
-          ♟ Choose a pawn to move
+        <div className="flex flex-col items-center gap-1.5">
+          {displayVal === 6 && (
+            <div className="dice-six-badge">
+              <span>✨ ROLLED 6 — BONUS ROLL! ✨</span>
+            </div>
+          )}
+          <div className="dice-waiting-badge text-amber-300 font-bold border-amber-400/50 bg-amber-500/10">
+            ♟ Choose a pawn to move
+          </div>
         </div>
       ) : (
         <div className="dice-waiting-badge">
