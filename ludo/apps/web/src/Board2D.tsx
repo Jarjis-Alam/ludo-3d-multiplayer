@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { AudioEngine } from './AudioEngine';
+import { PawnToken, PawnDefs } from './PawnToken';
 
 export type BoardToken = { kind: 'base' | 'path' | 'home'; progress: number };
 export type BoardPlayer = { id: string; name: string; color: string; seat: number; connected?: boolean };
@@ -17,12 +18,23 @@ export interface Board2DProps {
 const SEAT_COLORS = ['red', 'green', 'yellow', 'blue'] as const;
 const START_OFFSETS = [0, 13, 26, 39];
 
-const COLOR_CLASSES: Record<string, string> = {
-  red: 'ruby-red',
-  green: 'emerald-green',
-  yellow: 'golden-topaz',
-  blue: 'sapphire-blue',
-};
+export const StarMedal: React.FC<{ size?: number }> = ({ size = 20 }) => (
+  <svg
+    viewBox="0 0 24 24"
+    width={size}
+    height={size}
+    className="star-haven-svg"
+    aria-hidden="true"
+  >
+    <circle cx="12" cy="12" r="10" fill="rgba(212, 175, 55, 0.18)" stroke="#d4af37" strokeWidth="0.8" />
+    <polygon
+      points="12,3 14.5,8.8 21,9.4 16,13.8 17.5,20.2 12,16.8 6.5,20.2 8,13.8 3,9.4 9.5,8.8"
+      fill="url(#starGoldGrad)"
+      stroke="#996515"
+      strokeWidth="0.6"
+    />
+  </svg>
+);
 
 export const Board2D: React.FC<Board2DProps> = ({
   players,
@@ -35,7 +47,7 @@ export const Board2D: React.FC<Board2DProps> = ({
   const activeSeats = useMemo(() => new Set(players.map((p) => p.seat)), [players]);
 
   // Map tokens to their visual cells:
-  // Key: "track-X", "home-SEAT-INDEX", "base-SEAT-TOKEN", "goal-SEAT-TOKEN"
+  // Key: "track-X", "home-SEAT-INDEX", "base-SEAT-TOKEN", "goal-SEAT"
   const tokensOnBoard = useMemo(() => {
     const map: Record<string, Array<{ seat: number; tokenIdx: number; isLegal: boolean }>> = {};
 
@@ -72,14 +84,15 @@ export const Board2D: React.FC<Board2DProps> = ({
     return map;
   }, [tokens, activeSeats, localSeat, currentPlayer, legal]);
 
-  const renderPawn = (seat: number, tokenIdx: number, isLegal: boolean) => {
+  const renderPawn = (seat: number, tokenIdx: number, isLegal: boolean, size = 32) => {
     const colorKey = SEAT_COLORS[seat] || 'red';
-    const colorClass = COLOR_CLASSES[colorKey];
 
     return (
-      <div
+      <PawnToken
         key={`pawn-${seat}-${tokenIdx}`}
-        className={`meenakari-pawn ${colorClass} ${isLegal ? 'pawn-legal-glow' : ''}`}
+        color={colorKey}
+        isLegal={isLegal}
+        size={size}
         onClick={(e) => {
           e.stopPropagation();
           if (isLegal) {
@@ -87,26 +100,23 @@ export const Board2D: React.FC<Board2DProps> = ({
             onTokenClick(tokenIdx);
           }
         }}
-        title={`Seat ${seat + 1} (${colorKey.toUpperCase()}) - Token ${tokenIdx + 1}${
+        title={`Seat ${seat + 1} (${colorKey.toUpperCase()}) - Pawn ${tokenIdx + 1}${
           isLegal ? ' (Click to Move)' : ''
         }`}
-      >
-        <div className="meenakari-body">
-          <div className="meenakari-rosette">
-            <div className="meenakari-core" />
-          </div>
-        </div>
-      </div>
+      />
     );
   };
 
   function renderCellTokens(trackIndex: number) {
     const occupants = tokensOnBoard[`track-${trackIndex}`] || [];
     if (occupants.length === 0) return null;
+    const isClustered = occupants.length > 1;
+    const pawnSize = isClustered ? 22 : 32;
+
     return (
-      <div className="tokens-cluster">
-        {occupants.map((occ) => renderPawn(occ.seat, occ.tokenIdx, occ.isLegal))}
-        {occupants.length > 1 && <span className="cluster-badge">×{occupants.length}</span>}
+      <div className={`tokens-cluster ${isClustered ? 'has-cluster' : ''}`}>
+        {occupants.map((occ) => renderPawn(occ.seat, occ.tokenIdx, occ.isLegal, pawnSize))}
+        {isClustered && <span className="cluster-badge">×{occupants.length}</span>}
       </div>
     );
   }
@@ -114,16 +124,30 @@ export const Board2D: React.FC<Board2DProps> = ({
   function renderHomeTokens(seat: number, stepIndex: number) {
     const occupants = tokensOnBoard[`home-${seat}-${stepIndex}`] || [];
     if (occupants.length === 0) return null;
+    const isClustered = occupants.length > 1;
+    const pawnSize = isClustered ? 22 : 32;
+
     return (
-      <div className="tokens-cluster">
-        {occupants.map((occ) => renderPawn(occ.seat, occ.tokenIdx, occ.isLegal))}
-        {occupants.length > 1 && <span className="cluster-badge">×{occupants.length}</span>}
+      <div className={`tokens-cluster ${isClustered ? 'has-cluster' : ''}`}>
+        {occupants.map((occ) => renderPawn(occ.seat, occ.tokenIdx, occ.isLegal, pawnSize))}
+        {isClustered && <span className="cluster-badge">×{occupants.length}</span>}
+      </div>
+    );
+  }
+
+  function renderGoalTokens(seat: number) {
+    const occupants = tokensOnBoard[`goal-${seat}`] || [];
+    if (occupants.length === 0) return null;
+    return (
+      <div className="goal-occupants-cluster">
+        {occupants.map((occ) => renderPawn(occ.seat, occ.tokenIdx, occ.isLegal, 18))}
       </div>
     );
   }
 
   return (
     <div className="ludo-arena-container">
+      <PawnDefs />
       <div className="ludo-arena-frame">
         <div className="ludo-grid" id="ludoBoard">
           {/* ==================== 1. RED HOME YARD (Cols 1-6, Rows 1-6) ==================== */}
@@ -133,12 +157,14 @@ export const Board2D: React.FC<Board2DProps> = ({
                 const occupants = tokensOnBoard[`base-0-${slotIdx}`] || [];
                 return (
                   <div key={slotIdx} className="base-socket base-socket-red">
-                    {occupants.map((occ) => renderPawn(occ.seat, occ.tokenIdx, occ.isLegal))}
+                    {occupants.map((occ) => renderPawn(occ.seat, occ.tokenIdx, occ.isLegal, 34))}
                   </div>
                 );
               })}
             </div>
-            <span className="yard-badge yard-badge-tl">RED</span>
+            <span className="yard-badge yard-badge-tl">
+              {activeSeats.has(0) ? 'RED' : 'VACANT'}
+            </span>
           </div>
 
           {/* ==================== 2. TOP VERTICAL TRACK (Cols 7-9, Rows 1-6) ==================== */}
@@ -149,10 +175,7 @@ export const Board2D: React.FC<Board2DProps> = ({
             <div className="cell cell-white">{renderCellTokens(12)}</div>
 
             {/* Row 1 */}
-            <div className="cell cell-white">
-              <span className="star-haven">★</span>
-              {renderCellTokens(9)}
-            </div>
+            <div className="cell cell-white">{renderCellTokens(9)}</div>
             <div className="cell cell-green">{renderHomeTokens(1, 0)}</div>
             <div className="cell cell-green start-cell">
               <span className="exit-arrow">▼</span>
@@ -160,8 +183,8 @@ export const Board2D: React.FC<Board2DProps> = ({
             </div>
 
             {/* Row 2 */}
-            <div className="cell cell-white">
-              <span className="star-haven">★</span>
+            <div className="cell cell-white cell-safe">
+              <StarMedal />
               {renderCellTokens(8)}
             </div>
             <div className="cell cell-green">{renderHomeTokens(1, 1)}</div>
@@ -190,12 +213,14 @@ export const Board2D: React.FC<Board2DProps> = ({
                 const occupants = tokensOnBoard[`base-1-${slotIdx}`] || [];
                 return (
                   <div key={slotIdx} className="base-socket base-socket-green">
-                    {occupants.map((occ) => renderPawn(occ.seat, occ.tokenIdx, occ.isLegal))}
+                    {occupants.map((occ) => renderPawn(occ.seat, occ.tokenIdx, occ.isLegal, 34))}
                   </div>
                 );
               })}
             </div>
-            <span className="yard-badge yard-badge-tr">GREEN</span>
+            <span className="yard-badge yard-badge-tr">
+              {activeSeats.has(1) ? 'GREEN' : 'VACANT'}
+            </span>
           </div>
 
           {/* ==================== 4. LEFT HORIZONTAL TRACK (Cols 1-6, Rows 7-9) ==================== */}
@@ -222,8 +247,8 @@ export const Board2D: React.FC<Board2DProps> = ({
             {/* Row 8 */}
             <div className="cell cell-white">{renderCellTokens(49)}</div>
             <div className="cell cell-white">{renderCellTokens(48)}</div>
-            <div className="cell cell-white">
-              <span className="star-haven">★</span>
+            <div className="cell cell-white cell-safe">
+              <StarMedal />
               {renderCellTokens(47)}
             </div>
             <div className="cell cell-white">{renderCellTokens(46)}</div>
@@ -240,9 +265,15 @@ export const Board2D: React.FC<Board2DProps> = ({
               <polygon fill="#2563eb" points="0,100 50,50 100,100" stroke="#d4af37" strokeWidth="1.2" />
             </svg>
 
-            {/* Center crown rosette */}
+            {/* Finished tokens inside respective goal triangles */}
+            <div className="goal-quadrant goal-quadrant-red">{renderGoalTokens(0)}</div>
+            <div className="goal-quadrant goal-quadrant-green">{renderGoalTokens(1)}</div>
+            <div className="goal-quadrant goal-quadrant-yellow">{renderGoalTokens(2)}</div>
+            <div className="goal-quadrant goal-quadrant-blue">{renderGoalTokens(3)}</div>
+
+            {/* Center crown rosette medallion */}
             <div className="goal-crown-rosette">
-              <div className="goal-crown-icon">♚</div>
+              <div className="goal-crown-icon" title="Victory Home">♚</div>
             </div>
           </div>
 
@@ -252,8 +283,8 @@ export const Board2D: React.FC<Board2DProps> = ({
             <div className="cell cell-white">{renderCellTokens(18)}</div>
             <div className="cell cell-white">{renderCellTokens(19)}</div>
             <div className="cell cell-white">{renderCellTokens(20)}</div>
-            <div className="cell cell-white">
-              <span className="star-haven">★</span>
+            <div className="cell cell-white cell-safe">
+              <StarMedal />
               {renderCellTokens(21)}
             </div>
             <div className="cell cell-white">{renderCellTokens(22)}</div>
@@ -286,12 +317,14 @@ export const Board2D: React.FC<Board2DProps> = ({
                 const occupants = tokensOnBoard[`base-3-${slotIdx}`] || [];
                 return (
                   <div key={slotIdx} className="base-socket base-socket-blue">
-                    {occupants.map((occ) => renderPawn(occ.seat, occ.tokenIdx, occ.isLegal))}
+                    {occupants.map((occ) => renderPawn(occ.seat, occ.tokenIdx, occ.isLegal, 34))}
                   </div>
                 );
               })}
             </div>
-            <span className="yard-badge yard-badge-bl">BLUE</span>
+            <span className="yard-badge yard-badge-bl">
+              {activeSeats.has(3) ? 'BLUE' : 'VACANT'}
+            </span>
           </div>
 
           {/* ==================== 8. BOTTOM VERTICAL TRACK (Cols 7-9, Rows 10-15) ==================== */}
@@ -314,8 +347,8 @@ export const Board2D: React.FC<Board2DProps> = ({
             {/* Row 12 */}
             <div className="cell cell-white">{renderCellTokens(40)}</div>
             <div className="cell cell-blue">{renderHomeTokens(3, 1)}</div>
-            <div className="cell cell-white">
-              <span className="star-haven">★</span>
+            <div className="cell cell-white cell-safe">
+              <StarMedal />
               {renderCellTokens(34)}
             </div>
 
@@ -325,10 +358,7 @@ export const Board2D: React.FC<Board2DProps> = ({
               {renderCellTokens(39)}
             </div>
             <div className="cell cell-blue">{renderHomeTokens(3, 0)}</div>
-            <div className="cell cell-white">
-              <span className="star-haven">★</span>
-              {renderCellTokens(35)}
-            </div>
+            <div className="cell cell-white">{renderCellTokens(35)}</div>
 
             {/* Row 14 */}
             <div className="cell cell-white">{renderCellTokens(38)}</div>
@@ -343,12 +373,14 @@ export const Board2D: React.FC<Board2DProps> = ({
                 const occupants = tokensOnBoard[`base-2-${slotIdx}`] || [];
                 return (
                   <div key={slotIdx} className="base-socket base-socket-yellow">
-                    {occupants.map((occ) => renderPawn(occ.seat, occ.tokenIdx, occ.isLegal))}
+                    {occupants.map((occ) => renderPawn(occ.seat, occ.tokenIdx, occ.isLegal, 34))}
                   </div>
                 );
               })}
             </div>
-            <span className="yard-badge yard-badge-br">YELLOW</span>
+            <span className="yard-badge yard-badge-br">
+              {activeSeats.has(2) ? 'YELLOW' : 'VACANT'}
+            </span>
           </div>
         </div>
       </div>

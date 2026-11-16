@@ -5,8 +5,10 @@ interface DiceRollerProps {
   value: number | null;
   rolling: boolean;
   canRoll: boolean;
+  isMyTurn?: boolean;
   onRoll: () => void;
   playerColor?: string;
+  playerName?: string;
   timeLeft?: number; // 0 to 15 seconds
   maxTime?: number;
 }
@@ -24,8 +26,10 @@ export const DiceRoller: React.FC<DiceRollerProps> = ({
   value,
   rolling,
   canRoll,
+  isMyTurn = false,
   onRoll,
   playerColor = 'gold',
+  playerName,
   timeLeft = 15,
   maxTime = 15,
 }) => {
@@ -36,7 +40,7 @@ export const DiceRoller: React.FC<DiceRollerProps> = ({
       AudioEngine.playDiceRoll();
       const interval = setInterval(() => {
         setDisplayVal(Math.floor(Math.random() * 6) + 1);
-      }, 60);
+      }, 50);
       return () => clearInterval(interval);
     } else if (value) {
       setDisplayVal(value);
@@ -49,8 +53,8 @@ export const DiceRoller: React.FC<DiceRollerProps> = ({
 
   return (
     <div className="dice-roller-container select-none">
-      <div className="dice-tray-wrapper">
-        {/* SVG Circular Timer Ring */}
+      <div className={`dice-tray-wrapper ${canRoll ? 'tray-active-glow' : ''}`}>
+        {/* Turn Countdown SVG Ring */}
         {canRoll && (
           <svg className="dice-timer-svg" viewBox="0 0 100 100">
             <circle
@@ -76,7 +80,7 @@ export const DiceRoller: React.FC<DiceRollerProps> = ({
           </svg>
         )}
 
-        {/* Tactile 3D-Shaded Dice Cube */}
+        {/* 3D Tactile Dice Cube */}
         <button
           type="button"
           className={`dice-cube-btn ${rolling ? 'rolling-tumbling' : ''} ${
@@ -87,6 +91,7 @@ export const DiceRoller: React.FC<DiceRollerProps> = ({
           }}
           disabled={!canRoll || rolling}
           title={canRoll ? 'Tap to roll the dice' : 'Waiting for turn'}
+          aria-label={canRoll ? 'Roll dice' : `Dice value ${displayVal}`}
         >
           <div className="dice-box-face">
             <div className="pip-grid-3x3">
@@ -95,7 +100,7 @@ export const DiceRoller: React.FC<DiceRollerProps> = ({
                   {pips.includes(idx) && (
                     <span
                       className={`pip-dot ${
-                        displayVal === 6 ? 'pip-red' : 'pip-dark'
+                        displayVal === 1 || displayVal === 6 ? 'pip-red' : 'pip-dark'
                       }`}
                     />
                   )}
@@ -106,7 +111,8 @@ export const DiceRoller: React.FC<DiceRollerProps> = ({
         </button>
       </div>
 
-      {canRoll && (
+      {/* Clear Roll Availability / Action Feedback */}
+      {canRoll ? (
         <button
           type="button"
           className="roll-action-pill"
@@ -116,11 +122,19 @@ export const DiceRoller: React.FC<DiceRollerProps> = ({
           disabled={rolling}
         >
           {rolling ? (
-            <span className="animate-pulse">Rolling…</span>
+            <span className="animate-pulse">🎲 Rolling…</span>
           ) : (
-            <span>TAP TO ROLL</span>
+            <span>🎲 TAP TO ROLL</span>
           )}
         </button>
+      ) : isMyTurn && value !== null ? (
+        <div className="dice-waiting-badge text-amber-300 font-bold border-amber-400/50 bg-amber-500/10">
+          ♟ Choose a pawn to move
+        </div>
+      ) : (
+        <div className="dice-waiting-badge">
+          {playerName ? `Waiting for ${playerName}…` : 'Awaiting turn…'}
+        </div>
       )}
     </div>
   );

@@ -31,14 +31,126 @@ const socket: Socket = io(import.meta.env.VITE_SERVER_URL || 'http://localhost:3
 
 const colorHex: Record<string, string> = {
   red: '#e63946',
-  green: '#2a9d8f',
+  green: '#059669',
   yellow: '#f59e0b',
   blue: '#2563eb',
 };
 
 function initials(name: string) {
-  return name.slice(0, 2).toUpperCase();
+  return (name || 'PL').slice(0, 2).toUpperCase();
 }
+
+interface PlayerTelemetryCardProps {
+  player: ClientPlayer;
+  isLocal: boolean;
+  isHost: boolean;
+  isActiveTurn: boolean;
+  dice: number | null;
+  tokens: Array<{ kind: 'base' | 'path' | 'home'; progress: number }>;
+  turnTimeLeft: number;
+}
+
+const PlayerTelemetryCard: React.FC<PlayerTelemetryCardProps> = ({
+  player,
+  isLocal,
+  isHost,
+  isActiveTurn,
+  dice,
+  tokens = [],
+  turnTimeLeft,
+}) => {
+  const finishedCount = tokens.filter((t) => t.kind === 'home' && t.progress >= 6).length;
+  const onBoardCount = tokens.filter((t) => t.kind === 'path' || (t.kind === 'home' && t.progress < 6)).length;
+  const inYardCount = tokens.filter((t) => t.kind === 'base').length;
+
+  return (
+    <div
+      className={`player-hud-card ${isActiveTurn ? 'active-turn' : ''}`}
+      style={{
+        borderLeft: `4px solid ${colorHex[player.color] || 'var(--accent-gold)'}`,
+      }}
+    >
+      <div className="hud-card-top">
+        <div className="hud-avatar-wrapper">
+          <div
+            className="hud-avatar"
+            style={{
+              background: `radial-gradient(circle at 35% 35%, ${colorHex[player.color] || '#444'} 0%, #0d1e3a 100%)`,
+            }}
+          >
+            {initials(player.name)}
+          </div>
+          {isHost && (
+            <span className="hud-crown-badge" title="Room Host">
+              👑
+            </span>
+          )}
+        </div>
+
+        <div className="hud-player-meta">
+          <div className="hud-name-row">
+            <span className="hud-name">{player.name}</span>
+            {isLocal && <span className="hud-you-tag">YOU</span>}
+          </div>
+          <div className="hud-sub-row">
+            <span className={`seat-pill seat-pill-${player.color}`}>
+              {player.color.toUpperCase()}
+            </span>
+            <span className={player.connected ? 'conn-status-online' : 'conn-status-reconnecting'}>
+              <span className={`status-dot-mini ${player.connected ? 'online' : 'reconnecting'}`} />
+              <span>{player.connected ? 'ONLINE' : 'RECONNECTING'}</span>
+            </span>
+          </div>
+        </div>
+
+        {isActiveTurn && (
+          <div className="hud-turn-badge animate-pulse">
+            <span>{dice === null ? '🎲 ROLL' : '♟ MOVE'}</span>
+            <span className="ml-1 opacity-80">{turnTimeLeft}s</span>
+          </div>
+        )}
+      </div>
+
+      {/* Visual 4-Pawn Progress Gauge */}
+      <div className="token-pips-row">
+        <div className="token-pips-list" title={`${finishedCount} Finished, ${onBoardCount} on track, ${inYardCount} in yard`}>
+          {[0, 1, 2, 3].map((idx) => {
+            const t = tokens[idx];
+            if (!t || t.kind === 'base') {
+              return (
+                <div key={idx} className="token-pip-slot base" title={`Pawn ${idx + 1}: In Yard`}>
+                  <span>○</span>
+                </div>
+              );
+            }
+            if (t.kind === 'home') {
+              if (t.progress >= 6) {
+                return (
+                  <div key={idx} className="token-pip-slot goal" title={`Pawn ${idx + 1}: Reached Home Goal!`}>
+                    <span>★</span>
+                  </div>
+                );
+              }
+              return (
+                <div key={idx} className="token-pip-slot home" title={`Pawn ${idx + 1}: Home Lane (Step ${t.progress + 1})`}>
+                  <span>▲</span>
+                </div>
+              );
+            }
+            return (
+              <div key={idx} className="token-pip-slot track" title={`Pawn ${idx + 1}: On Track`}>
+                <span>♟</span>
+              </div>
+            );
+          })}
+        </div>
+        <div className="hud-tokens-summary">
+          <span>{finishedCount}/4 HOME</span>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 function App() {
   const [name, setName] = useState(localStorage.getItem('ludo_player_name') || '');
@@ -48,6 +160,8 @@ function App() {
   const [sessionId, setSessionId] = useState('');
   const [message, setMessage] = useState('');
   const [connected, setConnected] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [isJoining, setIsJoining] = useState(false);
   const [rolling, setRolling] = useState(false);
   const [starting, setStarting] = useState(false);
   const [rematching, setRematching] = useState(false);
@@ -92,6 +206,7 @@ function App() {
     };
     const onConnect = () => {
       setConnected(true);
+      setMessage('');
       const savedRoom = localStorage.getItem('ludo-room');
       if (savedRoom) {
         socket.emit('request_game_state', savedRoom, (res: any) => {
@@ -104,6 +219,10 @@ function App() {
       }
     };
     const onDisconnect = () => setConnected(false);
+    const onConnectError = () => {
+      setConnected(false);
+      setMessage('Connecting to game server… (Free-tier instances may take ~30s to wake up)');
+    };
 
     socket.on('session', onSession);
     socket.on('lobby_updated', onState);
@@ -115,10 +234,17 @@ function App() {
     socket.on('player_reconnected', onState);
     socket.on('connect', onConnect);
     socket.on('disconnect', onDisconnect);
+    socket.on('connect_error', onConnectError);
 
     // Auto-connect on mount so page refreshes recover session and active match
     if (!socket.connected) {
       socket.connect();
+    }
+    if (typeof window !== 'undefined') {
+      (window as any).__SET_MOCK_SNAPSHOT__ = (s: Snapshot) => {
+        setSessionId(s.players[0]?.id || 'p1');
+        setSnapshot(s);
+      };
     }
     return () => {
       socket.off('session', onSession);
@@ -131,6 +257,7 @@ function App() {
       socket.off('player_reconnected', onState);
       socket.off('connect', onConnect);
       socket.off('disconnect', onDisconnect);
+      socket.off('connect_error', onConnectError);
     };
   }, []);
 
@@ -139,9 +266,27 @@ function App() {
   };
 
   const create = () => {
+    if (isCreating) return;
+    if (!canJoin) {
+      setMessage('Please enter a display name (1–16 characters).');
+      return;
+    }
+    setIsCreating(true);
+    setMessage('Creating private room…');
     connect();
+
+    const timeout = window.setTimeout(() => {
+      setIsCreating(false);
+      setMessage('Connecting to server… (Cold-start backend may take 20-30s. Please try again in a moment)');
+    }, 10000);
+
     socket.emit('create_room', { name: name.trim() }, (result: any) => {
-      if (!result.ok) return setMessage(result.error);
+      clearTimeout(timeout);
+      setIsCreating(false);
+      if (!result?.ok) {
+        setMessage(result?.error || 'Failed to create room. Please try again.');
+        return;
+      }
       localStorage.setItem('ludo-room', result.roomCode);
       setSnapshot(result.state);
       setMessage('Room created. Invite friends to join.');
@@ -149,9 +294,31 @@ function App() {
   };
 
   const join = () => {
+    if (isJoining) return;
+    if (!canJoin) {
+      setMessage('Please enter your display name.');
+      return;
+    }
+    if (roomInput.trim().length !== 6) {
+      setMessage('Please enter a valid 6-character room code.');
+      return;
+    }
+    setIsJoining(true);
+    setMessage('Entering salon table…');
     connect();
-    socket.emit('join_room', { roomCode: roomInput.trim(), name: name.trim() }, (result: any) => {
-      if (!result.ok) return setMessage(result.error);
+
+    const timeout = window.setTimeout(() => {
+      setIsJoining(false);
+      setMessage('Connecting to server… Please verify code and try again.');
+    }, 10000);
+
+    socket.emit('join_room', { roomCode: roomInput.trim().toUpperCase(), name: name.trim() }, (result: any) => {
+      clearTimeout(timeout);
+      setIsJoining(false);
+      if (!result?.ok) {
+        setMessage(result?.error || 'Unable to join room. Verify the code.');
+        return;
+      }
       localStorage.setItem('ludo-room', result.roomCode);
       setSnapshot(result.state);
       setMessage('Joined the royal salon.');
@@ -275,7 +442,7 @@ function App() {
       { roomCode: snapshot.roomCode, token, actionId, expectedVersion: snapshot.version },
       (result: any) => {
         if (!result?.ok) {
-          setMessage(result?.error || 'That token cannot move');
+          setMessage(result?.error || 'That pawn cannot move');
           if (result?.state) setSnapshot(result.state);
         } else {
           setMessage('');
@@ -336,14 +503,20 @@ function App() {
                   <button
                     type="button"
                     className={`tab-nav-btn ${landingTab === 'create' ? 'active' : ''}`}
-                    onClick={() => setLandingTab('create')}
+                    onClick={() => {
+                      setLandingTab('create');
+                      setMessage('');
+                    }}
                   >
                     Create Private Room
                   </button>
                   <button
                     type="button"
                     className={`tab-nav-btn ${landingTab === 'join' ? 'active' : ''}`}
-                    onClick={() => setLandingTab('join')}
+                    onClick={() => {
+                      setLandingTab('join');
+                      setMessage('');
+                    }}
                   >
                     Join with Code
                   </button>
@@ -354,7 +527,10 @@ function App() {
                   <input
                     className="royal-input"
                     value={name}
-                    onChange={(e) => setName(e.target.value)}
+                    onChange={(e) => {
+                      setName(e.target.value);
+                      if (message) setMessage('');
+                    }}
                     maxLength={16}
                     placeholder="Enter your name"
                     autoFocus
@@ -367,7 +543,10 @@ function App() {
                     <input
                       className="royal-input code-input"
                       value={roomInput}
-                      onChange={(e) => setRoomInput(e.target.value.toUpperCase())}
+                      onChange={(e) => {
+                        setRoomInput(e.target.value.toUpperCase());
+                        if (message) setMessage('');
+                      }}
                       maxLength={6}
                       placeholder="ROOM CODE"
                     />
@@ -378,19 +557,37 @@ function App() {
                   <button
                     type="button"
                     className="cta-button"
-                    disabled={!canJoin}
+                    disabled={!canJoin || isCreating}
                     onClick={create}
                   >
-                    <span>Create Private Salon</span> <span>👑</span>
+                    {isCreating ? (
+                      <>
+                        <span className="animate-spin inline-block mr-2">◌</span>
+                        <span>Creating Salon…</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Create Private Salon</span> <span>👑</span>
+                      </>
+                    )}
                   </button>
                 ) : (
                   <button
                     type="button"
                     className="cta-button"
-                    disabled={!canJoin || roomInput.trim().length !== 6}
+                    disabled={!canJoin || roomInput.trim().length !== 6 || isJoining}
                     onClick={join}
                   >
-                    <span>Enter Room Table</span> <span>⚔️</span>
+                    {isJoining ? (
+                      <>
+                        <span className="animate-spin inline-block mr-2">◌</span>
+                        <span>Entering Salon…</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Enter Room Table</span> <span>⚔️</span>
+                      </>
+                    )}
                   </button>
                 )}
 
@@ -536,30 +733,43 @@ function App() {
 
       <div className="game-screen-wrapper">
         {/* Floating Top Turn Status Banner */}
-        <div className="turn-status-banner">
-          <div className={`turn-headline ${isMyTurn ? 'your-turn' : ''}`}>
-            <span>⚜</span>
+        <div className={`turn-status-banner ${isMyTurn ? 'banner-my-turn' : ''}`}>
+          <div className="turn-headline">
+            <span className="turn-insignia">⚜</span>
             {isMyTurn ? (
               snapshot.dice === null ? (
-                <span>YOUR TURN! Roll the dice.</span>
+                <span className="turn-text-highlight">YOUR TURN: Tap the dice in the tray to roll!</span>
               ) : legal.length > 0 ? (
-                <span>Select a glowing pawn to move {snapshot.dice} spaces.</span>
+                <span className="turn-text-highlight">
+                  YOUR TURN: Select a glowing pawn to move {snapshot.dice} {snapshot.dice === 1 ? 'space' : 'spaces'}.
+                </span>
               ) : (
                 <span>No legal moves for roll of {snapshot.dice}. Passing turn…</span>
               )
             ) : (
-              <span>Waiting for {activePlayer?.name || 'Player'} ({activePlayer?.color?.toUpperCase()})…</span>
+              <span>
+                Waiting for <strong className="text-white">{activePlayer?.name || 'Player'}</strong> (
+                <span style={{ color: colorHex[activePlayer?.color || 'red'] }}>
+                  {activePlayer?.color?.toUpperCase()}
+                </span>
+                )…
+              </span>
             )}
           </div>
-          <button type="button" className="btn-secondary" style={{ padding: '4px 12px', fontSize: '0.75rem' }} onClick={leave}>
+          <button
+            type="button"
+            className="btn-secondary"
+            style={{ padding: '4px 12px', fontSize: '0.75rem' }}
+            onClick={leave}
+          >
             Exit Table
           </button>
         </div>
 
         <div className="game-main-stage">
-          {/* Main 2D Board Center Stage */}
-          <div className="flex flex-col items-center gap-3">
-            <div className="game-board">
+          {/* Main 2D Board Stage */}
+          <div className="board-column">
+            <div className="game-board-container">
               <Board2D
                 players={snapshot.players}
                 tokens={snapshot.tokens}
@@ -571,9 +781,9 @@ function App() {
               />
             </div>
 
-            {/* Accessible Mobile Bottom Sheet Token Picker */}
+            {/* Accessible Touch / Mobile Pawn Selector */}
             {legal.length > 0 && isMyTurn && (
-              <div className="mobile-token-picker-drawer w-full max-w-[680px]">
+              <div className="mobile-token-picker-drawer">
                 <span className="picker-title">CHOOSE A PAWN TO ADVANCE:</span>
                 <div className="picker-cards">
                   {legal.map((tokenIdx) => {
@@ -604,53 +814,50 @@ function App() {
             )}
           </div>
 
-          {/* Right/Side Control Panel */}
+          {/* Right Side Control & Telemetry Panel */}
           <aside className="side-panel">
-            {/* Dedicated Tactile Dice Roller */}
-            <div className="matchmaking-card flex flex-col items-center p-4">
-              <span className="hero-eyebrow text-center mb-2">ROYAL DICE TRAY</span>
+            {/* Dedicated Tactile Royal Dice Tray */}
+            <div className="dice-tray-card">
+              <span className="hero-eyebrow text-center mb-1">ROYAL DICE TRAY</span>
               <DiceRoller
                 value={rolling ? lastDice : snapshot.dice}
                 rolling={rolling}
                 canRoll={isMyTurn && snapshot.dice === null}
+                isMyTurn={isMyTurn}
                 onRoll={rollDice}
                 playerColor={activePlayer?.color}
+                playerName={activePlayer?.name}
                 timeLeft={turnTimeLeft}
                 maxTime={15}
               />
             </div>
 
-            {/* Players HUD List */}
-            <div className="flex flex-col gap-2">
-              <span className="hero-eyebrow">SEAT TELEMETRY</span>
-              {snapshot.players.map((p) => {
-                const isActive = p.seat === snapshot.currentPlayer;
-                const homeTokens =
-                  snapshot.tokens[p.seat]?.filter((t) => t.kind === 'home' && t.progress === 6).length || 0;
-                return (
-                  <div key={p.id} className={`player-hud-card ${isActive ? 'active-turn' : ''}`}>
-                    <div className="hud-player-info">
-                      <div
-                        className="w-3.5 h-3.5 rounded-full"
-                        style={{
-                          background: colorHex[p.color] || '#aaa',
-                          boxShadow: isActive ? `0 0 10px ${colorHex[p.color]}` : 'none',
-                        }}
-                      />
-                      <div className="flex flex-col">
-                        <span className="font-bold text-sm text-white">
-                          {p.name}
-                          {p.id === sessionId ? ' (YOU)' : ''}
-                        </span>
-                        <span className="text-[10px] text-amber-200/80 font-mono">
-                          {p.connected ? 'ONLINE' : 'RECONNECTING'}
-                        </span>
-                      </div>
-                    </div>
-                    <span className="hud-tokens-gauge">{homeTokens}/4 HOME</span>
-                  </div>
-                );
-              })}
+            {/* Players HUD / Telemetry List */}
+            <div className="telemetry-section">
+              <div className="flex items-center justify-between mb-1 px-1">
+                <span className="hero-eyebrow">SEAT TELEMETRY</span>
+                <span className="text-[10px] font-mono text-amber-300/80">
+                  {snapshot.players.length}/4 ACTIVE
+                </span>
+              </div>
+
+              <div className="telemetry-list">
+                {snapshot.players.map((p) => {
+                  const isActive = p.seat === snapshot.currentPlayer;
+                  return (
+                    <PlayerTelemetryCard
+                      key={p.id}
+                      player={p}
+                      isLocal={p.id === sessionId}
+                      isHost={p.id === snapshot.host}
+                      isActiveTurn={isActive}
+                      dice={snapshot.dice}
+                      tokens={snapshot.tokens[p.seat] || []}
+                      turnTimeLeft={turnTimeLeft}
+                    />
+                  );
+                })}
+              </div>
             </div>
 
             {message && <p className="text-amber-400 text-xs text-center p-2">{message}</p>}

@@ -82,7 +82,7 @@ export const LandingBoard2D: React.FC = () => {
             <span className="dot yellow" /> <span>Topaz</span>
             <span className="dot blue" /> <span>Sapphire</span>
           </div>
-          <span className="text-[10px] text-amber-400 font-medium">Server Synchronized</span>
+          <span className="landing-sync-badge">● Live Synced</span>
         </div>
       </div>
     </div>
