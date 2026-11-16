@@ -13,13 +13,40 @@ interface DiceRollerProps {
   maxTime?: number;
 }
 
-const PIP_PATTERNS: Record<number, number[]> = {
+export const PIP_PATTERNS: Record<number, number[]> = {
   1: [4],
   2: [0, 8],
   3: [0, 4, 8],
   4: [0, 2, 6, 8],
   5: [0, 2, 4, 6, 8],
   6: [0, 2, 3, 5, 6, 8],
+};
+
+export const MiniDiceCube: React.FC<{ value: number }> = ({ value }) => {
+  const pips = PIP_PATTERNS[value] || PIP_PATTERNS[6];
+  return (
+    <div className="mini-dice-cube">
+      <div className="pip-grid-3x3">
+        {[0, 1, 2, 3, 4, 5, 6, 7, 8].map((idx) => (
+          <div key={idx} className="pip-cell">
+            {pips.includes(idx) && (
+              <div
+                className="dice-pip-dot"
+                style={{
+                  backgroundColor:
+                    value === 6
+                      ? 'var(--accent-red, #dc2626)'
+                      : value === 1
+                      ? 'var(--accent-gold, #d97706)'
+                      : '#1e293b',
+                }}
+              />
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 };
 
 export const DiceRoller: React.FC<DiceRollerProps> = ({

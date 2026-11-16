@@ -4,7 +4,7 @@ import { io, type Socket } from 'socket.io-client';
 import { legalTokens } from '@ludo/game-engine';
 import { Board2D } from './Board2D';
 import { LandingBoard2D } from './LandingBoard2D';
-import { DiceRoller } from './DiceRoller';
+import { DiceRoller, MiniDiceCube } from './DiceRoller';
 import { VictoryPodium } from './VictoryPodium';
 import { AudioEngine } from './AudioEngine';
 import './style.css';
@@ -155,6 +155,213 @@ const PlayerTelemetryCard: React.FC<PlayerTelemetryCardProps> = ({
   );
 };
 
+interface MobilePlayerRibbonProps {
+  players: ClientPlayer[];
+  currentPlayer: number;
+  localSeat: number;
+  tokens: Array<Array<{ kind: 'base' | 'path' | 'home'; progress: number }>>;
+  turnTimeLeft: number;
+}
+
+const MobilePlayerRibbon: React.FC<MobilePlayerRibbonProps> = ({
+  players,
+  currentPlayer,
+  localSeat,
+  tokens,
+  turnTimeLeft,
+}) => {
+  return (
+    <div className="mobile-player-ribbon" role="region" aria-label="Active players turn status">
+      {players.map((p) => {
+        const isActive = p.seat === currentPlayer;
+        const playerTokens = tokens[p.seat] || [];
+        const finished = playerTokens.filter((t) => t.kind === 'home' && t.progress >= 6).length;
+        const isLocal = p.seat === localSeat;
+        const isUrgent = isActive && turnTimeLeft <= 5 && turnTimeLeft > 0;
+
+        return (
+          <div
+            key={p.id}
+            className={`mobile-player-chip ${isActive ? 'chip-active-turn' : ''} ${isUrgent ? 'chip-urgent' : ''} ${
+              !p.connected ? 'chip-offline' : ''
+            }`}
+            style={{
+              borderColor: isActive ? colorHex[p.color] || 'var(--accent-gold)' : undefined,
+            }}
+          >
+            <div
+              className="chip-avatar"
+              style={{
+                backgroundColor: colorHex[p.color] || '#444',
+              }}
+            >
+              {initials(p.name)}
+            </div>
+            <div className="chip-meta">
+              <span className="chip-name">
+                {p.name.length > 7 ? `${p.name.slice(0, 6)}…` : p.name}
+                {isLocal ? ' (YOU)' : ''}
+              </span>
+              <span className="chip-score">{finished}/4 🏁</span>
+            </div>
+            {isActive && (
+              <span className={`chip-timer-badge ${isUrgent ? 'timer-urgent' : ''}`}>
+                {turnTimeLeft}s
+              </span>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
+interface MobileBottomDockProps {
+  isMyTurn: boolean;
+  dice: number | null;
+  displayDice: number | null;
+  rolling: boolean;
+  turnTimeLeft: number;
+  legal: number[];
+  tokens: Array<Array<{ kind: 'base' | 'path' | 'home'; progress: number }>>;
+  localSeat: number;
+  activePlayer?: ClientPlayer;
+  activityNotice?: string | null;
+  lastNotice?: { type: string; message: string; timestamp: number } | null;
+  onRoll: () => void;
+  onMoveToken: (tokenIdx: number) => void;
+}
+
+const MobileBottomDock: React.FC<MobileBottomDockProps> = ({
+  isMyTurn,
+  dice,
+  displayDice,
+  rolling,
+  turnTimeLeft,
+  legal,
+  tokens,
+  localSeat,
+  activePlayer,
+  activityNotice,
+  lastNotice,
+  onRoll,
+  onMoveToken,
+}) => {
+  const isUrgent = turnTimeLeft <= 5 && turnTimeLeft > 0;
+  const isRecentNotice = lastNotice && Date.now() - (lastNotice.timestamp || 0) < 4000;
+
+  return (
+    <div className="mobile-bottom-dock">
+      {/* 1. Action directive banner */}
+      <div className={`mobile-dock-directive ${isUrgent ? 'directive-urgent' : ''}`}>
+        {activityNotice ? (
+          <span className="directive-highlight animate-pulse">{activityNotice}</span>
+        ) : isRecentNotice ? (
+          <span className="directive-highlight">{lastNotice?.message}</span>
+        ) : isMyTurn ? (
+          dice === null ? (
+            <span className="directive-highlight">
+              👉 YOUR TURN: Tap to roll the dice!
+              {isUrgent && <span className="urgent-badge ml-1">⏳ {turnTimeLeft}s</span>}
+            </span>
+          ) : dice === 6 ? (
+            <span className="directive-highlight">
+              🎉 ROLLED A 6 (BONUS ROLL!) Select a pawn:
+              {isUrgent && <span className="urgent-badge ml-1">⏳ {turnTimeLeft}s</span>}
+            </span>
+          ) : legal.length > 0 ? (
+            <span className="directive-highlight">
+              Rolled {dice}: Select a pawn to advance {dice} {dice === 1 ? 'step' : 'steps'}
+              {isUrgent && <span className="urgent-badge ml-1">⏳ {turnTimeLeft}s</span>}
+            </span>
+          ) : (
+            <span className="text-amber-200/80">No legal moves for roll of {dice}. Passing turn…</span>
+          )
+        ) : (
+          <span className="text-slate-300">
+            Waiting for <strong className="text-white">{activePlayer?.name || 'Player'}</strong> (
+            <span style={{ color: colorHex[activePlayer?.color || 'red'] }}>
+              {activePlayer?.color?.toUpperCase()}
+            </span>
+            )… <span className="font-mono text-amber-300 text-xs">({turnTimeLeft}s)</span>
+          </span>
+        )}
+      </div>
+
+      {/* 2. Interactive Thumb Controls */}
+      <div className="mobile-dock-controls">
+        {isMyTurn && dice === null ? (
+          <div className="mobile-roll-row">
+            <button
+              type="button"
+              className={`mobile-dock-dice-btn ${rolling ? 'rolling-tumbling' : 'can-roll-pulse'}`}
+              onClick={onRoll}
+              disabled={rolling}
+              aria-label="Roll Dice"
+            >
+              <MiniDiceCube value={displayDice || 6} />
+            </button>
+            <button
+              type="button"
+              className={`mobile-big-roll-btn ${isUrgent ? 'urgent' : ''}`}
+              onClick={onRoll}
+              disabled={rolling}
+            >
+              {rolling ? (
+                <span className="animate-pulse">🎲 ROLLING…</span>
+              ) : (
+                <span>🎲 TAP TO ROLL {isUrgent ? `(${turnTimeLeft}s)` : ''}</span>
+              )}
+            </button>
+          </div>
+        ) : isMyTurn && legal.length > 0 ? (
+          <div className="mobile-pawn-select-row">
+            {legal.map((tokenIdx) => {
+              const t = tokens[localSeat]?.[tokenIdx];
+              const isBase = t?.kind === 'base';
+              const isHome = t?.kind === 'home';
+              const label = isBase
+                ? `Deploy #${tokenIdx + 1}`
+                : isHome
+                ? `Home Goal #${tokenIdx + 1}`
+                : `Move #${tokenIdx + 1} (+${dice})`;
+
+              return (
+                <button
+                  key={tokenIdx}
+                  type="button"
+                  className="mobile-pawn-quick-btn"
+                  onClick={() => onMoveToken(tokenIdx)}
+                >
+                  <span className="pawn-btn-icon">♟</span>
+                  <span className="pawn-btn-text">{label}</span>
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="mobile-waiting-row">
+            <div className="mobile-dock-dice-btn passive">
+              <MiniDiceCube value={displayDice || 6} />
+            </div>
+            <div className="mobile-waiting-info">
+              <span className="mobile-waiting-name">
+                {activePlayer ? `${activePlayer.name}'s turn` : 'Opponent turn'}
+              </span>
+              <div className="mobile-progress-track">
+                <div
+                  className="mobile-progress-fill"
+                  style={{ width: `${Math.max(0, Math.min(100, (turnTimeLeft / 15) * 100))}%` }}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 function App() {
   const [name, setName] = useState(localStorage.getItem('ludo_player_name') || '');
   const [roomInput, setRoomInput] = useState(new URLSearchParams(location.search).get('room') || '');
@@ -172,6 +379,8 @@ function App() {
   const [isMuted, setIsMuted] = useState(AudioEngine.isMuted());
   const [turnTimeLeft, setTurnTimeLeft] = useState(15);
   const [activityNotice, setActivityNotice] = useState<string | null>(null);
+  const [copiedCode, setCopiedCode] = useState(false);
+  const [copiedInvite, setCopiedInvite] = useState(false);
 
   const canJoin = name.trim().length > 0 && name.trim().length <= 16;
 
@@ -400,23 +609,44 @@ function App() {
     );
   };
 
+  function triggerHaptic(type: 'light' | 'medium' | 'success' = 'light') {
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      try {
+        if (type === 'light') navigator.vibrate(15);
+        else if (type === 'medium') navigator.vibrate(30);
+        else if (type === 'success') navigator.vibrate([25, 40, 25]);
+      } catch {}
+    }
+  }
+
   const copyInvite = () => {
     if (!snapshot) return;
     navigator.clipboard?.writeText(`${location.origin}/?room=${snapshot.roomCode}`);
+    setCopiedInvite(true);
+    triggerHaptic('light');
     setMessage('Invite link copied to clipboard!');
-    setTimeout(() => setMessage(''), 3000);
+    setTimeout(() => {
+      setCopiedInvite(false);
+      setMessage('');
+    }, 2500);
   };
 
   const copyCode = () => {
     if (!snapshot) return;
     navigator.clipboard?.writeText(snapshot.roomCode);
+    setCopiedCode(true);
+    triggerHaptic('light');
     setMessage('Room code copied to clipboard!');
-    setTimeout(() => setMessage(''), 3000);
+    setTimeout(() => {
+      setCopiedCode(false);
+      setMessage('');
+    }, 2500);
   };
 
   const toggleSound = () => {
     const muted = AudioEngine.toggleMute();
     setIsMuted(muted);
+    triggerHaptic('light');
   };
 
   const localSeat = snapshot?.players.find((player) => player.id === sessionId)?.seat ?? -1;
@@ -433,6 +663,7 @@ function App() {
 
   const rollDice = () => {
     if (!snapshot || rolling) return;
+    triggerHaptic('medium');
     setRolling(true);
     const actionId = `roll_${snapshot.version}_${Date.now()}`;
     socket.emit(
@@ -448,6 +679,7 @@ function App() {
         setLastDice(result.value);
         if (result.value === 6) {
           AudioEngine.playSix();
+          triggerHaptic('success');
         }
         if (result.state) setSnapshot(result.state);
         window.setTimeout(() => setRolling(false), 550);
@@ -457,6 +689,7 @@ function App() {
 
   const moveToken = (token: number) => {
     if (!snapshot || !legal.includes(token)) return;
+    triggerHaptic('light');
     const currentToken = snapshot.tokens[localSeat]?.[token];
     const isDeploy = currentToken?.kind === 'base';
     const actionId = `move_${snapshot.version}_${token}_${Date.now()}`;
@@ -471,6 +704,7 @@ function App() {
           setMessage('');
           if (isDeploy) {
             AudioEngine.playExit();
+            triggerHaptic('success');
           } else {
             AudioEngine.playHop();
           }
@@ -481,7 +715,7 @@ function App() {
   };
 
   // Header Component
-  const renderHeader = (badgeText: string) => (
+  const renderHeader = (badgeText: string, actions?: React.ReactNode) => (
     <header className="app-header">
       <div className="brand-wrapper">
         <div className="brand-logo">
@@ -489,18 +723,30 @@ function App() {
         </div>
         <div className="header-status-badge">
           <span className={`status-dot ${connected ? '' : 'reconnecting'}`} />
-          <span>{badgeText}</span>
+          <span className="header-badge-text">{badgeText}</span>
         </div>
       </div>
       <div className="header-controls">
+        {actions}
         <button
           type="button"
           className="sound-toggle-btn"
           onClick={toggleSound}
           title={isMuted ? 'Unmute Sound' : 'Mute Sound'}
+          aria-label={isMuted ? 'Unmute' : 'Mute'}
         >
           {isMuted ? '🔇' : '🔊'}
         </button>
+        {snapshot && snapshot.status !== 'lobby' && (
+          <button
+            type="button"
+            className="btn-header-exit"
+            onClick={leave}
+            title="Exit Game"
+          >
+            Exit
+          </button>
+        )}
       </div>
     </header>
   );
@@ -755,13 +1001,40 @@ function App() {
   // =========================================================================
   // VIEW 4: ACTIVE 2D GAME ARENA
   // =========================================================================
+  const roomActions = (
+    <div
+      className="header-room-pill"
+      onClick={copyCode}
+      title="Tap to copy Room Code"
+      role="button"
+      tabIndex={0}
+    >
+      <span className="room-pill-icon">📋</span>
+      <span className="room-pill-code">#{snapshot.roomCode}</span>
+      {copiedCode && <span className="room-pill-feedback">COPIED!</span>}
+    </div>
+  );
+
   return (
-    <main>
-      {renderHeader(`ROOM #${snapshot.roomCode} · 2D ROYAL ARENA`)}
+    <main className="game-screen-main">
+      {renderHeader(`ROOM #${snapshot.roomCode} · 2D ROYAL ARENA`, roomActions)}
 
       <div className="game-screen-wrapper">
-        {/* Floating Top Turn Status Banner */}
-        <div className={`turn-status-banner ${isMyTurn ? 'banner-my-turn' : ''} ${turnTimeLeft <= 5 && turnTimeLeft > 0 ? 'banner-urgent' : ''}`}>
+        {/* Mobile Horizontal Player Ribbon (Hidden on Desktop >= 1024px) */}
+        <MobilePlayerRibbon
+          players={snapshot.players}
+          currentPlayer={snapshot.currentPlayer}
+          localSeat={localSeat}
+          tokens={snapshot.tokens}
+          turnTimeLeft={turnTimeLeft}
+        />
+
+        {/* Desktop-only Turn Status Banner (Hidden on Mobile < 1024px) */}
+        <div
+          className={`turn-status-banner desktop-only ${isMyTurn ? 'banner-my-turn' : ''} ${
+            turnTimeLeft <= 5 && turnTimeLeft > 0 ? 'banner-urgent' : ''
+          }`}
+        >
           <div className="turn-headline">
             <span className="turn-insignia">⚜</span>
             {activityNotice ? (
@@ -791,7 +1064,8 @@ function App() {
                 </span>
               ) : legal.length > 0 ? (
                 <span className="turn-text-highlight">
-                  YOUR TURN: Select a glowing pawn to move {snapshot.dice} {snapshot.dice === 1 ? 'space' : 'spaces'}.
+                  YOUR TURN: Select a glowing pawn to move {snapshot.dice}{' '}
+                  {snapshot.dice === 1 ? 'space' : 'spaces'}.
                   {turnTimeLeft <= 5 && turnTimeLeft > 0 && (
                     <span className="timer-urgent-pill ml-2">⏳ {turnTimeLeft}s left</span>
                   )}
@@ -835,41 +1109,26 @@ function App() {
               />
             </div>
 
-            {/* Accessible Touch / Mobile Pawn Selector */}
-            {legal.length > 0 && isMyTurn && (
-              <div className="mobile-token-picker-drawer">
-                <span className="picker-title">CHOOSE A PAWN TO ADVANCE:</span>
-                <div className="picker-cards">
-                  {legal.map((tokenIdx) => {
-                    const t = snapshot.tokens[localSeat]?.[tokenIdx];
-                    const label =
-                      t?.kind === 'base'
-                        ? `Pawn ${tokenIdx + 1} (Deploy)`
-                        : t?.kind === 'home'
-                        ? `Pawn ${tokenIdx + 1} (Home run)`
-                        : `Pawn ${tokenIdx + 1} (Advance ${snapshot.dice})`;
-                    return (
-                      <button
-                        key={tokenIdx}
-                        type="button"
-                        className="picker-btn"
-                        onClick={() => {
-                          AudioEngine.playHop();
-                          moveToken(tokenIdx);
-                        }}
-                      >
-                        <span className="text-amber-300">♟</span>
-                        <span>{label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
+            {/* Mobile Bottom Dock (Thumb-reachable, rendered below board on mobile) */}
+            <MobileBottomDock
+              isMyTurn={isMyTurn}
+              dice={snapshot.dice}
+              displayDice={rolling ? lastDice : snapshot.dice}
+              rolling={rolling}
+              turnTimeLeft={turnTimeLeft}
+              legal={legal}
+              tokens={snapshot.tokens}
+              localSeat={localSeat}
+              activePlayer={activePlayer}
+              activityNotice={activityNotice}
+              lastNotice={snapshot.lastNotice}
+              onRoll={rollDice}
+              onMoveToken={moveToken}
+            />
           </div>
 
-          {/* Right Side Control & Telemetry Panel */}
-          <aside className="side-panel">
+          {/* Desktop Right Side Control & Telemetry Panel (Hidden on Mobile < 1024px) */}
+          <aside className="side-panel desktop-only">
             {/* Dedicated Tactile Royal Dice Tray */}
             <div className="dice-tray-card">
               <span className="hero-eyebrow text-center mb-1">ROYAL DICE TRAY</span>
