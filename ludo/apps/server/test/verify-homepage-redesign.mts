@@ -99,6 +99,12 @@ async function runHomepageVerification() {
       await page.setViewportSize({ width: dev.w, height: dev.h });
       await sleep(200);
 
+      // Verify single column grid on mobile (not side-by-side)
+      const gridCols = await page.locator('.landing-content-grid').evaluate((el) => {
+        return window.getComputedStyle(el).gridTemplateColumns.trim().split(/\s+/).length;
+      });
+      assert.equal(gridCols, 1, `Grid must be 1 column on ${dev.name} (${dev.w}px), got ${gridCols} columns`);
+
       // Check horizontal overflow
       const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
       const clientWidth = await page.evaluate(() => document.documentElement.clientWidth);
@@ -109,8 +115,12 @@ async function runHomepageVerification() {
       assert.ok(cardVisible, `Room entry card visible on ${dev.name}`);
 
       await page.screenshot({ path: path.join(brainArtifactDir, `homepage_${dev.name}.png`), fullPage: false });
-      console.log(`  - Verified ${dev.name} (${dev.w}px): 0 overflow, clean layout ✅`);
+      console.log(`  - Verified ${dev.name} (${dev.w}px): 1-col layout, 0 overflow, clean layout ✅`);
     }
+
+    // Capture full-page mobile view on iPhone 390
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.screenshot({ path: path.join(brainArtifactDir, `homepage_iphone_390_fullpage.png`), fullPage: true });
 
     // 3. Test Room Creation from Redesigned Interface
     await page.setViewportSize({ width: 390, height: 844 });
