@@ -1484,6 +1484,25 @@ body {
   color: rgba(255, 255, 255, 0.45);
 }
 
+.table-input-row-with-avatar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.table-avatar-preview {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.table-input-row-with-avatar .table-input-container {
+  flex: 1;
+  min-width: 0;
+}
+
 .table-input-container {
   display: flex;
   align-items: center;
@@ -2356,6 +2375,11 @@ body {
     border-radius: 20px;
   }
 
+  .landing-board-showcase {
+    padding: 14px 10px;
+    border-radius: 20px;
+  }
+
   .master-player-card {
     min-width: 90px;
     padding: 5px 8px;
@@ -2396,6 +2420,11 @@ body {
 
   .table-specs-row {
     font-size: 0.68rem;
+  }
+
+  .landing-board-showcase {
+    padding: 10px 8px;
+    border-radius: 16px;
   }
 
   .master-player-card {

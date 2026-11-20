@@ -1104,17 +1104,17 @@ function App() {
               {/* Left Column: Hero Storytelling & Table Console */}
               <div className="hero-column">
                 <div className="hero-badge-eyebrow">
-                  <span className="eyebrow-insignia">⚜</span>
-                  <span>ROYAL 2D TABLETOP SALON</span>
+                  <span className="eyebrow-insignia">🎲</span>
+                  <span>ONLINE MULTIPLAYER ARENA</span>
                 </div>
 
                 <h1 className="hero-headline">
                   ROLL THE DICE.<br />
-                  <span className="hero-headline-accent">MAKE YOUR MOVE.</span>
+                  <span className="hero-headline-accent">RULE THE BOARD.</span>
                 </h1>
 
                 <p className="hero-subtitle">
-                  Your friends, your table, your game. Play Ludo together with server-authoritative rules and instant zero-install play.
+                  Your friends, your private table. Classic 4-player Ludo online with server-authoritative rules and instant zero-install play.
                 </p>
 
                 {/* Table Entry Console */}
@@ -1159,21 +1159,26 @@ function App() {
                         <span>YOUR GUEST NAME</span>
                         <span className="label-aux">1–16 characters</span>
                       </label>
-                      <div className="table-input-container">
-                        <span className="input-prefix-icon">👤</span>
-                        <input
-                          id="player-name-input"
-                          className="royal-input table-name-input"
-                          value={name}
-                          onChange={(e) => {
-                            setName(e.target.value);
-                            if (message) setMessage('');
-                          }}
-                          maxLength={16}
-                          placeholder="Enter your name"
-                          autoFocus
-                          autoComplete="off"
-                        />
+                      <div className="table-input-row-with-avatar">
+                        <div className="table-avatar-preview" title="Your Character">
+                          <PlayerAvatar seat={0} name={name || 'Player'} size={44} />
+                        </div>
+                        <div className="table-input-container">
+                          <span className="input-prefix-icon">👤</span>
+                          <input
+                            id="player-name-input"
+                            className="royal-input table-name-input"
+                            value={name}
+                            onChange={(e) => {
+                              setName(e.target.value);
+                              if (message) setMessage('');
+                            }}
+                            maxLength={16}
+                            placeholder="Enter your name"
+                            autoFocus
+                            autoComplete="off"
+                          />
+                        </div>
                       </div>
                     </div>
 

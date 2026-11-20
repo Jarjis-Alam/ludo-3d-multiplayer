@@ -58,8 +58,8 @@ export const LandingBoard2D: React.FC = () => {
   }, []);
 
   return (
-    <div className="landing-board-showcase">
-      {/* Clean, editorial header */}
+    <div className="landing-board-showcase master-card">
+      {/* Header bar matching master design */}
       <div className="board-showcase-header">
         <div className="board-showcase-meta">
           <span className="board-showcase-eyebrow">AUTHENTIC 15×15 TABLETOP ARENA</span>
@@ -75,7 +75,7 @@ export const LandingBoard2D: React.FC = () => {
         </div>
       </div>
 
-      {/* Real, genuine 15x15 Ludo Board component */}
+      {/* Real 15x15 Ludo Board component with master styling */}
       <div className="board-showcase-frame">
         <Board2D
           players={SHOWCASE_PLAYERS}
@@ -90,7 +90,7 @@ export const LandingBoard2D: React.FC = () => {
         />
       </div>
 
-      {/* Luxury tabletop footer with mineral legend & specifications */}
+      {/* Tabletop footer with 4 seat colors & safe zone specs */}
       <div className="board-showcase-footer">
         <div className="board-legend-chips">
           <span className="legend-chip chip-ruby">
@@ -112,7 +112,7 @@ export const LandingBoard2D: React.FC = () => {
         </div>
         <div className="board-specs-strip">
           <span className="spec-badge">★ 8 Safe Sanctuaries</span>
-          <span className="spec-badge">♔ Center Enamel Crown</span>
+          <span className="spec-badge">♔ Center Victory Crown</span>
         </div>
       </div>
     </div>
