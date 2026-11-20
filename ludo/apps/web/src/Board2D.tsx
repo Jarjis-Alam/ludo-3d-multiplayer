@@ -265,7 +265,7 @@ function computeCaptureReturnWaypoints(
   return waypoints;
 }
 
-export const StarMedal: React.FC<{ size?: number }> = ({ size = 26 }) => (
+export const StarMedal: React.FC<{ size?: number }> = ({ size }) => (
   <svg
     viewBox="0 0 32 32"
     width={size}
@@ -611,7 +611,7 @@ export const Board2D: React.FC<Board2DProps> = ({
     if (visibleOccupants.length === 0) return null;
 
     const isClustered = visibleOccupants.length > 1;
-    const pawnSize = isClustered ? 26 : 36;
+    const pawnSize = isClustered ? 20 : 28;
 
     return (
       <div className={`tokens-cluster ${isClustered ? 'has-cluster' : ''}`}>
@@ -631,7 +631,7 @@ export const Board2D: React.FC<Board2DProps> = ({
     if (visibleOccupants.length === 0) return null;
 
     const isClustered = visibleOccupants.length > 1;
-    const pawnSize = isClustered ? 26 : 36;
+    const pawnSize = isClustered ? 20 : 28;
 
     return (
       <div className={`tokens-cluster ${isClustered ? 'has-cluster' : ''}`}>
@@ -655,7 +655,7 @@ export const Board2D: React.FC<Board2DProps> = ({
 
     return (
       <div className="goal-occupants-cluster">
-        {visibleOccupants.map((occ) => renderPawn(occ.seat, occ.tokenIdx, occ.isLegal, 26))}
+        {visibleOccupants.map((occ) => renderPawn(occ.seat, occ.tokenIdx, occ.isLegal, 20))}
       </div>
     );
   }
@@ -731,7 +731,7 @@ export const Board2D: React.FC<Board2DProps> = ({
                     tabIndex={hasLegalMove ? 0 : -1}
                     aria-label={`Red Yard Socket ${slotIdx + 1}${hasLegalMove ? ' - Tap to Deploy' : ''}`}
                   >
-                    {occupants.map((occ) => renderPawn(occ.seat, occ.tokenIdx, occ.isLegal, 44))}
+                    {occupants.map((occ) => renderPawn(occ.seat, occ.tokenIdx, occ.isLegal, 34))}
                   </div>
                 );
               })}
@@ -805,7 +805,7 @@ export const Board2D: React.FC<Board2DProps> = ({
                     tabIndex={hasLegalMove ? 0 : -1}
                     aria-label={`Green Yard Socket ${slotIdx + 1}${hasLegalMove ? ' - Tap to Deploy' : ''}`}
                   >
-                    {occupants.map((occ) => renderPawn(occ.seat, occ.tokenIdx, occ.isLegal, 44))}
+                    {occupants.map((occ) => renderPawn(occ.seat, occ.tokenIdx, occ.isLegal, 34))}
                   </div>
                 );
               })}
@@ -953,7 +953,7 @@ export const Board2D: React.FC<Board2DProps> = ({
                     tabIndex={hasLegalMove ? 0 : -1}
                     aria-label={`Blue Yard Socket ${slotIdx + 1}${hasLegalMove ? ' - Tap to Deploy' : ''}`}
                   >
-                    {occupants.map((occ) => renderPawn(occ.seat, occ.tokenIdx, occ.isLegal, 44))}
+                    {occupants.map((occ) => renderPawn(occ.seat, occ.tokenIdx, occ.isLegal, 34))}
                   </div>
                 );
               })}
@@ -1027,7 +1027,7 @@ export const Board2D: React.FC<Board2DProps> = ({
                     tabIndex={hasLegalMove ? 0 : -1}
                     aria-label={`Yellow Yard Socket ${slotIdx + 1}${hasLegalMove ? ' - Tap to Deploy' : ''}`}
                   >
-                    {occupants.map((occ) => renderPawn(occ.seat, occ.tokenIdx, occ.isLegal, 44))}
+                    {occupants.map((occ) => renderPawn(occ.seat, occ.tokenIdx, occ.isLegal, 34))}
                   </div>
                 );
               })}

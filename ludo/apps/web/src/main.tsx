@@ -187,14 +187,13 @@ const MobilePlayerRibbon: React.FC<MobilePlayerRibbonProps> = ({
             <PlayerAvatar
               seat={p.seat}
               name={p.name}
-              size={36}
+              size={32}
               isHost={p.seat === 0}
             />
 
             <div className="master-card-info">
-              <span className="master-card-name">
-                {p.name.length > 7 ? `${p.name.slice(0, 6)}…` : p.name}
-                {isLocal ? ' (You)' : ''}
+              <span className="master-card-name" title={p.name}>
+                {p.name}{isLocal ? ' (You)' : ''}
               </span>
               <div className="master-card-progress">
                 <span className="master-home-text">{finished}/4</span>
@@ -362,10 +361,7 @@ const MobileBottomDock: React.FC<MobileBottomDockProps> = ({
             aria-label={canRoll ? 'Tap to roll dice' : `Dice value ${currentDiceValue}`}
             title={canRoll ? 'Tap to roll dice' : `Dice: ${currentDiceValue}`}
           >
-            <DiceFaceSVG value={currentDiceValue} size={68} />
-            <div className="dice-corner-badge">
-              {currentDiceValue}
-            </div>
+            <DiceFaceSVG value={currentDiceValue} size={64} />
           </button>
         </div>
 

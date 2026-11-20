@@ -190,9 +190,8 @@ export const DiceRoller: React.FC<DiceRollerProps> = ({
         {/* Tactile Ivory Dice Button */}
         <button
           type="button"
-          className={`dice-cube-btn relative ${rolling ? 'rolling-tumbling' : ''} ${
-            canRoll ? 'can-roll-pulse' : 'disabled'
-          }`}
+          className={`dice-cube-btn relative ${rolling ? 'rolling-tumbling' : ''} ${canRoll ? 'can-roll-pulse' : 'disabled'
+            }`}
           onClick={() => {
             if (canRoll && !rolling) onRoll();
           }}
@@ -211,9 +210,8 @@ export const DiceRoller: React.FC<DiceRollerProps> = ({
       <div className="dice-action-button-area">
         <button
           type="button"
-          className={`primary-game-btn roll-primary-btn ${canRoll ? 'btn-active' : 'btn-disabled'} ${
-            isUrgent && canRoll ? 'btn-urgent-pulse' : ''
-          }`}
+          className={`primary-game-btn roll-primary-btn ${canRoll ? 'btn-active' : 'btn-disabled'} ${isUrgent && canRoll ? 'btn-urgent-pulse' : ''
+            }`}
           onClick={() => {
             if (canRoll && !rolling) onRoll();
           }}
@@ -238,10 +236,10 @@ export const DiceRoller: React.FC<DiceRollerProps> = ({
             {displayVal === 6
               ? '🎉 ROLLED A 6 (EXTRA TURN AWARDED!)'
               : activeDice !== null && isMyTurn
-              ? `ROLLED ${displayVal} • SELECT GLOWING PAWN`
-              : activeDice !== null && playerName
-              ? `${playerName.toUpperCase()} ROLLED ${displayVal}`
-              : `LAST ROLL: ${displayVal}`}
+                ? `ROLLED ${displayVal} • SELECT GLOWING PAWN`
+                : activeDice !== null && playerName
+                  ? `${playerName.toUpperCase()} ROLLED ${displayVal}`
+                  : `LAST ROLL: ${displayVal}`}
           </span>
         ) : (
           <span className="dice-rolled-desc">
