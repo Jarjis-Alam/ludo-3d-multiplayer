@@ -101,3 +101,199 @@ All changes preserve:
    - Glowing deployable base sockets: **4** (PASS ✅)
    - 1st & 2nd place podium banners verified: (PASS ✅)
    - Mobile and desktop viewports tested with zero horizontal/vertical overflow: (PASS ✅)
+
+---
+
+## 4. Comprehensive Home-Lane Transition & 4-Color Geometry Audit (November 20, 2026)
+
+### 4.1 Root Cause & Mathematical Resolution of the 50/52-Step Discrepancy
+- **The Board Definition:**
+  - The outer perimeter track consists of **52 cells** (13 cells in each of the 4 arms: 6 ascending/descending + 1 bridge + 6 ascending/descending = 13; $13 \times 4 = 52$).
+  - Start offsets: Red (Seat 0) = Cell `0`, Green (Seat 1) = Cell `13`, Yellow (Seat 2) = Cell `26`, Blue (Seat 3) = Cell `39`.
+- **The Journey Traversal:**
+  - When a token deploys from base, it is placed at `progress = 0` on its own start cell ($(\text{START\_OFFSET} + 0) \bmod 52$).
+  - To reach the home-entry bridge cell directly adjacent to its colored home runway:
+    - The token advances **50 steps** along the outer track.
+    - It occupies exactly **51 distinct cells** on the outer circuit: `progress: 0, 1, 2, ..., 50`.
+    - The 52nd relative track cell (relative progress 51) is the bypass cell connecting the bridge back to that player's start cell (Cell 51 for Red, Cell 12 for Green, Cell 25 for Yellow, Cell 38 for Blue).
+    - **A player NEVER steps on their own bypass cell.** That bypass cell is strictly reserved for opponent tokens completing their outer circuits.
+    - Thus, `MAX_PATH_PROGRESS = 50` is mathematically exact.
+- **The Home Lane Transition:**
+  - From the home-entry bridge cell (`progress = 50`), a roll of 1 advances the token 1 step into **Home Lane Cell 0** (`{ kind: 'home', progress: 1 }`).
+  - Home runway cells correspond to `progress: 1, 2, 3, 4, 5`.
+  - The 6th step enters the Center Victory Goal (`{ kind: 'home', progress: 6 }`).
+  - Total steps from deployment to center goal = $50 + 6 = 56$ steps.
+
+### 4.2 Four-Color Symmetric Parameter Matrix
+
+| Parameter | Red (Seat 0) | Green (Seat 1) | Yellow (Seat 2) | Blue (Seat 3) |
+|---|---|---|---|---|
+| **Start Offset / Cell** | `0` (`col: 1, row: 6`) | `13` (`col: 8, row: 1`) | `26` (`col: 13, row: 8`) | `39` (`col: 6, row: 13`) |
+| **Initial Track Direction** | East (Right) | South (Down) | West (Left) | North (Up) |
+| **Home-Entry Junction Cell** | `50` (`col: 0, row: 7`) | `11` (`col: 7, row: 0`) | `24` (`col: 14, row: 7`) | `37` (`col: 7, row: 14`) |
+| **Turn Direction Into Home** | $90^\circ$ Right (East) | $90^\circ$ Down (South) | $90^\circ$ Left (West) | $90^\circ$ Up (North) |
+| **Bypass Cell (Skipped)** | `51` (`col: 0, row: 6`) | `12` (`col: 8, row: 0`) | `25` (`col: 14, row: 8`) | `38` (`col: 6, row: 14`) |
+| **Home Runway Step 0** | `{ col: 1, row: 7 }` | `{ col: 7, row: 1 }` | `{ col: 13, row: 7 }` | `{ col: 7, row: 13 }` |
+| **Home Runway Step 1** | `{ col: 2, row: 7 }` | `{ col: 7, row: 2 }` | `{ col: 12, row: 7 }` | `{ col: 7, row: 12 }` |
+| **Home Runway Step 2** | `{ col: 3, row: 7 }` | `{ col: 7, row: 3 }` | `{ col: 11, row: 7 }` | `{ col: 7, row: 11 }` |
+| **Home Runway Step 3** | `{ col: 4, row: 7 }` | `{ col: 7, row: 4 }` | `{ col: 10, row: 7 }` | `{ col: 7, row: 10 }` |
+| **Home Runway Step 4** | `{ col: 5, row: 7 }` | `{ col: 7, row: 5 }` | `{ col: 9, row: 7 }` | `{ col: 7, row: 9 }` |
+| **Center Victory Goal** | `{ col: 6.5, row: 7 }` | `{ col: 7, row: 6.5 }` | `{ col: 7.5, row: 7 }` | `{ col: 7, row: 7.5 }` |
+
+### 4.3 Red Pawn Step-by-Step Transition Audit Log
+
+| Step / Phase | Previous Position | Dice | New Position | Board DOM Key | Coordinates | Legal? | Notes |
+|---|---|---|---|---|---|---|---|
+| **1. In Base** | `{ kind: 'base' }` | 5 | `{ kind: 'base' }` | `base-0-0` | Socket % | ❌ | Requires 6 to leave base |
+| **2. Deployment** | `{ kind: 'base' }` | 6 | `{ kind: 'path', progress: 0 }` | `track-0` | Col 1, Row 6 | ✅ | Lands on starting cell |
+| **3. Outer Track (1..49)** | `{ progress: 0 }` | 1 | `{ progress: 1 }` | `track-1` | Col 2, Row 6 | ✅ | Advances clockwise |
+| ... | ... | ... | ... | ... | ... | ✅ | Advances through arms |
+| **4. Pre-Entry** | `{ progress: 49 }` | 1 | `{ progress: 50 }` | `track-50` | Col 0, Row 7 | ✅ | Left bridge cell |
+| **5. Home Entry** | `{ progress: 50 }` | 1 | `{ kind: 'home', progress: 1 }` | `home-0-0` | Col 1, Row 7 | ✅ | Turns $90^\circ$ into home lane 0 |
+| **6. Home Runway 1** | `{ home, progress: 1 }` | 1 | `{ home, progress: 2 }` | `home-0-1` | Col 2, Row 7 | ✅ | Step 1 |
+| **7. Home Runway 2** | `{ home, progress: 2 }` | 1 | `{ home, progress: 3 }` | `home-0-2` | Col 3, Row 7 | ✅ | Step 2 |
+| **8. Home Runway 3** | `{ home, progress: 3 }` | 1 | `{ home, progress: 4 }` | `home-0-3` | Col 4, Row 7 | ✅ | Step 3 |
+| **9. Home Runway 4** | `{ home, progress: 4 }` | 1 | `{ home, progress: 5 }` | `home-0-4` | Col 5, Row 7 | ✅ | Step 4 (final runway cell) |
+| **10. Exact Finish** | `{ home, progress: 5 }` | 1 | `{ kind: 'home', progress: 6 }` | `goal-0` | Col 6.5, Row 7 | ✅ | Goal quadrant; exact finish |
+| **11. Overshoot Attempt** | `{ home, progress: 5 }` | 2 | `{ home, progress: 5 }` | `home-0-4` | Col 5, Row 7 | ❌ | Rejected: exceeds steps to finish (1) |
+| **12. At Goal** | `{ home, progress: 6 }` | 1..6 | `{ home, progress: 6 }` | `goal-0` | Col 6.5, Row 7 | ❌ | Finished tokens cannot move |
+
+### 4.4 Automated Regression Test Suite
+Added dedicated test file `ludo/packages/game-engine/test/home-lane-audit.test.ts`:
+- **16 comprehensive test suites** covering:
+  - 50/52-step mathematical constants verification.
+  - Symmetrical full journey audits for Red, Green, Yellow, and Blue.
+  - Strict overshooting rejection across all positions ($p = 50, \text{home } 1..5, \text{goal } 6$).
+  - Multi-token distribution handling (base, path, home entry, home runway).
+  - Opponent capture immediately before home entry on cell 50 with bonus turn awarding.
+  - Turn timeouts near home entry with state preservation.
+- **Result:** **39/39 tests passed** across `@ludo/game-engine` (`pnpm --filter @ludo/game-engine test`).
+
+### 4.5 Mocked Visual Browser Verification (`verify-home-lane.mts`)
+Executed Playwright suite `ludo/apps/server/test/verify-home-lane.mts` using injected UI snapshots (`window.__SET_MOCK_SNAPSHOT__`) to test visual rendering coordinates:
+- `[TEST 1] Red pawn immediately before home entry (track progress 50)`: **PASS ✅**
+- `[TEST 2] Red pawn entering red home lane cell 0 (home progress 1)`: **PASS ✅**
+- `[TEST 3.1] Red pawn at home lane progress 2 (runway step 1)`: **PASS ✅**
+- `[TEST 3.2] Red pawn at home lane progress 3 (runway step 2)`: **PASS ✅**
+- `[TEST 3.3] Red pawn at home lane progress 4 (runway step 3)`: **PASS ✅**
+- `[TEST 3.4] Red pawn at home lane progress 5 (runway step 4)`: **PASS ✅**
+- `[TEST 4] Red pawn reaching the Center Goal (home progress 6)`: **PASS ✅**
+- `[TEST 5] Green pawn before and entering green home lane`: **PASS ✅**
+- `[TEST 6] Yellow pawn before and entering yellow home lane`: **PASS ✅**
+- `[TEST 7] Blue pawn before and entering blue home lane`: **PASS ✅**
+- `[TEST 8] All 4 Colors concurrent home-lane and goal overview`: **PASS ✅**
+- `[TEST 9] Mobile viewport verification (390x844)`: **PASS ✅**
+
+---
+
+## 5. Real Multiplayer End-to-End Verification (Socket.IO + Playwright)
+
+To provide definitive proof under real multiplayer conditions without mocked snapshots, we developed and executed the comprehensive live suite `ludo/apps/server/test/e2e-real-multiplayer-home-lane.mts`.
+
+### 5.1 Test Architecture Hierarchy
+
+1. **Unit Tests (`ludo/packages/game-engine/test/home-lane-audit.test.ts`)**:
+   - Pure in-memory Vitest unit tests verifying state transitions, relative offset calculations, overshoot rejections, and legal token validation.
+2. **Mocked Visual Tests (`ludo/apps/server/test/verify-home-lane.mts`)**:
+   - Single-browser visual layout verification using client-side injected mock snapshots (`window.__SET_MOCK_SNAPSHOT__`) to validate SVG element placement and CSS coordinates.
+3. **Real Multiplayer Integration Tests (`ludo/apps/server/test/e2e-real-multiplayer-home-lane.mts`)**:
+   - **Zero mock snapshots.**
+   - Live Node HTTP server hosting production web client bundle (`dist/`) on port 5173.
+   - Live `createLudoServer()` Socket.IO server on port 3001.
+   - Real browser sessions with multiple independent browser contexts for each human player.
+   - Server-authoritative state transitions, real turn timers, real WebSocket communication, and DOM validation.
+
+### 5.2 Real Multiplayer Test Execution & Results
+
+```
+================================================================
+--- STARTING REAL MULTIPLAYER SOCKET.IO PLAYWRIGHT E2E TESTS ---
+================================================================
+
+[Backend] Real Ludo Socket.IO Server listening on port 3001
+[Frontend] Real Web App Server listening on port 5173
+
+--- PART A: REAL 2-PLAYER MULTIPLAYER MATCH (RED & GREEN) ---
+[Step 1] Alice creates private room via browser UI...
+  - Real room code created: 35C59E
+[Step 2] Bob joins room via browser UI...
+  - Both real browser clients synchronized 2/2 connected players in lobby ✅
+[Step 3] Alice starts match via real UI button...
+  - Real 2D Ludo Board rendered on both players screens ✅
+[Step 4] Alice rolls 6 to deploy token 0...
+  - Red Yard Socket glowing with .socket-can-deploy ✅
+  - Alice sees red pawn on start cell 0: PASS ✅
+  - Bob sees red pawn on start cell 0: PASS ✅
+
+[Step 5] Alice advances red pawn across outer circuit to Cell 50 (10 rounds of 5)...
+  - Advanced 50 steps on outer track to progress 50 (Cell 50) ✅
+  - Server state: Red token at { kind: "path", progress: 50 } ✅
+  - Alice sees red pawn on junction cell 50: PASS ✅
+  - Bob sees red pawn on junction cell 50: PASS ✅
+  - Captured screenshot: real_multiplayer_red_at_cell_50.png 📸
+
+[Step 6] Bob rolls without legal moves -> server auto-passes turn back to Alice...
+  - Server auto-passed turn back to Alice ✅
+
+[Step 7] Alice rolls 1 and enters Red Home Lane Cell 0...
+  - Server authoritative state: Red token at { kind: "home", progress: 1 } ✅
+  - Alice sees red pawn inside first red home lane cell: PASS ✅
+  - Bob sees red pawn inside first red home lane cell: PASS ✅
+  - Captured screenshot: real_multiplayer_red_entering_home_lane.png 📸
+
+[Step 8] Alice advances red pawn through home runway steps...
+  - Red pawn in home lane cell 1 (home progress 2): PASS ✅
+  - Red pawn in home lane cell 2 (home progress 3): PASS ✅
+  - Red pawn in home lane cell 3 (home progress 4): PASS ✅
+  - Red pawn in home lane cell 4 (home progress 5): PASS ✅
+
+[Step 9] Alice rolls 1 to reach Center Victory Goal...
+  - Red pawn in Center Victory Goal: PASS ✅
+
+--- PART B: REAL 4-PLAYER MATCH (GREEN, YELLOW, BLUE TRANSITIONS) ---
+  - Real 4-player lobby ready with 4 connected players ✅
+  - 4-Player match active on board ✅
+
+[Green Test] Deploying Green, advancing 50 steps to Cell 11, entering Green Home Lane...
+  - Green pawn inside first green home lane cell: PASS ✅
+
+[Yellow Test] Deploying Yellow, advancing 50 steps to Cell 24, entering Yellow Home Lane...
+  - Yellow pawn inside first yellow home lane cell: PASS ✅
+
+[Blue Test] Deploying Blue, advancing 50 steps to Cell 37, entering Blue Home Lane...
+  - Blue pawn inside first blue home lane cell: PASS ✅
+  - Captured composite screenshot: real_multiplayer_all_four_colors_home_lanes.png 📸
+
+================================================================
+--- ALL REAL MULTIPLAYER E2E HOME-LANE TESTS PASSED 100% ✅ ---
+================================================================
+```
+
+### 5.3 Real Multiplayer Screenshots Captured
+
+The following screenshots were captured during actual live gameplay with real Socket.IO connections and are saved in `docs/screenshots/`:
+
+1. `docs/screenshots/real_multiplayer_red_at_cell_50.png` — Red pawn at the home-entry junction (Cell 50) after completing the full 50-step outer track circuit.
+2. `docs/screenshots/real_multiplayer_red_entering_home_lane.png` — Red pawn successfully entering Red Home Lane Cell 0 (`home`, progress 1) on a legal server-authoritative roll of 1.
+3. `docs/screenshots/real_multiplayer_red_in_home_lane.png` — Red pawn advancing step-by-step through the home runway.
+4. `docs/screenshots/real_multiplayer_red_center_goal.png` — Red pawn achieving exact finish into the Center Victory Goal (`home`, progress 6).
+5. `docs/screenshots/real_multiplayer_green_entering_home_lane.png` — Green pawn entering Green Home Lane Cell 0 after 50-step circuit to junction Cell 11.
+6. `docs/screenshots/real_multiplayer_yellow_entering_home_lane.png` — Yellow pawn entering Yellow Home Lane Cell 0 after 50-step circuit to junction Cell 24.
+7. `docs/screenshots/real_multiplayer_blue_entering_home_lane.png` — Blue pawn entering Blue Home Lane Cell 0 after 50-step circuit to junction Cell 37.
+8. `docs/screenshots/real_multiplayer_all_four_colors_home_lanes.png` — Full arena overview with all 4 colors simultaneously positioned in their authentic home lanes.
+
+
+**Captured Verification Artifacts:**
+- `docs/screenshots/red_1_before_home_entry.png`
+- `docs/screenshots/red_2_entering_home_lane.png`
+- `docs/screenshots/red_3_home_progress_2.png`
+- `docs/screenshots/red_4_home_progress_3.png`
+- `docs/screenshots/red_5_home_progress_4.png`
+- `docs/screenshots/red_6_home_progress_5.png`
+- `docs/screenshots/red_7_center_goal.png`
+- `docs/screenshots/green_home_lane.png`
+- `docs/screenshots/yellow_home_lane.png`
+- `docs/screenshots/blue_home_lane.png`
+- `docs/screenshots/all_colors_home_lane_overview.png`
+- `docs/mobile_screenshots/verified_mobile_home_lane_journey.png`
+

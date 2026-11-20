@@ -1,4 +1,4 @@
-import React, { Suspense, useEffect, useMemo, useState } from 'react';
+import React, { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { io, type Socket } from 'socket.io-client';
 import { legalTokens } from '@ludo/game-engine';
@@ -375,6 +375,9 @@ function App() {
   const [copiedCode, setCopiedCode] = useState(false);
   const [copiedInvite, setCopiedInvite] = useState(false);
 
+  const snapshotRef = useRef(snapshot);
+  snapshotRef.current = snapshot;
+
   const canJoin = name.trim().length > 0 && name.trim().length <= 16;
 
   // Persist player name locally
@@ -519,6 +522,8 @@ function App() {
         setSessionId(s.players[0]?.id || 'p1');
         setSnapshot(s);
       };
+      (window as any).__GET_SNAPSHOT__ = () => snapshotRef.current;
+      (window as any).__SOCKET__ = socket;
     }
     return () => {
       socket.off('session', onSession);
