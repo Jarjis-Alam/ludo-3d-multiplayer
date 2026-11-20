@@ -193,10 +193,14 @@ function computeWaypoints(
   const waypoints: Array<{ x: number; y: number }> = [];
 
   if (oldPos.kind === 'base' && newPos.kind === 'path') {
-    // Deploying from base socket to starting track cell
-    waypoints.push(getCoordForPos(oldPos, seat, tokenIdx));
-    waypoints.push(getCoordForPos(newPos, seat, tokenIdx));
-    return waypoints;
+    // Deploying from base socket to starting track cell with smooth arcing launch
+    const baseC = getCoordForPos(oldPos, seat, tokenIdx);
+    const startC = getCoordForPos(newPos, seat, tokenIdx);
+    const midC = {
+      x: (baseC.x + startC.x) / 2,
+      y: (baseC.y + startC.y) / 2 - 4,
+    };
+    return [baseC, midC, startC];
   }
 
   if (oldPos.kind === 'path') {
@@ -343,22 +347,45 @@ export const Board2D: React.FC<Board2DProps> = ({
   const [captureEffect, setCaptureEffect] = useState<{ x: number; y: number } | null>(null);
   const [isAnimating, setIsAnimating] = useState<boolean>(false);
 
-  const prevTokensRef = useRef<BoardToken[][] | null>(null);
+  const lastCommittedTokensRef = useRef<BoardToken[][] | null>(null);
   const animTimeoutsRef = useRef<NodeJS.Timeout[]>([]);
 
   // Clear pending animation timers on unmount
   useEffect(() => {
     return () => {
       animTimeoutsRef.current.forEach(clearTimeout);
+      animTimeoutsRef.current = [];
     };
   }, []);
 
   // Detect state transitions and trigger cell-by-cell pawn movement & capture return
   useEffect(() => {
-    const prevTokens = prevTokensRef.current;
-    prevTokensRef.current = tokens;
+    const prevTokens = lastCommittedTokensRef.current;
+    if (!prevTokens || prevTokens.length === 0) {
+      lastCommittedTokensRef.current = tokens;
+      return;
+    }
 
-    if (!prevTokens || prevTokens.length === 0) return;
+    // Check if tokens actually changed
+    let tokensChanged = false;
+    for (let s = 0; s < tokens.length; s++) {
+      const curList = tokens[s] || [];
+      const prevList = prevTokens[s] || [];
+      for (let t = 0; t < curList.length; t++) {
+        if (!prevList[t] || curList[t].kind !== prevList[t].kind || curList[t].progress !== prevList[t].progress) {
+          tokensChanged = true;
+          break;
+        }
+      }
+      if (tokensChanged) break;
+    }
+
+    // Prevent non-movement state updates (e.g. countdown timer ticks, user HUD updates) from aborting active animations
+    if (!tokensChanged) {
+      return;
+    }
+
+    lastCommittedTokensRef.current = tokens;
 
     // Check prefers-reduced-motion
     const prefersReducedMotion =
@@ -411,21 +438,32 @@ export const Board2D: React.FC<Board2DProps> = ({
       animTimeoutsRef.current = [];
 
       setIsAnimating(true);
-      const stepDuration = 110; // ~110ms per cell hop
+      const stepDuration = 115; // ~115ms per cell hop
 
-      waypoints.forEach((wp, idx) => {
+      // Set initial position
+      setAnimatingPawn({
+        seat: movedSeat,
+        tokenIdx: movedTokenIdx,
+        x: waypoints[0].x,
+        y: waypoints[0].y,
+        hopIndex: 0,
+      });
+
+      // Animate through subsequent waypoints with continuous position interpolation
+      waypoints.slice(1).forEach((wp, idx) => {
+        const stepNum = idx + 1;
         const t = setTimeout(() => {
           setAnimatingPawn({
             seat: movedSeat!,
             tokenIdx: movedTokenIdx!,
             x: wp.x,
             y: wp.y,
-            hopIndex: idx,
+            hopIndex: stepNum,
           });
           AudioEngine.playHop();
 
           // Last hop of moving token
-          if (idx === waypoints.length - 1) {
+          if (stepNum === waypoints.length - 1) {
             // Check capture
             if (capturedSeat !== null && capturedTokenIdx !== null && capturedOldPos) {
               AudioEngine.playStrike();
@@ -438,7 +476,7 @@ export const Board2D: React.FC<Board2DProps> = ({
               );
 
               // Animate captured pawn returning backwards along track
-              const returnStepMs = 50;
+              const returnStepMs = 55;
               returnWaypoints.forEach((rwp, rIdx) => {
                 const rt = setTimeout(() => {
                   setCapturedPawnAnim({
@@ -477,7 +515,7 @@ export const Board2D: React.FC<Board2DProps> = ({
               }, 120);
             }
           }
-        }, idx * stepDuration);
+        }, stepNum * stepDuration);
 
         animTimeoutsRef.current.push(t);
       });
@@ -628,14 +666,16 @@ export const Board2D: React.FC<Board2DProps> = ({
           <div className="board-anim-layer" aria-hidden="true">
             {animatingPawn && (
               <div
-                key={`hop-${animatingPawn.hopIndex}`}
-                className="animating-pawn-wrapper hop-arc"
+                key={`pawn-anim-${animatingPawn.seat}-${animatingPawn.tokenIdx}`}
+                className="animating-pawn-wrapper"
                 style={{
                   left: `${animatingPawn.x}%`,
                   top: `${animatingPawn.y}%`,
                 }}
               >
-                <PawnToken color={SEAT_COLORS[animatingPawn.seat]} size={38} />
+                <div key={`hop-inner-${animatingPawn.hopIndex}`} className="pawn-hop-bounce-inner">
+                  <PawnToken color={SEAT_COLORS[animatingPawn.seat]} size={38} />
+                </div>
               </div>
             )}
 
@@ -651,6 +691,7 @@ export const Board2D: React.FC<Board2DProps> = ({
 
             {capturedPawnAnim && (
               <div
+                key={`captured-anim-${capturedPawnAnim.seat}-${capturedPawnAnim.tokenIdx}`}
                 className="animating-pawn-wrapper captured-return-arc"
                 style={{
                   left: `${capturedPawnAnim.x}%`,

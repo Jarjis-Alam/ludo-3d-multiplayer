@@ -163,8 +163,9 @@ export function moveToken(
   token: number,
   dice: number,
   now = Date.now()
-): { state: GameState; captured: boolean; winner: boolean; finished: boolean; rank?: number } {
+): { state: GameState; captured: boolean; winner: boolean; finished: boolean; pawnReachedHome: boolean; rank?: number } {
   if (state.status !== 'playing' || state.currentPlayer !== player) throw new Error('not your turn');
+  if (state.rankings && state.rankings.includes(player)) throw new Error('player already finished');
   if (
     !Number.isInteger(token) ||
     token < 0 ||
@@ -219,6 +220,11 @@ export function moveToken(
     playerRank = updatedRankings.length;
   }
 
+  const pawnReachedHome =
+    landed.kind === 'home' &&
+    landed.progress === HOME_LENGTH &&
+    (old.kind !== 'home' || old.progress !== HOME_LENGTH);
+
   const totalPlayers = state.players.length;
   const remainingSeats = state.players.map((p) => p.seat).filter((s) => !updatedRankings.includes(s));
 
@@ -237,7 +243,7 @@ export function moveToken(
     nextPlayer = player;
   } else if (justFinished) {
     nextPlayer = getNextPlayer(player, remainingSeats);
-  } else if (captured || dice === 6) {
+  } else if (captured || dice === 6 || pawnReachedHome) {
     earnsExtraTurn = true;
     nextPlayer = player;
   } else {
@@ -275,7 +281,16 @@ export function moveToken(
       timestamp: now,
     };
   } else if (earnsExtraTurn) {
-    if (captured && dice === 6) {
+    if (pawnReachedHome) {
+      notice = {
+        type: 'extra_turn',
+        message: `Pawn reached home — Bonus turn!`,
+        seat: player,
+        playerName,
+        dice,
+        timestamp: now,
+      };
+    } else if (captured && dice === 6) {
       notice = {
         type: 'extra_turn',
         message: `Captured opponent and rolled 6! Extra turn awarded.`,
@@ -322,12 +337,14 @@ export function moveToken(
     captured,
     winner: isMatchFinished,
     finished: justFinished,
+    pawnReachedHome,
     rank: playerRank,
   };
 }
 
 export function roll(state: GameState, player: PlayerIndex, value: number, now = Date.now()): GameState {
   if (state.status !== 'playing' || state.currentPlayer !== player || state.dice !== null) throw new Error('cannot roll now');
+  if (state.rankings && state.rankings.includes(player)) throw new Error('player already finished');
   if (!Number.isInteger(value) || value < 1 || value > 6) throw new Error('invalid dice');
   const sixes = value === 6 ? state.consecutiveSixes + 1 : 0;
   const remainingSeats = getRemainingSeats(state);

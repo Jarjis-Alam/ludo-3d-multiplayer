@@ -1229,10 +1229,30 @@ body {
 .animating-pawn-wrapper {
   position: absolute;
   transform: translate(-50%, -50%);
+  transition: left 115ms linear, top 115ms linear;
   will-change: left, top, transform;
   pointer-events: none;
   z-index: 70;
   filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.45));
+}
+
+.pawn-hop-bounce-inner {
+  animation: pawn-hop-subtle 115ms ease-in-out;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@keyframes pawn-hop-subtle {
+  0% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-8px) scale(1.08);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+  }
 }
 
 .hop-arc {
@@ -1253,6 +1273,7 @@ body {
 }
 
 .captured-return-arc {
+  transition: left 55ms linear, top 55ms linear;
   animation: captured-shrink-spin 90ms linear infinite;
   filter: drop-shadow(0 0 10px rgba(239, 68, 68, 0.8));
 }
@@ -1909,240 +1930,239 @@ body {
   animation: urgentPulse 0.8s infinite alternate;
 }
 
-/* Mobile Bottom Dock */
+/* =========================================================================
+   MOBILE BOTTOM DOCK (Unified Thumb-Reachable Control Group)
+   ========================================================================= */
 .mobile-bottom-dock {
   width: 100%;
-  max-width: 640px;
+  max-width: 480px;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 6px;
 }
 
-.mobile-dock-directive {
-  background: linear-gradient(180deg, #10244c 0%, #09152e 100%);
-  border: 1.5px solid var(--surface-border-subtle);
-  border-radius: 10px;
-  padding: 6px 12px;
-  font-family: var(--font-heading);
-  font-size: 0.78rem;
-  text-align: center;
-  color: var(--text-primary);
+.mobile-unified-control-card {
+  background: linear-gradient(180deg, #10244c 0%, #0a1733 100%);
+  border: 1.5px solid rgba(212, 175, 55, 0.35);
+  border-radius: 16px;
+  padding: 10px 14px 12px;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 6px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  gap: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transition: all 0.25s ease;
 }
 
-.mobile-dock-directive.directive-urgent {
+.mobile-unified-control-card.card-active-turn {
+  border-color: var(--accent-gold);
+  box-shadow: 0 8px 28px rgba(212, 175, 55, 0.25), 0 0 0 1px rgba(212, 175, 55, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+.mobile-unified-control-card.card-urgent {
   border-color: #ef4444;
+  box-shadow: 0 8px 28px rgba(239, 68, 68, 0.35), 0 0 0 1px rgba(239, 68, 68, 0.5);
+  animation: urgentCardPulse 1s infinite alternate;
 }
 
-.directive-highlight {
-  color: var(--accent-gold-bright);
+@keyframes urgentCardPulse {
+  0% { border-color: rgba(239, 68, 68, 0.5); }
+  100% { border-color: #ef4444; }
 }
 
-.urgent-badge {
-  background: #ef4444;
-  color: #fff;
-  padding: 1px 6px;
-  border-radius: 9999px;
-  font-size: 0.7rem;
-  font-weight: 800;
-  font-family: var(--font-mono);
-}
-
-.mobile-dock-controls {
+/* 1. Contextual Directive */
+.mobile-control-directive {
   width: 100%;
-}
-
-.mobile-roll-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-}
-
-.mobile-dock-dice-btn {
-  width: 54px;
-  height: 54px;
-  flex-shrink: 0;
-  background: linear-gradient(145deg, #1e3a6e, #0c1c38);
-  border: 2px solid var(--accent-gold);
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6);
-  padding: 3px;
-  transition: all 0.2s ease;
-  touch-action: manipulation;
-}
-
-.mobile-dock-dice-btn.can-roll-pulse {
-  animation: trayGlowPulse 1.4s infinite alternate;
-  border-color: var(--accent-gold-bright);
-}
-
-.mobile-dock-dice-btn.passive {
-  cursor: default;
-  border-color: rgba(212, 175, 55, 0.4);
-}
-
-.mobile-big-roll-btn {
-  flex: 1;
-  min-height: 52px;
-  border-radius: 12px;
-  font-family: var(--font-heading);
-  font-size: 1.05rem;
-  font-weight: 800;
-  letter-spacing: 0.05em;
-  background: linear-gradient(135deg, #f2ca50 0%, #d4af37 60%, #b48a20 100%);
-  color: #1a1405;
-  border: none;
-  cursor: pointer;
-  box-shadow: 0 4px 18px rgba(212, 175, 55, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.4);
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  transition: all 0.15s ease;
-  user-select: none;
-  touch-action: manipulation;
-}
-
-.mobile-big-roll-btn:active {
-  transform: scale(0.97);
-  box-shadow: 0 2px 8px rgba(212, 175, 55, 0.4);
-}
-
-.mobile-big-roll-btn.urgent {
-  background: linear-gradient(135deg, #f87171 0%, #ef4444 60%, #b91c1c 100%);
-  color: #ffffff;
-  box-shadow: 0 0 20px rgba(239, 68, 68, 0.7);
-  animation: urgentPulse 0.9s infinite alternate;
-}
-
-.mobile-roll-result-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  padding: 6px 12px;
-  background: linear-gradient(135deg, rgba(30, 58, 110, 0.7) 0%, rgba(12, 28, 56, 0.85) 100%);
-  border: 1.5px solid var(--accent-gold);
-  border-radius: 14px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
-}
-
-.mobile-dock-dice-btn.dice-result-six {
-  border-color: #ef4444;
-  box-shadow: 0 0 18px rgba(239, 68, 68, 0.7);
-  animation: sixGlowPulse 1.2s infinite alternate;
-}
-
-.mobile-dock-dice-btn.dice-result-active {
-  border-color: var(--accent-gold-bright);
-  box-shadow: 0 0 14px rgba(245, 158, 11, 0.6);
-}
-
-.mobile-result-details {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  flex: 1;
-  min-width: 0;
-}
-
-.mobile-result-title {
-  font-family: var(--font-heading);
-  font-size: 0.95rem;
-  font-weight: 800;
-  color: #fef3c7;
-  letter-spacing: 0.03em;
-}
-
-.mobile-result-subtitle {
-  font-size: 0.8rem;
-  color: #cbd5e1;
-  font-weight: 600;
-}
-
-.mobile-result-timer {
-  flex-shrink: 0;
-}
-
-.mobile-result-timer .timer-badge {
-  font-family: var(--font-mono);
-  font-size: 0.8rem;
-  font-weight: 800;
-  color: #fef08a;
-  background: rgba(0, 0, 0, 0.4);
-  padding: 4px 8px;
+  padding: 5px 10px;
   border-radius: 8px;
-  border: 1px solid rgba(212, 175, 55, 0.5);
-}
-
-.mobile-result-timer .timer-badge.urgent {
-  color: #fca5a5;
-  border-color: #ef4444;
-  background: rgba(185, 28, 28, 0.4);
-  animation: urgentPulse 0.9s infinite alternate;
-}
-
-.mobile-waiting-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  background: rgba(0, 0, 0, 0.35);
-  border: 1px solid var(--surface-border-subtle);
-  border-radius: 10px;
-  padding: 6px 14px;
-}
-
-.mobile-waiting-info {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  flex: 1;
-}
-
-.mobile-waiting-name {
   font-family: var(--font-heading);
   font-size: 0.82rem;
+  letter-spacing: 0.02em;
   font-weight: 700;
-  color: var(--text-secondary);
+  text-align: center;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-.mobile-progress-track {
-  width: 100%;
-  height: 6px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 9999px;
+.mobile-control-directive.bonus {
+  background: linear-gradient(90deg, rgba(245, 158, 11, 0.25), rgba(234, 179, 8, 0.3), rgba(245, 158, 11, 0.25));
+  border-color: rgba(245, 158, 11, 0.6);
+  color: #fef08a;
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.2);
+}
+
+.mobile-control-directive.action {
+  background: rgba(30, 58, 110, 0.45);
+  border-color: rgba(212, 175, 55, 0.4);
+  color: var(--accent-gold-bright);
+}
+
+.mobile-control-directive.notice {
+  background: rgba(30, 41, 59, 0.5);
+  border-color: rgba(148, 163, 184, 0.3);
+  color: #cbd5e1;
+}
+
+.mobile-control-directive.waiting {
+  background: rgba(15, 23, 42, 0.5);
+  border-color: rgba(71, 85, 105, 0.3);
+  color: #94a3b8;
+}
+
+.directive-icon {
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+.directive-text {
+  flex: 1;
+  white-space: nowrap;
   overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.mobile-progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, var(--accent-gold), var(--accent-gold-bright));
+.directive-timer {
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(212, 175, 55, 0.3);
+  color: var(--accent-gold-bright);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  padding: 1px 6px;
   border-radius: 9999px;
-  transition: width 0.3s ease;
+  font-weight: 800;
 }
 
-/* Mini Dice Cube for Dock */
-.mini-dice-cube {
-  width: 44px;
-  height: 44px;
-  background: linear-gradient(145deg, #fdfbf7 0%, #ede6d8 60%, #ded3be 100%);
-  border: 1.5px solid #c9b99a;
-  border-radius: 8px;
-  box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.9), 0 3px 6px rgba(0, 0, 0, 0.35);
+.directive-timer.timer-urgent {
+  background: #ef4444;
+  border-color: #ef4444;
+  color: #ffffff;
+  animation: urgentBadgeFlash 0.7s infinite alternate;
+}
+
+@keyframes urgentBadgeFlash {
+  0% { transform: scale(1); }
+  100% { transform: scale(1.08); }
+}
+
+/* 2. Central Dice Tray Area */
+.mobile-central-dice-area {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 4px;
+  padding: 2px 0;
+}
+
+.mobile-central-dice-btn {
+  width: 74px;
+  height: 74px;
+  position: relative;
+  background: radial-gradient(circle at 35% 30%, #1e3a6e 0%, #0a1733 80%);
+  border: 2px solid var(--accent-gold);
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.55), inset 0 2px 4px rgba(255, 255, 255, 0.15);
+  padding: 6px;
+  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  touch-action: manipulation;
+}
+
+.mobile-central-dice-btn.can-roll-pulse {
+  animation: trayGlowPulse 1.4s infinite alternate;
+  border-color: var(--accent-gold-bright);
+  cursor: pointer;
+}
+
+.mobile-central-dice-btn.disabled {
+  cursor: default;
+  border-color: rgba(212, 175, 55, 0.25);
+  opacity: 0.85;
+}
+
+.mobile-central-dice-btn.dice-is-six {
+  border-color: #ef4444;
+  box-shadow: 0 0 22px rgba(239, 68, 68, 0.6), inset 0 2px 4px rgba(255, 255, 255, 0.2);
+  animation: sixGlowPulse 1.2s infinite alternate;
+}
+
+.dice-corner-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  background: #091326;
+  border: 1.5px solid var(--accent-gold);
+  color: var(--accent-gold-bright);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 800;
+  width: 22px;
+  height: 22px;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+}
+
+.dice-corner-badge.badge-six {
+  background: #ef4444;
+  border-color: #fca5a5;
+  color: #ffffff;
+}
+
+/* 3. Action Group Below Dice */
+.mobile-roll-action-group {
+  width: 100%;
+}
+
+.mobile-prominent-roll-btn {
+  width: 100%;
+  min-height: 48px;
+  border-radius: 12px;
+  font-family: var(--font-heading);
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+  user-select: none;
+  touch-action: manipulation;
+  border: none;
+}
+
+.mobile-prominent-roll-btn.btn-can-roll {
+  background: linear-gradient(135deg, #f2ca50 0%, #d4af37 60%, #b48a20 100%);
+  color: #1a1405;
+  box-shadow: 0 4px 18px rgba(212, 175, 55, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+}
+
+.mobile-prominent-roll-btn.btn-can-roll:active {
+  transform: scale(0.98);
+  box-shadow: 0 2px 8px rgba(212, 175, 55, 0.3);
+}
+
+.mobile-prominent-roll-btn.btn-urgent-pulse {
+  background: linear-gradient(135deg, #f87171 0%, #ef4444 60%, #b91c1c 100%);
+  color: #ffffff;
+  box-shadow: 0 0 22px rgba(239, 68, 68, 0.7);
+  animation: urgentPulse 0.9s infinite alternate;
+}
+
+.mobile-prominent-roll-btn.btn-disabled {
+  background: rgba(30, 41, 59, 0.5);
+  color: #64748b;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  cursor: default;
 }
 
 /* Desktop vs Mobile Breakpoints */

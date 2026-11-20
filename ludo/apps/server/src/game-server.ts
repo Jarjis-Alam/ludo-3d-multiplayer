@@ -345,7 +345,7 @@ export class LudoService {
       const finishedSet = new Set(room.state.rankings || []);
       const connectedSeats = [...room.players.values()].filter((p) => p.connected && !finishedSet.has(p.seat)).map((p) => p.seat);
       const allOccupiedSeats = [...room.players.values()].filter((p) => !finishedSet.has(p.seat)).map((p) => p.seat);
-      const fallbackSeats = [...room.players.values()].map((p) => p.seat);
+      const fallbackSeats = [...room.players.values()].filter((p) => !finishedSet.has(p.seat)).map((p) => p.seat);
       const targetSeats = connectedSeats.length > 0 ? connectedSeats : (allOccupiedSeats.length > 0 ? allOccupiedSeats : fallbackSeats);
 
       const previousDice = room.state.dice;
@@ -601,6 +601,12 @@ export class LudoService {
             };
           }
 
+          if (room.state.rankings && room.state.rankings.includes(player.seat)) {
+            return isObj
+              ? { ok: false, error: 'Player already finished', version: room.state.version, state: this.snapshot(room) }
+              : { ok: false, error: 'Player already finished' };
+          }
+
           if (room.state.currentPlayer !== player.seat || room.state.status !== 'playing' || room.state.dice !== null) {
             return isObj
               ? { ok: false, error: 'cannot roll now', version: room.state.version, state: this.snapshot(room) }
@@ -656,6 +662,12 @@ export class LudoService {
             };
           }
 
+          if (room.state.rankings && room.state.rankings.includes(player.seat)) {
+            return isObj
+              ? { ok: false, error: 'Player already finished', version: room.state.version, state: this.snapshot(room) }
+              : { ok: false, error: 'Player already finished' };
+          }
+
           if (room.state.dice === null) {
             return isObj
               ? { ok: false, error: 'No active dice', version: room.state.version, state: this.snapshot(room) }
@@ -682,6 +694,7 @@ export class LudoService {
               captured: moveResult.captured,
               winner: moveResult.winner,
               finished: moveResult.finished,
+              pawnReachedHome: moveResult.pawnReachedHome,
               rank: moveResult.rank,
             });
             return { ok: true, version: room.state.version, state: this.snapshot(room) };

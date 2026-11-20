@@ -297,3 +297,23 @@ The following screenshots were captured during actual live gameplay with real So
 - `docs/screenshots/all_colors_home_lane_overview.png`
 - `docs/mobile_screenshots/verified_mobile_home_lane_journey.png`
 
+---
+
+## 6. Quality of Life Update 2: Movement Precision & Animation Overhaul
+
+### 6.1 Root Cause & Resolution: Dice 3 Moving 2 Cells
+- **Cause**: Re-renders triggered by duplicate state callbacks (`room_state` broadcast + `move_token` ack) cleared `animTimeoutsRef.current` mid-flight, killing the 3rd hop before it executed.
+- **Fix**: Implemented `lastCommittedTokensRef` with deep equality checking so non-position state changes no longer cancel active hop timeouts.
+- **Continuous Interpolation**: Added `transition: left 115ms linear, top 115ms linear` on stable parent animation containers and isolated subtle vertical bouncing (`transform: translateY(-8px)`) to inner wrappers.
+
+### 6.2 Bonus Turns & Multi-Winner Lifecycle
+- Reaching Center Goal (`progress === 6`) with an exact roll grants an immediate bonus turn ("Pawn reached home — Bonus turn!") and resets the turn timer.
+- Capturing opponent pawns grants a bonus turn and sends the victim smoothly back to base.
+- In 3-player and 4-player matches, the game continues after 1st place finishes and concludes when 2nd place finishes. Finished players cannot roll or move.
+
+### 6.3 Mobile Bottom Controls Redesign
+- Unified thumb-reachable card directly beneath the board.
+- Centered 74px dice tray with rolling tumble animation and high-contrast numerical corner badge.
+- Prominent "TAP TO ROLL" button directly below the dice with contextual messages and timer integration.
+
+

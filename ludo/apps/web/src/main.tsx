@@ -4,7 +4,7 @@ import { io, type Socket } from 'socket.io-client';
 import { legalTokens } from '@ludo/game-engine';
 import { Board2D } from './Board2D';
 import { LandingBoard2D } from './LandingBoard2D';
-import { DiceRoller, MiniDiceCube } from './DiceRoller';
+import { DiceRoller, MiniDiceCube, DiceFaceSVG } from './DiceRoller';
 import { VictoryPodium } from './VictoryPodium';
 import { AudioEngine } from './AudioEngine';
 import './style.css';
@@ -221,6 +221,7 @@ interface MobileBottomDockProps {
   dice: number | null;
   displayDice: number | null;
   rolling: boolean;
+  isMoving: boolean;
   turnTimeLeft: number;
   legal: number[];
   tokens: Array<Array<{ kind: 'base' | 'path' | 'home'; progress: number }>>;
@@ -237,6 +238,7 @@ const MobileBottomDock: React.FC<MobileBottomDockProps> = ({
   dice,
   displayDice,
   rolling,
+  isMoving,
   turnTimeLeft,
   legal,
   tokens,
@@ -245,110 +247,99 @@ const MobileBottomDock: React.FC<MobileBottomDockProps> = ({
   activityNotice,
   lastNotice,
   onRoll,
-  onMoveToken,
 }) => {
   const isUrgent = turnTimeLeft <= 5 && turnTimeLeft > 0;
   const isRecentNotice = lastNotice && Date.now() - (lastNotice.timestamp || 0) < 4000;
+  const canRoll = isMyTurn && dice === null && !rolling && !isMoving;
+  const currentDiceValue = dice ?? displayDice ?? 6;
+
+  // Determine prominent contextual message
+  let contextMessage: string;
+  let contextType: 'action' | 'waiting' | 'notice' | 'bonus' = 'waiting';
+
+  if (isRecentNotice && lastNotice?.message && lastNotice.type === 'extra_turn') {
+    contextMessage = lastNotice.message;
+    contextType = 'bonus';
+  } else if (activityNotice) {
+    contextMessage = activityNotice;
+    contextType = 'notice';
+  } else if (isRecentNotice && lastNotice?.message) {
+    contextMessage = lastNotice.message;
+    contextType = 'notice';
+  } else if (isMyTurn) {
+    if (dice === null) {
+      contextMessage = 'Your turn — Tap to roll!';
+      contextType = 'action';
+    } else if (dice === 6) {
+      contextMessage = 'Bonus turn! Rolled a 6 — Choose a pawn';
+      contextType = 'bonus';
+    } else if (legal.length > 0) {
+      contextMessage = `You rolled ${dice} — Choose a pawn to advance`;
+      contextType = 'action';
+    } else {
+      contextMessage = `No legal moves for roll of ${dice} — turn passed`;
+      contextType = 'notice';
+    }
+  } else {
+    contextMessage = `Waiting for ${activePlayer?.name || 'Player'} (${activePlayer?.color?.toUpperCase() || ''})…`;
+    contextType = 'waiting';
+  }
 
   return (
-    <div className="mobile-bottom-dock">
-      {/* 1. Action directive banner */}
-      <div className={`mobile-dock-directive ${isUrgent ? 'directive-urgent' : ''}`}>
-        {activityNotice ? (
-          <span className="directive-highlight animate-pulse">{activityNotice}</span>
-        ) : isRecentNotice ? (
-          <span className="directive-highlight">{lastNotice?.message}</span>
-        ) : isMyTurn ? (
-          dice === null ? (
-            <span className="directive-highlight">
-              👉 YOUR TURN: Tap the dice to roll!
-              {isUrgent && <span className="urgent-badge ml-1">⏳ {turnTimeLeft}s</span>}
-            </span>
-          ) : dice === 6 ? (
-            <span className="directive-highlight">
-              🎉 ROLLED A 6 (BONUS ROLL!) Tap a glowing pawn on the board or in yard to deploy:
-              {isUrgent && <span className="urgent-badge ml-1">⏳ {turnTimeLeft}s</span>}
-            </span>
-          ) : legal.length > 0 ? (
-            <span className="directive-highlight">
-              Rolled {dice}: Tap a glowing pawn on the board to advance {dice} {dice === 1 ? 'step' : 'steps'}
-              {isUrgent && <span className="urgent-badge ml-1">⏳ {turnTimeLeft}s</span>}
-            </span>
-          ) : (
-            <span className="text-amber-200/80">No legal moves for roll of {dice}. Passing turn…</span>
-          )
-        ) : (
-          <span className="text-slate-300">
-            Waiting for <strong className="text-white">{activePlayer?.name || 'Player'}</strong> (
-            <span style={{ color: colorHex[activePlayer?.color || 'red'] }}>
-              {activePlayer?.color?.toUpperCase()}
-            </span>
-            )… <span className="font-mono text-amber-300 text-xs">({turnTimeLeft}s)</span>
+    <div className="mobile-bottom-dock" role="region" aria-label="Game controls">
+      {/* Unified Cohesive Mobile Control Card */}
+      <div className={`mobile-unified-control-card ${canRoll ? 'card-active-turn' : ''} ${isUrgent && isMyTurn ? 'card-urgent' : ''}`}>
+        {/* 1. Contextual Status Directive */}
+        <div className={`mobile-control-directive ${contextType}`}>
+          <span className="directive-icon">
+            {contextType === 'bonus' ? '✨' : contextType === 'action' ? '👉' : contextType === 'notice' ? 'ℹ️' : '⏳'}
           </span>
-        )}
-      </div>
+          <span className="directive-text">{contextMessage}</span>
+          {turnTimeLeft > 0 && (
+            <span className={`directive-timer ${isUrgent ? 'timer-urgent' : ''}`}>
+              {turnTimeLeft}s
+            </span>
+          )}
+        </div>
 
-      {/* 2. Interactive Thumb Controls (No Deploy Buttons - Direct Pawn Tapping Only) */}
-      <div className="mobile-dock-controls">
-        {isMyTurn && dice === null ? (
-          <div className="mobile-roll-row">
-            <button
-              type="button"
-              className={`mobile-dock-dice-btn ${rolling ? 'rolling-tumbling' : 'can-roll-pulse'}`}
-              onClick={onRoll}
-              disabled={rolling}
-              aria-label="Roll Dice"
-            >
-              <MiniDiceCube value={displayDice || 6} />
-            </button>
-            <button
-              type="button"
-              className={`mobile-big-roll-btn ${isUrgent ? 'urgent' : ''}`}
-              onClick={onRoll}
-              disabled={rolling}
-            >
-              {rolling ? (
-                <span className="animate-pulse">🎲 ROLLING…</span>
-              ) : (
-                <span>🎲 TAP TO ROLL {isUrgent ? `(${turnTimeLeft}s)` : ''}</span>
-              )}
-            </button>
-          </div>
-        ) : isMyTurn && dice !== null ? (
-          <div className="mobile-roll-result-row">
-            <div className={`mobile-dock-dice-btn ${dice === 6 ? 'dice-result-six' : 'dice-result-active'}`}>
-              <MiniDiceCube value={dice} />
+        {/* 2. Central Dice Tray Area */}
+        <div className="mobile-central-dice-area">
+          <button
+            type="button"
+            className={`mobile-central-dice-btn ${rolling ? 'rolling-tumbling' : ''} ${canRoll ? 'can-roll-pulse' : 'disabled'} ${dice === 6 ? 'dice-is-six' : ''}`}
+            onClick={() => {
+              if (canRoll) onRoll();
+            }}
+            disabled={!canRoll}
+            aria-label={canRoll ? 'Tap to roll dice' : `Dice value ${currentDiceValue}`}
+            title={canRoll ? 'Tap to roll dice' : `Dice: ${currentDiceValue}`}
+          >
+            <DiceFaceSVG value={currentDiceValue} size={62} />
+            <div className={`dice-corner-badge ${currentDiceValue === 6 ? 'badge-six' : ''}`}>
+              {currentDiceValue}
             </div>
-            <div className="mobile-result-details">
-              <span className="mobile-result-title">
-                {dice === 6 ? '✨ ROLLED A 6 (BONUS ROLL!)' : `🎲 ROLLED A ${dice}`}
-              </span>
-              <span className="mobile-result-subtitle">
-                {legal.length > 0 ? '👉 Tap a glowing pawn on the board' : 'No legal moves — passing turn…'}
-              </span>
-            </div>
-            <div className="mobile-result-timer">
-              <span className={`timer-badge ${isUrgent ? 'urgent' : ''}`}>⏳ {turnTimeLeft}s</span>
-            </div>
-          </div>
-        ) : (
-          <div className="mobile-waiting-row">
-            <div className="mobile-dock-dice-btn passive">
-              <MiniDiceCube value={displayDice || 6} />
-            </div>
-            <div className="mobile-waiting-info">
-              <span className="mobile-waiting-name">
-                {activePlayer ? `${activePlayer.name}'s turn` : 'Opponent turn'}
-              </span>
-              <div className="mobile-progress-track">
-                <div
-                  className="mobile-progress-fill"
-                  style={{ width: `${Math.max(0, Math.min(100, (turnTimeLeft / 15) * 100))}%` }}
-                />
-              </div>
-            </div>
-          </div>
-        )}
+          </button>
+        </div>
+
+        {/* 3. Prominent "TAP TO ROLL" Button Directly Below the Dice */}
+        <div className="mobile-roll-action-group">
+          <button
+            type="button"
+            className={`mobile-prominent-roll-btn ${canRoll ? 'btn-can-roll' : 'btn-disabled'} ${isUrgent && canRoll ? 'btn-urgent-pulse' : ''}`}
+            onClick={onRoll}
+            disabled={!canRoll}
+          >
+            {rolling ? (
+              <span className="animate-pulse">🎲 ROLLING…</span>
+            ) : canRoll ? (
+              <span>🎲 TAP TO ROLL {isUrgent ? `(${turnTimeLeft}s)` : ''}</span>
+            ) : isMyTurn && dice !== null ? (
+              <span>👉 CHOOSE A PAWN ({dice})</span>
+            ) : (
+              <span>⏳ WAITING FOR {activePlayer?.name?.toUpperCase() || 'PLAYER'} ({turnTimeLeft}s)</span>
+            )}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -1175,6 +1166,7 @@ function App() {
               dice={snapshot.dice}
               displayDice={displayDiceValue}
               rolling={rolling}
+              isMoving={isMoving}
               turnTimeLeft={turnTimeLeft}
               legal={legal}
               tokens={snapshot.tokens}
