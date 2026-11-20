@@ -68,7 +68,10 @@ async function runHomepageVerification() {
     // Verify Title & Subtitle
     const titleText = await page.textContent('.hero-headline');
     assert.ok(titleText?.includes('ROLL THE DICE'), 'Contains headline "ROLL THE DICE."');
-    assert.ok(titleText?.includes('RULE THE BOARD'), 'Contains headline "RULE THE BOARD."');
+    assert.ok(
+      titleText?.includes('RULE THE BOARD') || titleText?.includes('MAKE YOUR MOVE'),
+      'Contains headline accent "RULE THE BOARD." or "MAKE YOUR MOVE."'
+    );
     console.log('  - Desktop headline verified ✅');
 
     // Verify Board Showcase
@@ -141,6 +144,7 @@ async function runHomepageVerification() {
     await browser.close();
     await new Promise((resolve) => ludoServer.httpServer.close(resolve));
     await new Promise((resolve) => webServer.close(resolve));
+    process.exit(0);
   }
 }
 

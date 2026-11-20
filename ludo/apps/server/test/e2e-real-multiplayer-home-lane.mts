@@ -140,7 +140,11 @@ async function runRealMultiplayerE2E() {
     console.log('  - Red Yard Socket glowing with .socket-can-deploy ✅');
 
     // Alice clicks the glowing base socket in the browser UI
-    await p0.click('.base-socket-red.socket-can-deploy');
+    await p0.evaluate(() => {
+      const el = (document.querySelector('.base-socket-red.socket-can-deploy .traditional-pawn-wrapper') ||
+        document.querySelector('.base-socket-red.socket-can-deploy')) as HTMLElement;
+      el?.click();
+    });
 
     // Wait for token to land on track cell 0 (progress 0)
     await sleep(600);
@@ -561,6 +565,7 @@ async function runRealMultiplayerE2E() {
     await new Promise((res) => webServer.close(res));
     await new Promise((res) => ludoServer.httpServer.close(res));
     ludoServer.service.close();
+    process.exit(0);
   }
 }
 

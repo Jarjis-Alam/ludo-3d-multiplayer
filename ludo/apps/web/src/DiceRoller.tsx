@@ -17,53 +17,50 @@ interface DiceRollerProps {
 export const PIP_COORDINATES: Record<number, Array<[number, number]>> = {
   1: [[32, 32]],
   2: [
-    [19, 19],
-    [45, 45],
+    [20, 20],
+    [44, 44],
   ],
   3: [
-    [19, 19],
+    [20, 20],
     [32, 32],
-    [45, 45],
+    [44, 44],
   ],
   4: [
-    [19, 19],
-    [45, 19],
-    [19, 45],
-    [45, 45],
+    [20, 20],
+    [44, 20],
+    [20, 44],
+    [44, 44],
   ],
   5: [
-    [19, 19],
-    [45, 19],
+    [20, 20],
+    [44, 20],
     [32, 32],
-    [19, 45],
-    [45, 45],
+    [20, 44],
+    [44, 44],
   ],
   6: [
-    [19, 17],
-    [45, 17],
-    [19, 32],
-    [45, 32],
-    [19, 47],
-    [45, 47],
+    [20, 18],
+    [44, 18],
+    [20, 32],
+    [44, 32],
+    [20, 46],
+    [44, 46],
   ],
 };
 
 /**
- * Self-contained vector SVG Dice Face with 3D enamel body and bold, glossy, high-contrast pips.
- * Guaranteed to render with zero CSS dependency bugs across all browsers and devices.
+ * 3D Tactile Ivory Vector Dice Face with soft cream body, rounded bevels, and crisp black pips.
+ * Exactly matches the elevated central dice in the master reference screenshot.
  */
 export const DiceFaceSVG: React.FC<{
   value: number;
   size?: number;
-}> = ({ value = 6, size = 54 }) => {
+}> = ({ value = 6, size = 64 }) => {
   const val = Math.max(1, Math.min(6, value || 6));
   const coords = PIP_COORDINATES[val] || PIP_COORDINATES[6];
-  const isSix = val === 6;
-  const isOne = val === 1;
 
-  const pipFill = isSix ? '#dc2626' : isOne ? '#d97706' : '#0f172a';
-  const pipStroke = isSix ? '#7f1d1d' : isOne ? '#78350f' : '#020617';
-  const pipRadius = isOne ? 7.5 : isSix ? 5.4 : 5.8;
+  const pipFill = '#1a1528';
+  const pipRadius = val === 1 ? 7.2 : val === 6 ? 5.2 : 5.6;
 
   return (
     <svg
@@ -75,60 +72,59 @@ export const DiceFaceSVG: React.FC<{
       style={{ display: 'block', overflow: 'visible' }}
     >
       <defs>
-        <linearGradient id="diceFaceBodyGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#ffffff" />
-          <stop offset="50%" stopColor="#fef3c7" />
-          <stop offset="100%" stopColor="#fde68a" />
+        {/* Soft warm ivory/cream gradient body */}
+        <linearGradient id="masterDiceBody" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#FFFDF7" />
+          <stop offset="45%" stopColor="#FFF4E0" />
+          <stop offset="100%" stopColor="#F7E2C3" />
         </linearGradient>
+
+        {/* Ambient base drop shadow for dice depth */}
+        <filter id="diceDropShadow" x="-20%" y="-20%" width="140%" height="140%">
+          <feDropShadow dx="0" dy="4" stdDeviation="4" floodColor="#0d091e" floodOpacity="0.5" />
+        </filter>
       </defs>
 
-      {/* Main 3D Beveled Body */}
+      {/* Main Beveled Body with Soft Rounded Corners */}
       <rect
         x="3"
         y="3"
         width="58"
         height="58"
-        rx="12"
-        ry="12"
-        fill="url(#diceFaceBodyGrad)"
-        stroke="#d4af37"
-        strokeWidth="1.8"
+        rx="14"
+        ry="14"
+        fill="url(#masterDiceBody)"
+        stroke="#E2C7A3"
+        strokeWidth="1.6"
       />
 
-      {/* Inner Specular Highlight Edge */}
+      {/* Specular Inner Glint Highlight Ring */}
       <rect
         x="4.5"
         y="4.5"
         width="55"
         height="55"
-        rx="10.5"
-        ry="10.5"
+        rx="12"
+        ry="12"
         fill="none"
         stroke="rgba(255, 255, 255, 0.95)"
         strokeWidth="1.2"
       />
 
-      {/* Solid High-Contrast 3D Pips */}
+      {/* Crisp Solid Black Pips with Specular Glints */}
       {coords.map(([cx, cy], i) => (
         <g key={i}>
-          {/* Subtle contact depth shadow */}
-          <circle cx={cx} cy={cy + 1.2} r={pipRadius} fill="rgba(0, 0, 0, 0.35)" />
-          {/* Main saturated pip body */}
+          {/* Contact Depth Shadow */}
+          <circle cx={cx} cy={cy + 1} r={pipRadius} fill="rgba(0, 0, 0, 0.25)" />
+          {/* Main Pip */}
+          <circle cx={cx} cy={cy} r={pipRadius} fill={pipFill} />
+          {/* Specular Glint */}
           <circle
-            cx={cx}
-            cy={cy}
-            r={pipRadius}
-            fill={pipFill}
-            stroke={pipStroke}
-            strokeWidth="0.8"
-          />
-          {/* Specular Glint Highlight */}
-          <circle
-            cx={cx - pipRadius * 0.32}
-            cy={cy - pipRadius * 0.32}
+            cx={cx - pipRadius * 0.3}
+            cy={cy - pipRadius * 0.3}
             r={pipRadius * 0.3}
             fill="#ffffff"
-            opacity="0.85"
+            opacity="0.8"
           />
         </g>
       ))}
@@ -140,14 +136,18 @@ export const MiniDiceCube: React.FC<{ value: number }> = ({ value }) => {
   const displayVal = Math.max(1, Math.min(6, value || 6));
   return (
     <div className="mini-dice-cube relative">
-      <DiceFaceSVG value={displayVal} size={36} />
-      <div className={`dice-corner-badge mini ${displayVal === 6 ? 'badge-six' : ''}`}>
+      <DiceFaceSVG value={displayVal} size={38} />
+      <div className="dice-corner-badge mini">
         {displayVal}
       </div>
     </div>
   );
 };
 
+/**
+ * Desktop & Tablet Royal Dice Tray component featuring elevated violet stage,
+ * tactile ivory dice, and golden-yellow primary action button.
+ */
 export const DiceRoller: React.FC<DiceRollerProps> = ({
   value,
   activeDice,
@@ -174,45 +174,20 @@ export const DiceRoller: React.FC<DiceRollerProps> = ({
     }
   }, [rolling, value]);
 
-  const progressPercent = Math.max(0, Math.min(100, (timeLeft / maxTime) * 100));
-  const strokeDashoffset = 100 - progressPercent;
   const isUrgent = timeLeft <= 5 && timeLeft > 0;
-  const showTimer = (canRoll || (isMyTurn && activeDice !== null)) && timeLeft > 0;
 
   return (
     <div className="dice-roller-container select-none">
-      <div
-        className={`dice-tray-wrapper ${canRoll ? 'tray-active-glow' : ''} ${
-          isUrgent ? 'tray-urgent-border' : ''
-        }`}
-      >
-        {/* Turn Countdown SVG Ring */}
-        {showTimer && (
-          <svg className={`dice-timer-svg ${isUrgent ? 'timer-urgent-pulse' : ''}`} viewBox="0 0 100 100">
-            <circle
-              cx="50"
-              cy="50"
-              r="46"
-              fill="none"
-              stroke={isUrgent ? 'rgba(239, 68, 68, 0.2)' : 'rgba(212, 175, 55, 0.2)'}
-              strokeWidth="4"
-            />
-            <circle
-              cx="50"
-              cy="50"
-              r="46"
-              fill="none"
-              stroke={isUrgent ? '#ef4444' : '#f59e0b'}
-              strokeWidth="4"
-              strokeDasharray="289"
-              strokeDashoffset={2.89 * strokeDashoffset}
-              strokeLinecap="round"
-              transform="rotate(-90 50 50)"
-            />
-          </svg>
-        )}
+      {/* Elevated Violet Stage Mound */}
+      <div className={`dice-elevated-stage ${canRoll ? 'stage-active-turn' : ''}`}>
+        {/* Playful Action Sparkle Rays around the dice */}
+        <div className="dice-action-sparkles" aria-hidden="true">
+          <span className="sparkle-ray ray-1" />
+          <span className="sparkle-ray ray-2" />
+          <span className="sparkle-ray ray-3" />
+        </div>
 
-        {/* 3D Tactile Dice Button with Floating High-Contrast Gold Number Badge */}
+        {/* Tactile Ivory Dice Button */}
         <button
           type="button"
           className={`dice-cube-btn relative ${rolling ? 'rolling-tumbling' : ''} ${
@@ -225,74 +200,55 @@ export const DiceRoller: React.FC<DiceRollerProps> = ({
           title={canRoll ? 'Tap to roll the dice' : `Dice value: ${displayVal}`}
           aria-label={canRoll ? 'Roll dice' : `Dice value ${displayVal}`}
         >
-          <DiceFaceSVG value={displayVal} size={54} />
-          {/* Floating High-Contrast Gold Number Badge */}
-          <div className={`dice-corner-badge ${displayVal === 6 ? 'badge-six' : ''}`}>
+          <DiceFaceSVG value={displayVal} size={64} />
+          <div className="dice-corner-badge">
             {displayVal}
           </div>
         </button>
       </div>
 
-      {/* Prominent Rolled Number Display Callout */}
-      <div className="dice-rolled-callout">
-        {value !== null ? (
-          <>
-            <span className="dice-rolled-number">🎲 {displayVal}</span>
-            <span className="dice-rolled-desc">
-              {displayVal === 6
-                ? 'ROLLED 6 (EXTRA TURN!)'
-                : activeDice !== null && isMyTurn
-                ? `ROLLED ${displayVal} • SELECT PAWN`
-                : activeDice !== null && playerName
-                ? `${playerName.toUpperCase()} ROLLED ${displayVal}`
-                : `LAST ROLL: ${displayVal}`}
-            </span>
-          </>
-        ) : (
-          <>
-            <span className="dice-rolled-number">🎲</span>
-            <span className="dice-rolled-desc">
-              {canRoll
-                ? 'YOUR TURN • TAP TO ROLL'
-                : playerName
-                ? `${playerName.toUpperCase()}'S TURN TO ROLL`
-                : 'AWAITING FIRST ROLL'}
-            </span>
-          </>
-        )}
-      </div>
-
-      {/* Clear Action Button / Waiting Feedback */}
-      {canRoll ? (
+      {/* Prominent Golden-Yellow Roll Action Button */}
+      <div className="dice-action-button-area">
         <button
           type="button"
-          className={`roll-action-pill ${isUrgent ? 'roll-urgent-pulse' : ''}`}
-          onClick={onRoll}
-          disabled={rolling}
+          className={`primary-game-btn roll-primary-btn ${canRoll ? 'btn-active' : 'btn-disabled'} ${
+            isUrgent && canRoll ? 'btn-urgent-pulse' : ''
+          }`}
+          onClick={() => {
+            if (canRoll && !rolling) onRoll();
+          }}
+          disabled={!canRoll || rolling}
         >
           {rolling ? (
-            <span className="animate-pulse">ROLLING…</span>
+            <span className="animate-pulse">🎲 ROLLING…</span>
+          ) : canRoll ? (
+            <span>🎲 TAP TO ROLL</span>
+          ) : isMyTurn && activeDice !== null ? (
+            <span>👉 CHOOSE A PAWN ({activeDice})</span>
           ) : (
-            <span>TAP TO ROLL {isUrgent ? `(${timeLeft}s)` : ''}</span>
+            <span>⏳ WAITING FOR {playerName?.toUpperCase() || 'PLAYER'}</span>
           )}
         </button>
-      ) : isMyTurn && activeDice !== null ? (
-        <div className="flex flex-col items-center gap-1.5 mt-1">
-          <div
-            className={`dice-waiting-badge ${
-              isUrgent
-                ? 'text-red-400 border-red-500/60 bg-red-950/40'
-                : 'text-amber-300 border-amber-400/50 bg-amber-500/10'
-            } font-bold`}
-          >
-            👉 Tap glowing pawn on board {isUrgent ? `(${timeLeft}s)` : ''}
-          </div>
-        </div>
-      ) : (
-        <div className="dice-waiting-badge mt-1">
-          {playerName ? `Waiting for ${playerName}… (${timeLeft}s)` : 'Awaiting turn…'}
-        </div>
-      )}
+      </div>
+
+      {/* Contextual Sub-Callout */}
+      <div className="dice-rolled-callout">
+        {value !== null ? (
+          <span className="dice-rolled-desc">
+            {displayVal === 6
+              ? '🎉 ROLLED A 6 (EXTRA TURN AWARDED!)'
+              : activeDice !== null && isMyTurn
+              ? `ROLLED ${displayVal} • SELECT GLOWING PAWN`
+              : activeDice !== null && playerName
+              ? `${playerName.toUpperCase()} ROLLED ${displayVal}`
+              : `LAST ROLL: ${displayVal}`}
+          </span>
+        ) : (
+          <span className="dice-rolled-desc">
+            {canRoll ? 'YOUR TURN • TAP TO ROLL' : `WAITING FOR TURN (${timeLeft}s)`}
+          </span>
+        )}
+      </div>
     </div>
   );
 };

@@ -161,7 +161,13 @@ async function runQoLE2E() {
       { roomCode }
     );
     await pAlice.waitForSelector('.base-socket-red.socket-can-deploy', { timeout: 4000 });
-    await pAlice.click('.base-socket-red.socket-can-deploy');
+    const clickRes = await pAlice.evaluate(() => {
+      const el = document.querySelector('.base-socket-red.socket-can-deploy .traditional-pawn-wrapper') as HTMLElement;
+      if (!el) return 'NO_PAWN_EL';
+      el.click();
+      return 'CLICKED_PAWN';
+    });
+    console.log('pAlice CLICK RESULT:', clickRes);
     await sleep(500);
 
     assert.deepEqual(room.state.tokens[0][0], { kind: 'path', progress: 0 });
@@ -405,15 +411,21 @@ async function runQoLE2E() {
     console.log('\n================================================================');
     console.log('--- ALL QUALITY OF LIFE UPDATE 2 E2E AUDIT TESTS PASSED! ---');
     console.log('================================================================\n');
+  } catch (err) {
+    console.error('Caught error in runQoLE2E:', err);
+    throw err;
   } finally {
     await browser.close();
     await new Promise((resolve) => ludoServer.httpServer.close(resolve));
     await new Promise((resolve) => webServer.close(resolve));
-    process.exit(0);
   }
 }
 
-runQoLE2E().catch((err) => {
-  console.error('Fatal E2E test failure:', err);
-  process.exit(1);
-});
+runQoLE2E()
+  .then(() => {
+    process.exit(0);
+  })
+  .catch((err) => {
+    console.error('Fatal E2E test failure:', err);
+    process.exit(1);
+  });

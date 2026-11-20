@@ -171,6 +171,7 @@ export const PawnToken: React.FC<PawnTokenProps> = ({
         width="100%"
         height="100%"
         className="traditional-pawn-svg"
+        style={{ pointerEvents: 'none' }}
       >
         <g filter="url(#pawnDropShadow)">
           {/* Ground Contact Shadow */}

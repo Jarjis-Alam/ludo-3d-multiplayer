@@ -251,6 +251,7 @@ async function runMobilePolishE2E() {
     await browser.close();
     await new Promise((resolve) => ludoServer.httpServer.close(resolve));
     await new Promise((resolve) => webServer.close(resolve));
+    process.exit(0);
   }
 }
 

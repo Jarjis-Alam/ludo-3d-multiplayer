@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { AudioEngine } from './AudioEngine';
+import { PlayerAvatar } from './PlayerAvatar';
+import { GameBackground } from './GameBackground';
 
 export interface VictoryPlayer {
   id: string;
@@ -23,10 +25,10 @@ export interface VictoryPodiumProps {
 }
 
 const COLOR_HEX: Record<string, string> = {
-  red: '#e63946',
-  green: '#2a9d8f',
-  yellow: '#f59e0b',
-  blue: '#2563eb',
+  red: '#ED3945',
+  green: '#08A66A',
+  yellow: '#FFAA13',
+  blue: '#3978F6',
 };
 
 export const VictoryPodium: React.FC<VictoryPodiumProps> = ({
@@ -73,157 +75,149 @@ export const VictoryPodium: React.FC<VictoryPodiumProps> = ({
   ];
 
   const isHost = hostId === sessionId;
+  const isWinner = firstPlayer?.id === sessionId;
 
   return (
-    <div className="victory-overlay">
-      {/* Dynamic Confetti & Sparkles Layer */}
-      <div className="confetti-container" />
-
-      <div className="victory-card">
-        {/* Header Ribbon */}
-        <div className="victory-ribbon">
-          <span className="text-amber-400">★</span>
-          <span className="victory-subtitle">ROYAL DARBAR • MATCH COMPLETE</span>
-          <span className="text-amber-400">★</span>
+    <GameBackground>
+      <div className="victory-overlay-container">
+        {/* Colorful Confetti particles in 4 player colors */}
+        <div className="victory-confetti-layer" aria-hidden="true">
+          {[...Array(24)].map((_, i) => (
+            <span
+              key={i}
+              className={`confetti-particle particle-${i % 4}`}
+              style={{
+                left: `${(i * 4.2 + 2) % 100}%`,
+                animationDelay: `${(i * 0.15) % 3}s`,
+                animationDuration: `${2.5 + ((i * 0.2) % 2)}s`,
+              }}
+            />
+          ))}
         </div>
 
-        {/* Crown & Victor Headline */}
-        <div className="victory-hero">
-          <div className="crown-badge">
-            <span className="crown-icon">♔</span>
-            <span className="sparkle top-right">✨</span>
-            <span className="sparkle bottom-left">✦</span>
+        <div className="victory-main-card">
+          {/* Header Crown & Title */}
+          <div className="victory-header-badge">
+            <div className="victory-crown-medallion">
+              <span>👑</span>
+            </div>
+            <h1 className="victory-title-headline">VICTORY!</h1>
+            <p className="victory-winner-subtitle">
+              {firstPlayer
+                ? isWinner
+                  ? 'Congratulations! You Won the Match!'
+                  : `${firstPlayer.name} has claimed the crown!`
+                : 'Match Complete!'}
+            </p>
+            <div className="victory-room-tag">Room #{roomCode} • 2–4 Players</div>
           </div>
 
-          <h1 className="winner-headline">
-            {firstPlayer ? `${firstPlayer.name} Wins 1st Place!` : 'Match Finished!'}
-          </h1>
-
-          <div className="match-tagline">
-            <span className="text-amber-300 font-bold">1ST & 2ND PLACE DECIDED</span>
-            <span>•</span>
-            <span>ROOM #{roomCode}</span>
-          </div>
-
-          {/* Mode Switcher Pill */}
-          <div className="tab-pill-switcher">
+          {/* Switcher Pill */}
+          <div className="victory-tab-switcher" role="tablist">
             <button
               type="button"
-              className={`pill-btn ${tab === 'podium' ? 'active' : ''}`}
+              className={`victory-tab-btn ${tab === 'podium' ? 'active' : ''}`}
               onClick={() => setTab('podium')}
             >
-              🏆 Grand Podium
+              🏆 Podium Stand
             </button>
             <button
               type="button"
-              className={`pill-btn ${tab === 'stats' ? 'active' : ''}`}
+              className={`victory-tab-btn ${tab === 'stats' ? 'active' : ''}`}
               onClick={() => setTab('stats')}
             >
-              📊 Match Stats
+              📊 Match Scores
             </button>
           </div>
-        </div>
 
-        {/* View 1: 3-Tier Podium */}
-        {tab === 'podium' ? (
-          <div className="podium-assembly">
-            {/* 2nd Place (Left) */}
-            {secondPlayer && (
-              <div className="podium-col col-2">
-                <div className="victor-tag" style={{ background: 'linear-gradient(135deg, #cbd5e1, #94a3b8)' }}>RUNNER-UP</div>
-                <div
-                  className="podium-avatar-ring"
-                  style={{ borderColor: COLOR_HEX[secondPlayer.color] || '#aaa' }}
-                >
-                  <span className="avatar-initials">{secondPlayer.name.slice(0, 2).toUpperCase()}</span>
+          {/* Tab 1: Podium Stand */}
+          {tab === 'podium' ? (
+            <div className="victory-podium-stand">
+              {/* 2nd Place */}
+              {secondPlayer && (
+                <div className="podium-tier tier-2">
+                  <div className="podium-place-label">2ND</div>
+                  <PlayerAvatar seat={secondPlayer.seat} name={secondPlayer.name} size={48} showCrown={false} />
+                  <span className="podium-player-name">{secondPlayer.name}</span>
+                  <span className="podium-home-count">
+                    {secondSeat !== undefined ? '4/4 Home' : `${secondPlayer.tokensHome}/4 Home`}
+                  </span>
+                  <div className="podium-block block-2">
+                    <span className="podium-medal">🥈</span>
+                  </div>
                 </div>
-                <span className="podium-name">{secondPlayer.name}</span>
-                <span className="podium-score">
-                  {secondSeat !== undefined ? '4/4 Home • 2nd Place' : `${secondPlayer.tokensHome}/4 Home`}
-                </span>
-                <div className="pedestal pedestal-2">
-                  <span className="rank-badge">2 🥈</span>
-                </div>
-              </div>
-            )}
+              )}
 
-            {/* 1st Place (Center) */}
-            {firstPlayer && (
-              <div className="podium-col col-1">
-                <div className="victor-tag">CHAMPION</div>
-                <div
-                  className="podium-avatar-ring victor-ring"
-                  style={{ borderColor: '#f59e0b' }}
-                >
-                  <span className="avatar-initials">{firstPlayer.name.slice(0, 2).toUpperCase()}</span>
+              {/* 1st Place */}
+              {firstPlayer && (
+                <div className="podium-tier tier-1">
+                  <div className="podium-place-label champion">CHAMPION</div>
+                  <PlayerAvatar seat={firstPlayer.seat} name={firstPlayer.name} size={64} showCrown={true} isHost={true} />
+                  <span className="podium-player-name champion-name">{firstPlayer.name}</span>
+                  <span className="podium-home-count champion-count">4/4 Home • Winner</span>
+                  <div className="podium-block block-1">
+                    <span className="podium-medal">🥇</span>
+                  </div>
                 </div>
-                <span className="podium-name font-bold">{firstPlayer.name}</span>
-                <span className="podium-score text-amber-300">4/4 Home • 1st Place</span>
-                <div className="pedestal pedestal-1">
-                  <span className="rank-badge gold">1 🥇</span>
-                  <span className="podium-gold-reward">👑 VICTORY</span>
-                </div>
-              </div>
-            )}
+              )}
 
-            {/* 3rd Place (Right) */}
-            {thirdPlayer && (
-              <div className="podium-col col-3">
-                <div className="victor-tag" style={{ background: 'linear-gradient(135deg, #d97706, #78350f)' }}>3RD PLACE</div>
-                <div
-                  className="podium-avatar-ring"
-                  style={{ borderColor: COLOR_HEX[thirdPlayer.color] || '#aaa' }}
-                >
-                  <span className="avatar-initials">{thirdPlayer.name.slice(0, 2).toUpperCase()}</span>
+              {/* 3rd Place */}
+              {thirdPlayer && (
+                <div className="podium-tier tier-3">
+                  <div className="podium-place-label">3RD</div>
+                  <PlayerAvatar seat={thirdPlayer.seat} name={thirdPlayer.name} size={44} showCrown={false} />
+                  <span className="podium-player-name">{thirdPlayer.name}</span>
+                  <span className="podium-home-count">{thirdPlayer.tokensHome}/4 Home</span>
+                  <div className="podium-block block-3">
+                    <span className="podium-medal">🥉</span>
+                  </div>
                 </div>
-                <span className="podium-name">{thirdPlayer.name}</span>
-                <span className="podium-score">{thirdPlayer.tokensHome}/4 Home</span>
-                <div className="pedestal pedestal-3">
-                  <span className="rank-badge">3 🥉</span>
+              )}
+            </div>
+          ) : (
+            /* Tab 2: Full Leaderboard */
+            <div className="victory-stats-list">
+              {sortedList.map((p) => (
+                <div key={p.id} className="victory-stat-card">
+                  <div className="stat-left-col">
+                    <span className="stat-rank-medal">{p.medal}</span>
+                    <PlayerAvatar seat={p.seat} name={p.name} size={36} showCrown={false} />
+                    <div className="stat-info-col">
+                      <span className="stat-name">{p.name} {p.id === sessionId ? '(You)' : ''}</span>
+                      <span className="stat-title">{p.rankTitle}</span>
+                    </div>
+                  </div>
+                  <span className="stat-tokens-badge">
+                    {p.tokensHome}/4 Home
+                  </span>
                 </div>
-              </div>
-            )}
+              ))}
+            </div>
+          )}
+
+          {/* Action Buttons */}
+          <div className="victory-actions-group">
+            <button
+              type="button"
+              className="primary-game-btn victory-primary-btn"
+              onClick={onRematch}
+              disabled={rematching}
+            >
+              {rematching ? 'Starting Rematch…' : isHost ? '🔄 Play Rematch' : '🔄 Request Rematch'}
+            </button>
+            <button
+              type="button"
+              className="secondary-violet-btn victory-secondary-btn"
+              onClick={onLeave}
+            >
+              🏠 Return to Lobby
+            </button>
           </div>
-        ) : (
-          /* View 2: Match Stats */
-          <div className="stats-breakdown">
-            {sortedList.map((p) => (
-              <div key={p.id} className="stat-row">
-                <div className="flex items-center gap-2">
-                  <span className="rank-number">{p.medal} #{p.badge}</span>
-                  <span
-                    className="w-3 h-3 rounded-full"
-                    style={{ background: COLOR_HEX[p.color] }}
-                  />
-                  <span className="player-stat-name">{p.name}</span>
-                  <span className="text-xs text-slate-400">({p.rankTitle})</span>
-                </div>
-                <span className="text-amber-300 font-mono font-bold">
-                  {p.tokensHome}/4 tokens finished
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
 
-        {/* Action Controls */}
-        <div className="victory-actions">
-          <button
-            type="button"
-            className="rematch-btn"
-            onClick={onRematch}
-            disabled={rematching}
-          >
-            {rematching ? 'Starting Rematch…' : isHost ? 'Play Rematch' : 'Request Rematch'}
-          </button>
-          <button type="button" className="leave-btn" onClick={onLeave}>
-            Return to Lobby
-          </button>
+          {message && <p className="victory-notice-msg">{message}</p>}
         </div>
-
-        {message && <p className="victory-message">{message}</p>}
       </div>
-    </div>
+    </GameBackground>
   );
 };
 
