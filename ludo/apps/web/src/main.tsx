@@ -7,6 +7,9 @@ import { LandingBoard2D } from './LandingBoard2D';
 import { DiceRoller, MiniDiceCube, DiceFaceSVG } from './DiceRoller';
 import { VictoryPodium } from './VictoryPodium';
 import { AudioEngine } from './AudioEngine';
+import { ShareModal } from './ShareModal';
+import { SettingsModal } from './SettingsModal';
+import { ActivityFeed, type ActivityItem } from './ActivityFeed';
 import './style.css';
 
 type ClientPlayer = { id: string; name: string; color: string; seat: number; connected: boolean };
@@ -190,7 +193,7 @@ const MobilePlayerRibbon: React.FC<MobilePlayerRibbonProps> = ({
             }}
           >
             <div
-              className="chip-avatar"
+              className={`chip-avatar ${isActive ? 'chip-avatar-active' : ''}`}
               style={{
                 backgroundColor: colorHex[p.color] || '#444',
               }}
@@ -204,7 +207,8 @@ const MobilePlayerRibbon: React.FC<MobilePlayerRibbonProps> = ({
               </span>
               <span className="chip-score">{finished}/4 🏁</span>
             </div>
-            {isActive && (
+            {!p.connected && <span className="chip-offline-badge">OFFLINE</span>}
+            {isActive && p.connected && (
               <span className={`chip-timer-badge ${isUrgent ? 'timer-urgent' : ''}`}>
                 {turnTimeLeft}s
               </span>
@@ -348,7 +352,9 @@ const MobileBottomDock: React.FC<MobileBottomDockProps> = ({
 function App() {
   const [name, setName] = useState(localStorage.getItem('ludo_player_name') || '');
   const [roomInput, setRoomInput] = useState(new URLSearchParams(location.search).get('room') || '');
-  const [landingTab, setLandingTab] = useState<'create' | 'join'>('create');
+  const [landingTab, setLandingTab] = useState<'create' | 'join'>(() => {
+    return typeof location !== 'undefined' && new URLSearchParams(location.search).get('room') ? 'join' : 'create';
+  });
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [sessionId, setSessionId] = useState('');
   const [message, setMessage] = useState('');
@@ -365,6 +371,19 @@ function App() {
   const [activityNotice, setActivityNotice] = useState<string | null>(null);
   const [copiedCode, setCopiedCode] = useState(false);
   const [copiedInvite, setCopiedInvite] = useState(false);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [settingsModalOpen, setSettingsModalOpen] = useState(false);
+  const [activityFeedOpen, setActivityFeedOpen] = useState(false);
+  const [hapticEnabled, setHapticEnabled] = useState(() => {
+    const saved = localStorage.getItem('ludo_haptic_enabled');
+    return saved === null ? true : saved === 'true';
+  });
+  const [reducedMotion, setReducedMotion] = useState(() => {
+    const saved = localStorage.getItem('ludo_reduced_motion');
+    if (saved !== null) return saved === 'true';
+    return typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  });
+  const [activityLog, setActivityLog] = useState<ActivityItem[]>([]);
 
   const snapshotRef = useRef(snapshot);
   snapshotRef.current = snapshot;
@@ -432,6 +451,19 @@ function App() {
       AudioEngine.playDiceRoll();
       setLastDice(data.value);
 
+      const pColor = snapshotRef.current?.players.find((p) => p.seat === data.seat)?.color;
+      addActivityItem({
+        type: data.value === 6 ? 'bonus' : 'dice',
+        icon: data.value === 6 ? '🎉' : '🎲',
+        message: data.value === 6
+          ? `${data.playerName} rolled a 6! (Bonus roll awarded)`
+          : !data.hasLegalMoves
+          ? `${data.playerName} rolled a ${data.value} (No legal moves)`
+          : `${data.playerName} rolled a ${data.value}`,
+        seat: data.seat,
+        color: pColor,
+      });
+
       window.setTimeout(() => {
         setRolling(false);
         if (data.value === 6) {
@@ -464,11 +496,98 @@ function App() {
         }, 3500);
       }, 450);
     };
+    const onTokenMoved = (data: {
+      seat: number;
+      playerName: string;
+      token: number;
+      captured: boolean;
+      winner: boolean;
+      finished: boolean;
+      pawnReachedHome: boolean;
+      rank?: number;
+    }) => {
+      const pColor = snapshotRef.current?.players.find((p) => p.seat === data.seat)?.color;
+      if (data.captured) {
+        AudioEngine.playCapture();
+        triggerHaptic('medium');
+        addActivityItem({
+          type: 'capture',
+          icon: '⚔️',
+          message: `${data.playerName} captured an opponent's pawn! (Bonus turn)`,
+          seat: data.seat,
+          color: pColor,
+        });
+      } else if (data.winner || data.finished) {
+        AudioEngine.playWin();
+        triggerHaptic('success');
+        addActivityItem({
+          type: 'finish',
+          icon: '🏆',
+          message: `${data.playerName} finished all 4 pawns (Rank #${data.rank || 1})!`,
+          seat: data.seat,
+          color: pColor,
+        });
+      } else if (data.pawnReachedHome) {
+        AudioEngine.playHome();
+        triggerHaptic('success');
+        addActivityItem({
+          type: 'home',
+          icon: '🎯',
+          message: `${data.playerName}'s pawn entered home goal!`,
+          seat: data.seat,
+          color: pColor,
+        });
+      } else {
+        const prevTokens = snapshotRef.current?.tokens;
+        const wasInYard = prevTokens && prevTokens[data.seat]?.[data.token]?.kind === 'base';
+        if (wasInYard) {
+          AudioEngine.playMove();
+          addActivityItem({
+            type: 'deploy',
+            icon: '🚀',
+            message: `${data.playerName} deployed pawn to start.`,
+            seat: data.seat,
+            color: pColor,
+          });
+        } else {
+          AudioEngine.playMove();
+          addActivityItem({
+            type: 'move',
+            icon: '♟️',
+            message: `${data.playerName} moved pawn.`,
+            seat: data.seat,
+            color: pColor,
+          });
+        }
+      }
+    };
     const onTimeout = (data: any) => {
       AudioEngine.playTimeout();
       const name = data.timedOutPlayer || 'Player';
       setActivityNotice(`⏰ ${name} timed out! Turn forfeited.`);
       setTimeout(() => setActivityNotice(null), 4000);
+      addActivityItem({
+        type: 'timeout',
+        icon: '⏰',
+        message: `${name} timed out! Turn forfeited.`,
+        seat: data.seat,
+      });
+    };
+    const onPlayerDisconnect = (data: Snapshot) => {
+      onState(data);
+      addActivityItem({
+        type: 'disconnect',
+        icon: '📡',
+        message: 'A player disconnected (waiting for reconnect).',
+      });
+    };
+    const onPlayerReconnect = (data: Snapshot) => {
+      onState(data);
+      addActivityItem({
+        type: 'reconnect',
+        icon: '🟢',
+        message: 'A player reconnected to the match.',
+      });
     };
     const onConnect = () => {
       setConnected(true);
@@ -497,9 +616,10 @@ function App() {
     socket.on('rematch_started', onState);
     socket.on('state', onState);
     socket.on('dice_rolled', onDiceRolled);
+    socket.on('token_moved', onTokenMoved);
     socket.on('turn_timeout', onTimeout);
-    socket.on('player_disconnected', onState);
-    socket.on('player_reconnected', onState);
+    socket.on('player_disconnected', onPlayerDisconnect);
+    socket.on('player_reconnected', onPlayerReconnect);
     socket.on('connect', onConnect);
     socket.on('disconnect', onDisconnect);
     socket.on('connect_error', onConnectError);
@@ -524,9 +644,10 @@ function App() {
       socket.off('rematch_started', onState);
       socket.off('state', onState);
       socket.off('dice_rolled', onDiceRolled);
+      socket.off('token_moved', onTokenMoved);
       socket.off('turn_timeout', onTimeout);
-      socket.off('player_disconnected', onState);
-      socket.off('player_reconnected', onState);
+      socket.off('player_disconnected', onPlayerDisconnect);
+      socket.off('player_reconnected', onPlayerReconnect);
       socket.off('connect', onConnect);
       socket.off('disconnect', onDisconnect);
       socket.off('connect_error', onConnectError);
@@ -655,6 +776,7 @@ function App() {
   };
 
   function triggerHaptic(type: 'light' | 'medium' | 'success' = 'light') {
+    if (!hapticEnabled) return;
     if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
       try {
         if (type === 'light') navigator.vibrate(15);
@@ -663,6 +785,39 @@ function App() {
       } catch {}
     }
   }
+
+  const toggleSound = () => {
+    AudioEngine.toggleMute();
+    setIsMuted(AudioEngine.isMuted());
+    triggerHaptic('light');
+  };
+
+  const toggleHaptic = () => {
+    const next = !hapticEnabled;
+    setHapticEnabled(next);
+    localStorage.setItem('ludo_haptic_enabled', String(next));
+    if (next && typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      try {
+        navigator.vibrate(20);
+      } catch {}
+    }
+  };
+
+  const toggleReducedMotion = () => {
+    const next = !reducedMotion;
+    setReducedMotion(next);
+    localStorage.setItem('ludo_reduced_motion', String(next));
+    triggerHaptic('light');
+  };
+
+  const addActivityItem = (item: Omit<ActivityItem, 'id' | 'time'>) => {
+    const newItem: ActivityItem = {
+      ...item,
+      id: `${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      time: Date.now(),
+    };
+    setActivityLog((prev) => [newItem, ...prev].slice(0, 50));
+  };
 
   const copyInvite = () => {
     if (!snapshot) return;
@@ -688,11 +843,6 @@ function App() {
     }, 2500);
   };
 
-  const toggleSound = () => {
-    const muted = AudioEngine.toggleMute();
-    setIsMuted(muted);
-    triggerHaptic('light');
-  };
 
   const localSeat = snapshot?.players.find((player) => player.id === sessionId)?.seat ?? -1;
   const activePlayer = snapshot?.players.find((player) => player.seat === snapshot.currentPlayer);
@@ -763,39 +913,123 @@ function App() {
 
   // Header Component
   const renderHeader = (badgeText: string, actions?: React.ReactNode) => (
-    <header className="app-header">
-      <div className="brand-wrapper">
-        <div className="brand-logo">
-          LUDO<span>•</span>
+    <>
+      <header className="app-header">
+        <div className="brand-wrapper">
+          <div className="brand-logo">
+            LUDO<span>•</span>
+          </div>
+          <div className="header-status-badge">
+            <span className={`status-dot ${connected ? '' : 'reconnecting'}`} />
+            <span className="header-badge-text">{badgeText}</span>
+          </div>
         </div>
-        <div className="header-status-badge">
-          <span className={`status-dot ${connected ? '' : 'reconnecting'}`} />
-          <span className="header-badge-text">{badgeText}</span>
-        </div>
-      </div>
-      <div className="header-controls">
-        {actions}
-        <button
-          type="button"
-          className="sound-toggle-btn"
-          onClick={toggleSound}
-          title={isMuted ? 'Unmute Sound' : 'Mute Sound'}
-          aria-label={isMuted ? 'Unmute' : 'Mute'}
-        >
-          {isMuted ? '🔇' : '🔊'}
-        </button>
-        {snapshot && snapshot.status !== 'lobby' && (
+        <div className="header-controls">
+          {actions}
+          {snapshot && (
+            <button
+              type="button"
+              className="header-icon-btn btn-share"
+              onClick={() => {
+                triggerHaptic('light');
+                setShareModalOpen(true);
+              }}
+              title="Share Room / QR Code"
+              aria-label="Share Room"
+            >
+              <span className="btn-icon">🔗</span>
+              <span className="btn-label-desktop">Share</span>
+            </button>
+          )}
           <button
             type="button"
-            className="btn-header-exit"
-            onClick={leave}
-            title="Exit Game"
+            className="header-icon-btn btn-feed"
+            onClick={() => {
+              triggerHaptic('light');
+              setActivityFeedOpen((prev) => !prev);
+            }}
+            title="Match Activity Feed"
+            aria-label="Activity Feed"
           >
-            Exit
+            <span className="btn-icon">📜</span>
+            {activityLog.length > 0 && (
+              <span className="header-feed-badge">{activityLog.length}</span>
+            )}
           </button>
-        )}
-      </div>
-    </header>
+          <button
+            type="button"
+            className="header-icon-btn btn-settings"
+            onClick={() => {
+              triggerHaptic('light');
+              setSettingsModalOpen(true);
+            }}
+            title="Game Settings"
+            aria-label="Settings"
+          >
+            <span className="btn-icon">⚙️</span>
+          </button>
+          <button
+            type="button"
+            className="sound-toggle-btn"
+            onClick={toggleSound}
+            title={isMuted ? 'Unmute Sound' : 'Mute Sound'}
+            aria-label={isMuted ? 'Unmute' : 'Mute'}
+          >
+            {isMuted ? '🔇' : '🔊'}
+          </button>
+          {snapshot && snapshot.status !== 'lobby' && (
+            <button
+              type="button"
+              className="btn-header-exit"
+              onClick={leave}
+              title="Exit Game"
+            >
+              Exit
+            </button>
+          )}
+        </div>
+      </header>
+      {!connected && (
+        <div className="reconnect-floating-banner" role="alert">
+          <span className="reconnect-spinner" />
+          <span>Reconnecting to game server… Actions locked.</span>
+        </div>
+      )}
+    </>
+  );
+
+  const renderModals = () => (
+    <>
+      {snapshot && (
+        <ShareModal
+          roomCode={snapshot.roomCode}
+          isOpen={shareModalOpen}
+          onClose={() => setShareModalOpen(false)}
+          triggerHaptic={triggerHaptic}
+        />
+      )}
+      <SettingsModal
+        isOpen={settingsModalOpen}
+        onClose={() => setSettingsModalOpen(false)}
+        soundEnabled={!isMuted}
+        onToggleSound={toggleSound}
+        hapticEnabled={hapticEnabled}
+        onToggleHaptic={toggleHaptic}
+        reducedMotion={reducedMotion}
+        onToggleReducedMotion={toggleReducedMotion}
+        onLeaveMatch={() => {
+          setSettingsModalOpen(false);
+          leave();
+        }}
+        triggerHaptic={triggerHaptic}
+      />
+      <ActivityFeed
+        items={activityLog}
+        isOpen={activityFeedOpen}
+        onToggle={() => setActivityFeedOpen((prev) => !prev)}
+        onClose={() => setActivityFeedOpen(false)}
+      />
+    </>
   );
 
   // =========================================================================
@@ -803,7 +1037,7 @@ function App() {
   // =========================================================================
   if (!snapshot) {
     return (
-      <main>
+      <main className={reducedMotion ? 'reduced-motion' : ''}>
         {renderHeader('2–4 PLAYERS ONLINE')}
         <div className="landing-container">
           <section className="landing-hero">
@@ -921,6 +1155,7 @@ function App() {
             </div>
           </section>
         </div>
+        {renderModals()}
       </main>
     );
   }
@@ -930,7 +1165,7 @@ function App() {
   // =========================================================================
   if (snapshot.status === 'lobby') {
     return (
-      <main>
+      <main className={reducedMotion ? 'reduced-motion' : ''}>
         {renderHeader(`LOBBY · ${snapshot.players.length}/4 SEATS FILLED`)}
         <div className="lobby-container">
           <div className="lobby-head-card">
@@ -1011,6 +1246,7 @@ function App() {
           </div>
           {message && <p className="text-amber-400 text-xs text-center">{message}</p>}
         </div>
+        {renderModals()}
       </main>
     );
   }
@@ -1028,7 +1264,7 @@ function App() {
     }));
 
     return (
-      <main>
+      <main className={reducedMotion ? 'reduced-motion' : ''}>
         {renderHeader(`MATCH FINISHED · ROOM #${snapshot.roomCode}`)}
         <VictoryPodium
           roomCode={snapshot.roomCode}
@@ -1042,6 +1278,7 @@ function App() {
           onRematch={rematch}
           onLeave={leave}
         />
+        {renderModals()}
       </main>
     );
   }
@@ -1066,7 +1303,7 @@ function App() {
   const displayDiceValue = rolling ? lastDice : (snapshot.dice ?? lastDice);
 
   return (
-    <main className="game-screen-main">
+    <main className={`game-screen-main ${reducedMotion ? 'reduced-motion' : ''}`}>
       {renderHeader(`ROOM #${snapshot.roomCode} · 2D ROYAL ARENA`, roomActions)}
 
       <div className="game-screen-wrapper">
@@ -1157,6 +1394,7 @@ function App() {
                 legal={legal}
                 isMoving={isMoving}
                 onTokenClick={moveToken}
+                reducedMotion={reducedMotion}
               />
             </div>
 
@@ -1230,6 +1468,8 @@ function App() {
           </aside>
         </div>
       </div>
+
+      {renderModals()}
     </main>
   );
 }

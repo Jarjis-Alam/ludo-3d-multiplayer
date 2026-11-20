@@ -13,6 +13,7 @@ export interface Board2DProps {
   diceDisplay: number | null;
   legal: number[];
   isMoving?: boolean;
+  reducedMotion?: boolean;
   onTokenClick: (tokenIdx: number) => void;
 }
 
@@ -324,6 +325,7 @@ export const Board2D: React.FC<Board2DProps> = ({
   localSeat,
   legal,
   isMoving = false,
+  reducedMotion = false,
   onTokenClick,
 }) => {
   const activeSeats = useMemo(() => new Set(players.map((p) => p.seat)), [players]);
@@ -389,8 +391,9 @@ export const Board2D: React.FC<Board2DProps> = ({
 
     // Check prefers-reduced-motion
     const prefersReducedMotion =
-      typeof window !== 'undefined' &&
-      window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+      Boolean(reducedMotion) ||
+      (typeof window !== 'undefined' &&
+        window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches);
 
     if (prefersReducedMotion) return;
 

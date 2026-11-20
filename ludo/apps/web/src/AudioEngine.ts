@@ -221,6 +221,27 @@ class AudioEngineManager {
     osc.start();
     osc.stop(this.ctx.currentTime + 0.05);
   }
+
+  // Convenience aliases for event-driven audio triggers
+  public playMove(): void {
+    this.playHop();
+  }
+
+  public playDeploy(): void {
+    this.playExit();
+  }
+
+  public playCapture(): void {
+    this.playStrike();
+  }
+
+  public playHome(): void {
+    this.playLand();
+  }
+
+  public playWin(): void {
+    this.playVictory();
+  }
 }
 
 export const AudioEngine = new AudioEngineManager();
