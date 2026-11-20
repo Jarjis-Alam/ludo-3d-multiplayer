@@ -1,88 +1,118 @@
 import React, { useEffect, useState } from 'react';
+import { Board2D, type BoardPlayer, type BoardToken } from './Board2D';
+import { MiniDiceCube } from './DiceRoller';
+
+const SHOWCASE_PLAYERS: BoardPlayer[] = [
+  { id: 'sc-0', name: 'Ruby', color: 'red', seat: 0, connected: true },
+  { id: 'sc-1', name: 'Emerald', color: 'green', seat: 1, connected: true },
+  { id: 'sc-2', name: 'Amber', color: 'yellow', seat: 2, connected: true },
+  { id: 'sc-3', name: 'Sapphire', color: 'blue', seat: 3, connected: true },
+];
+
+const INITIAL_SHOWCASE_TOKENS: BoardToken[][] = [
+  // Red (seat 0): 2 in yard, 1 on outer track at 24, 1 in red home lane at 4
+  [
+    { kind: 'base', progress: 0 },
+    { kind: 'base', progress: 0 },
+    { kind: 'path', progress: 24 },
+    { kind: 'home', progress: 4 },
+  ],
+  // Green (seat 1): 2 in yard, 1 at start cell 13, 1 advanced on track at 38
+  [
+    { kind: 'base', progress: 0 },
+    { kind: 'base', progress: 0 },
+    { kind: 'path', progress: 13 },
+    { kind: 'path', progress: 38 },
+  ],
+  // Yellow (seat 2): 1 in yard, 1 on path at 14, 1 on path at 42, 1 at center goal 6!
+  [
+    { kind: 'base', progress: 0 },
+    { kind: 'path', progress: 14 },
+    { kind: 'path', progress: 42 },
+    { kind: 'home', progress: 6 },
+  ],
+  // Blue (seat 3): 2 in yard, 2 on track
+  [
+    { kind: 'base', progress: 0 },
+    { kind: 'base', progress: 0 },
+    { kind: 'path', progress: 8 },
+    { kind: 'path', progress: 31 },
+  ],
+];
 
 export const LandingBoard2D: React.FC = () => {
-  const [activeStep, setActiveStep] = useState(0);
+  const [tokens] = useState<BoardToken[][]>(INITIAL_SHOWCASE_TOKENS);
+  const [activeTurn, setActiveTurn] = useState<number>(0);
+  const [showcaseDice, setShowcaseDice] = useState<number>(6);
 
+  // Gentle cyclic turn animation so the board feels dynamically alive
   useEffect(() => {
-    const timer = setInterval(() => {
-      setActiveStep((prev) => (prev + 1) % 4);
-    }, 1800);
-    return () => clearInterval(timer);
+    const diceSequence = [6, 4, 3, 5];
+    let step = 0;
+    const interval = setInterval(() => {
+      step = (step + 1) % 4;
+      setActiveTurn(step);
+      setShowcaseDice(diceSequence[step]);
+    }, 3200);
+    return () => clearInterval(interval);
   }, []);
 
   return (
-    <div className="landing-board-wrapper">
-      <div className="landing-board-card">
-        <div className="landing-board-header">
-          <div className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
-            <span className="text-[11px] font-bold text-amber-200 tracking-wider">LIVE 2D SALON</span>
-          </div>
-          <span className="text-[10px] text-amber-300 font-mono">15×15 MEENAKARI GRID</span>
+    <div className="landing-board-showcase">
+      {/* Clean, editorial header */}
+      <div className="board-showcase-header">
+        <div className="board-showcase-meta">
+          <span className="board-showcase-eyebrow">AUTHENTIC 15×15 TABLETOP ARENA</span>
+          <h2 className="board-showcase-title">THE GAME BOARD</h2>
+          <p className="board-showcase-subtitle">Classic four-colour Ludo · Real-time physics</p>
         </div>
-
-        <div className="landing-board-preview">
-          {/* Mini 15x15 preview illustration */}
-          <div className="landing-mini-grid">
-            {/* Red Base */}
-            <div className="mini-base mini-red">
-              <div className="mini-pawn-dot red-dot" />
-              <div className="mini-pawn-dot red-dot" />
-            </div>
-
-            {/* Top Track */}
-            <div className="mini-arm">
-              <span className="mini-star">★</span>
-            </div>
-
-            {/* Green Base */}
-            <div className="mini-base mini-green">
-              <div className="mini-pawn-dot green-dot" />
-              <div className="mini-pawn-dot green-dot" />
-            </div>
-
-            {/* Left Track */}
-            <div className="mini-arm">
-              <div className={`mini-hopping-pawn hop-step-${activeStep}`} />
-            </div>
-
-            {/* Center Goal */}
-            <div className="mini-goal">
-              <span className="mini-crown">♔</span>
-            </div>
-
-            {/* Right Track */}
-            <div className="mini-arm">
-              <span className="mini-star">★</span>
-            </div>
-
-            {/* Blue Base */}
-            <div className="mini-base mini-blue">
-              <div className="mini-pawn-dot blue-dot" />
-              <div className="mini-pawn-dot blue-dot" />
-            </div>
-
-            {/* Bottom Track */}
-            <div className="mini-arm">
-              <span className="mini-star">★</span>
-            </div>
-
-            {/* Yellow Base */}
-            <div className="mini-base mini-yellow">
-              <div className="mini-pawn-dot yellow-dot" />
-              <div className="mini-pawn-dot yellow-dot" />
-            </div>
+        <div className="board-showcase-badge" title="Live Board Demonstration">
+          <span className="badge-dot" />
+          <span className="badge-text">LIVE DEMO</span>
+          <div className="showcase-mini-dice" title={`Turn dice: ${showcaseDice}`}>
+            <MiniDiceCube value={showcaseDice} />
           </div>
         </div>
+      </div>
 
-        <div className="landing-board-footer">
-          <div className="mini-legend">
-            <span className="dot red" /> <span>Ruby</span>
-            <span className="dot green" /> <span>Emerald</span>
-            <span className="dot yellow" /> <span>Topaz</span>
-            <span className="dot blue" /> <span>Sapphire</span>
-          </div>
-          <span className="landing-sync-badge">● Live Synced</span>
+      {/* Real, genuine 15x15 Ludo Board component */}
+      <div className="board-showcase-frame">
+        <Board2D
+          players={SHOWCASE_PLAYERS}
+          tokens={tokens}
+          currentPlayer={activeTurn}
+          localSeat={0}
+          diceDisplay={showcaseDice}
+          legal={[2]} // highlights active pawn with luxury beacon
+          isMoving={false}
+          reducedMotion={false}
+          onTokenClick={() => {}}
+        />
+      </div>
+
+      {/* Luxury tabletop footer with mineral legend & specifications */}
+      <div className="board-showcase-footer">
+        <div className="board-legend-chips">
+          <span className="legend-chip chip-ruby">
+            <span className="chip-color-dot dot-red" />
+            <span className="chip-label">Ruby Red</span>
+          </span>
+          <span className="legend-chip chip-emerald">
+            <span className="chip-color-dot dot-green" />
+            <span className="chip-label">Emerald Green</span>
+          </span>
+          <span className="legend-chip chip-amber">
+            <span className="chip-color-dot dot-yellow" />
+            <span className="chip-label">Amber Yellow</span>
+          </span>
+          <span className="legend-chip chip-sapphire">
+            <span className="chip-color-dot dot-blue" />
+            <span className="chip-label">Sapphire Blue</span>
+          </span>
+        </div>
+        <div className="board-specs-strip">
+          <span className="spec-badge">★ 8 Safe Sanctuaries</span>
+          <span className="spec-badge">♔ Center Enamel Crown</span>
         </div>
       </div>
     </div>

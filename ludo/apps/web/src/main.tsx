@@ -185,9 +185,8 @@ const MobilePlayerRibbon: React.FC<MobilePlayerRibbonProps> = ({
         return (
           <div
             key={p.id}
-            className={`mobile-player-chip ${isActive ? 'chip-active-turn' : ''} ${isUrgent ? 'chip-urgent' : ''} ${
-              !p.connected ? 'chip-offline' : ''
-            }`}
+            className={`mobile-player-chip ${isActive ? 'chip-active-turn' : ''} ${isUrgent ? 'chip-urgent' : ''} ${!p.connected ? 'chip-offline' : ''
+              }`}
             style={{
               borderColor: isActive ? colorHex[p.color] || 'var(--accent-gold)' : undefined,
             }}
@@ -458,8 +457,8 @@ function App() {
         message: data.value === 6
           ? `${data.playerName} rolled a 6! (Bonus roll awarded)`
           : !data.hasLegalMoves
-          ? `${data.playerName} rolled a ${data.value} (No legal moves)`
-          : `${data.playerName} rolled a ${data.value}`,
+            ? `${data.playerName} rolled a ${data.value} (No legal moves)`
+            : `${data.playerName} rolled a ${data.value}`,
         seat: data.seat,
         color: pColor,
       });
@@ -782,7 +781,7 @@ function App() {
         if (type === 'light') navigator.vibrate(15);
         else if (type === 'medium') navigator.vibrate(30);
         else if (type === 'success') navigator.vibrate([25, 40, 25]);
-      } catch {}
+      } catch { }
     }
   }
 
@@ -799,7 +798,7 @@ function App() {
     if (next && typeof navigator !== 'undefined' && 'vibrate' in navigator) {
       try {
         navigator.vibrate(20);
-      } catch {}
+      } catch { }
     }
   };
 
@@ -941,21 +940,23 @@ function App() {
               <span className="btn-label-desktop">Share</span>
             </button>
           )}
-          <button
-            type="button"
-            className="header-icon-btn btn-feed"
-            onClick={() => {
-              triggerHaptic('light');
-              setActivityFeedOpen((prev) => !prev);
-            }}
-            title="Match Activity Feed"
-            aria-label="Activity Feed"
-          >
-            <span className="btn-icon">📜</span>
-            {activityLog.length > 0 && (
-              <span className="header-feed-badge">{activityLog.length}</span>
-            )}
-          </button>
+          {snapshot && (
+            <button
+              type="button"
+              className="header-icon-btn btn-feed"
+              onClick={() => {
+                triggerHaptic('light');
+                setActivityFeedOpen((prev) => !prev);
+              }}
+              title="Match Activity Feed"
+              aria-label="Activity Feed"
+            >
+              <span className="btn-icon">📜</span>
+              {activityLog.length > 0 && (
+                <span className="header-feed-badge">{activityLog.length}</span>
+              )}
+            </button>
+          )}
           <button
             type="button"
             className="header-icon-btn btn-settings"
@@ -1037,120 +1038,166 @@ function App() {
   // =========================================================================
   if (!snapshot) {
     return (
-      <main className={reducedMotion ? 'reduced-motion' : ''}>
+      <main className={`landing-page-root ${reducedMotion ? 'reduced-motion' : ''}`}>
         {renderHeader('2–4 PLAYERS ONLINE')}
-        <div className="landing-container">
-          <section className="landing-hero">
-            <div className="hero-copy">
-              <span className="hero-eyebrow">ROYAL 2D TABLETOP SALON</span>
-              <h1 className="hero-title">
-                Two to four friends.
-                <br />
-                <i>One perfect roll.</i>
+        <div className="landing-stage">
+          <section className="landing-content-grid">
+            {/* Left Column: Hero Storytelling & Table Console */}
+            <div className="hero-column">
+              <div className="hero-badge-eyebrow">
+                <span className="eyebrow-insignia">⚜</span>
+                <span>ROYAL 2D TABLETOP SALON</span>
+              </div>
+
+              <h1 className="hero-headline">
+                ROLL THE DICE.<br />
+                <span className="hero-headline-accent">RULE THE BOARD.</span>
               </h1>
-              <p className="hero-lede">
-                Experience authentic Meenakari royal enamel Ludo with zero latency, live WebSocket synchronization,
-                and server-authoritative tournament rules.
+
+              <p className="hero-subtitle">
+                Your friends. Your private table. Classic Ludo, brought online with server-authoritative rules and instant zero-install play.
               </p>
 
-              <div className="matchmaking-card">
-                <div className="tab-nav">
-                  <button
-                    type="button"
-                    className={`tab-nav-btn ${landingTab === 'create' ? 'active' : ''}`}
-                    onClick={() => {
-                      setLandingTab('create');
-                      setMessage('');
-                    }}
-                  >
-                    Create Private Room
-                  </button>
-                  <button
-                    type="button"
-                    className={`tab-nav-btn ${landingTab === 'join' ? 'active' : ''}`}
-                    onClick={() => {
-                      setLandingTab('join');
-                      setMessage('');
-                    }}
-                  >
-                    Join with Code
-                  </button>
-                </div>
-
-                <div className="input-group">
-                  <label className="input-label">Your Display Name</label>
-                  <input
-                    className="royal-input"
-                    value={name}
-                    onChange={(e) => {
-                      setName(e.target.value);
-                      if (message) setMessage('');
-                    }}
-                    maxLength={16}
-                    placeholder="Enter your name"
-                    autoFocus
-                  />
-                </div>
-
-                {landingTab === 'join' && (
-                  <div className="input-group">
-                    <label className="input-label">6-Character Room Code</label>
-                    <input
-                      className="royal-input code-input"
-                      value={roomInput}
-                      onChange={(e) => {
-                        setRoomInput(e.target.value.toUpperCase());
-                        if (message) setMessage('');
+              {/* Redesigned Table Entry Console */}
+              <div className="table-entry-card">
+                <div className="table-entry-header">
+                  <div className="table-entry-tab-group" role="tablist">
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={landingTab === 'create'}
+                      className={`table-tab-pill ${landingTab === 'create' ? 'active' : ''}`}
+                      onClick={() => {
+                        triggerHaptic('light');
+                        setLandingTab('create');
+                        setMessage('');
                       }}
-                      maxLength={6}
-                      placeholder="ROOM CODE"
-                    />
+                    >
+                      <span className="pill-icon">👑</span>
+                      <span>Create Private Table</span>
+                    </button>
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={landingTab === 'join'}
+                      className={`table-tab-pill ${landingTab === 'join' ? 'active' : ''}`}
+                      onClick={() => {
+                        triggerHaptic('light');
+                        setLandingTab('join');
+                        setMessage('');
+                      }}
+                    >
+                      <span className="pill-icon">🔑</span>
+                      <span>Join With Code</span>
+                    </button>
                   </div>
-                )}
+                </div>
 
-                {landingTab === 'create' ? (
-                  <button
-                    type="button"
-                    className="cta-button"
-                    disabled={!canJoin || isCreating}
-                    onClick={create}
-                  >
-                    {isCreating ? (
-                      <>
-                        <span className="animate-spin inline-block mr-2">◌</span>
-                        <span>Creating Salon…</span>
-                      </>
-                    ) : (
-                      <>
-                        <span>Create Private Salon</span> <span>👑</span>
-                      </>
-                    )}
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    className="cta-button"
-                    disabled={!canJoin || roomInput.trim().length !== 6 || isJoining}
-                    onClick={join}
-                  >
-                    {isJoining ? (
-                      <>
-                        <span className="animate-spin inline-block mr-2">◌</span>
-                        <span>Entering Salon…</span>
-                      </>
-                    ) : (
-                      <>
-                        <span>Enter Room Table</span> <span>⚔️</span>
-                      </>
-                    )}
-                  </button>
-                )}
+                <div className="table-entry-body">
+                  {/* Player Display Name */}
+                  <div className="table-input-block">
+                    <label className="table-input-label" htmlFor="player-name-input">
+                      <span>YOUR GUEST NAME</span>
+                      <span className="label-aux">1–16 characters</span>
+                    </label>
+                    <div className="table-input-container">
+                      <span className="input-prefix-icon">👤</span>
+                      <input
+                        id="player-name-input"
+                        className="royal-input table-name-input"
+                        value={name}
+                        onChange={(e) => {
+                          setName(e.target.value);
+                          if (message) setMessage('');
+                        }}
+                        maxLength={16}
+                        placeholder="e.g. Maharaja, Alistair, Queen"
+                        autoFocus
+                        autoComplete="off"
+                      />
+                    </div>
+                  </div>
 
-                {message && <p className="text-amber-400 text-xs text-center">{message}</p>}
+                  {/* Room Code (Visible when in Join tab) */}
+                  {landingTab === 'join' && (
+                    <div className="table-input-block">
+                      <label className="table-input-label" htmlFor="room-code-input">
+                        <span>6-DIGIT ROOM CODE</span>
+                        <span className="label-aux">From room invitation</span>
+                      </label>
+                      <div className="table-input-container">
+                        <span className="input-prefix-icon">#</span>
+                        <input
+                          id="room-code-input"
+                          className="royal-input code-input table-code-input"
+                          value={roomInput}
+                          onChange={(e) => {
+                            setRoomInput(e.target.value.toUpperCase());
+                            if (message) setMessage('');
+                          }}
+                          maxLength={6}
+                          placeholder="ABC123"
+                          autoComplete="off"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Primary CTA Buttons */}
+                  {landingTab === 'create' ? (
+                    <button
+                      type="button"
+                      className="cta-button table-cta-btn"
+                      disabled={!canJoin || isCreating}
+                      onClick={create}
+                    >
+                      {isCreating ? (
+                        <>
+                          <span className="animate-spin inline-block mr-2">◌</span>
+                          <span>Creating Salon…</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>Create Private Salon</span>
+                          <span className="cta-symbol">👑</span>
+                        </>
+                      )}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="cta-button table-cta-btn"
+                      disabled={!canJoin || roomInput.trim().length !== 6 || isJoining}
+                      onClick={join}
+                    >
+                      {isJoining ? (
+                        <>
+                          <span className="animate-spin inline-block mr-2">◌</span>
+                          <span>Entering Salon…</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>Enter Room Table</span>
+                          <span className="cta-symbol">⚔️</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+
+                  {message && <div className="table-error-banner">{message}</div>}
+
+                  {/* Trust / Spec Badges */}
+                  <div className="table-specs-row">
+                    <span className="spec-item"><span className="spec-check">✓</span> 2 to 4 Players</span>
+                    <span className="spec-item"><span className="spec-check">✓</span> Private Invitations</span>
+                    <span className="spec-item"><span className="spec-check">✓</span> Zero Downloads</span>
+                  </div>
+                </div>
               </div>
             </div>
 
-            <div className="landing-board-wrapper">
+            {/* Right Column: Authentic 15x15 Tabletop Board Showcase */}
+            <div className="board-column">
               <LandingBoard2D />
             </div>
           </section>
@@ -1202,9 +1249,8 @@ function App() {
                     </span>
                     <span className="slot-status">
                       {player
-                        ? `${player.id === snapshot.host ? '👑 HOST · ' : ''}${
-                            player.connected ? 'CONNECTED & READY' : 'RECONNECTING'
-                          }`
+                        ? `${player.id === snapshot.host ? '👑 HOST · ' : ''}${player.connected ? 'CONNECTED & READY' : 'RECONNECTING'
+                        }`
                         : 'Skipped if match starts with 2 or 3 players'}
                     </span>
                   </div>
@@ -1234,10 +1280,10 @@ function App() {
                 {starting
                   ? 'Starting match…'
                   : snapshot.host === sessionId
-                  ? snapshot.players.length >= 2
-                    ? `Start game (${snapshot.players.length} Players)`
-                    : 'Start game (min 2 players)'
-                  : 'Waiting for Host to start…'}
+                    ? snapshot.players.length >= 2
+                      ? `Start game (${snapshot.players.length} Players)`
+                      : 'Start game (min 2 players)'
+                    : 'Waiting for Host to start…'}
               </button>
               <button type="button" className="btn-secondary" onClick={leave}>
                 Leave Salon
@@ -1318,9 +1364,8 @@ function App() {
 
         {/* Desktop-only Turn Status Banner (Hidden on Mobile < 1024px) */}
         <div
-          className={`turn-status-banner desktop-only ${isMyTurn ? 'banner-my-turn' : ''} ${
-            turnTimeLeft <= 5 && turnTimeLeft > 0 ? 'banner-urgent' : ''
-          }`}
+          className={`turn-status-banner desktop-only ${isMyTurn ? 'banner-my-turn' : ''} ${turnTimeLeft <= 5 && turnTimeLeft > 0 ? 'banner-urgent' : ''
+            }`}
         >
           <div className="turn-headline">
             <span className="turn-insignia">⚜</span>
