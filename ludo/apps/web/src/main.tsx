@@ -1037,8 +1037,10 @@ function App() {
               className="master-exit-btn btn-header-exit"
               onClick={leave}
               title="Exit Match"
+              aria-label="Exit Table"
             >
-              Exit Table
+              <span className="exit-icon" aria-hidden="true">✕</span>
+              <span className="exit-label">Exit Table</span>
             </button>
           )}
         </div>
@@ -1504,7 +1506,7 @@ function App() {
 
               {/* Players HUD / Telemetry List */}
               <div className="telemetry-section master-card">
-                <div className="flex items-center justify-between mb-2 px-1">
+                <div className="telemetry-section-head">
                   <span className="hero-eyebrow">SEAT TELEMETRY</span>
                   <span className="text-[11px] font-mono text-amber-300">
                     {snapshot.players.length}/4 ACTIVE
