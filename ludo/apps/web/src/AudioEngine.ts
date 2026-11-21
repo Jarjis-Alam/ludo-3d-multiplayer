@@ -2,10 +2,40 @@
 class AudioEngineManager {
   private ctx: AudioContext | null = null;
   private muted: boolean = false;
+  private masterGain: GainNode | null = null;
+  private volume: number = 1;
 
   constructor() {
     if (typeof window !== 'undefined') {
       this.muted = localStorage.getItem('ludo-sound-muted') === 'true';
+      const storedRaw = localStorage.getItem('ludo-sfx-volume');
+      const stored = storedRaw === null ? 1 : Number(storedRaw);
+      if (Number.isFinite(stored) && stored >= 0 && stored <= 1) this.volume = stored;
+    }
+  }
+
+  /** Single master bus so the volume slider affects every synthesized sound. */
+  private getOutput(): GainNode {
+    if (!this.ctx) throw new Error('audio context is not initialised');
+    if (!this.masterGain) {
+      this.masterGain = this.ctx.createGain();
+      this.masterGain.connect(this.ctx.destination);
+    }
+    this.masterGain.gain.value = this.muted ? 0 : this.volume;
+    return this.masterGain;
+  }
+
+  public getVolume(): number {
+    return this.volume;
+  }
+
+  public setVolume(volume: number): void {
+    this.volume = Math.max(0, Math.min(1, Number.isFinite(volume) ? volume : 1));
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('ludo-sfx-volume', String(this.volume));
+    }
+    if (this.masterGain && this.ctx) {
+      this.masterGain.gain.setTargetAtTime(this.muted ? 0 : this.volume, this.ctx.currentTime, 0.01);
     }
   }
 
@@ -17,6 +47,9 @@ class AudioEngineManager {
     this.muted = muted;
     if (typeof window !== 'undefined') {
       localStorage.setItem('ludo-sound-muted', String(muted));
+    }
+    if (this.masterGain && this.ctx) {
+      this.masterGain.gain.setTargetAtTime(muted ? 0 : this.volume, this.ctx.currentTime, 0.01);
     }
   }
 
@@ -51,7 +84,7 @@ class AudioEngineManager {
     gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.14);
     osc.connect(gain);
-    gain.connect(this.ctx.destination);
+    gain.connect(this.getOutput());
     osc.start();
     osc.stop(this.ctx.currentTime + 0.14);
   }
@@ -71,7 +104,7 @@ class AudioEngineManager {
       gain.gain.setValueAtTime(0.18, now + i * 0.08);
       gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.08 + 0.2);
       osc.connect(gain);
-      gain.connect(this.ctx.destination);
+      gain.connect(this.getOutput());
       osc.start(now + i * 0.08);
       osc.stop(now + i * 0.08 + 0.22);
     });
@@ -93,7 +126,7 @@ class AudioEngineManager {
       gain.gain.setValueAtTime(0.2, start);
       gain.gain.exponentialRampToValueAtTime(0.001, start + 0.3);
       osc.connect(gain);
-      gain.connect(this.ctx.destination);
+      gain.connect(this.getOutput());
       osc.start(start);
       osc.stop(start + 0.32);
     });
@@ -113,7 +146,7 @@ class AudioEngineManager {
     gain.gain.setValueAtTime(0.3, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
     osc.connect(gain);
-    gain.connect(this.ctx.destination);
+    gain.connect(this.getOutput());
     osc.start(now);
     osc.stop(now + 0.28);
   }
@@ -132,7 +165,7 @@ class AudioEngineManager {
     gain.gain.setValueAtTime(0.22, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
     osc.connect(gain);
-    gain.connect(this.ctx.destination);
+    gain.connect(this.getOutput());
     osc.start(now);
     osc.stop(now + 0.2);
   }
@@ -153,7 +186,7 @@ class AudioEngineManager {
       gain.gain.setValueAtTime(0.15, t);
       gain.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
       osc.connect(gain);
-      gain.connect(this.ctx.destination);
+      gain.connect(this.getOutput());
       osc.start(t);
       osc.stop(t + 0.06);
     }
@@ -176,7 +209,7 @@ class AudioEngineManager {
       gain.gain.setValueAtTime(0.25, start);
       gain.gain.exponentialRampToValueAtTime(0.001, start + 0.45);
       osc.connect(gain);
-      gain.connect(this.ctx.destination);
+      gain.connect(this.getOutput());
       osc.start(start);
       osc.stop(start + 0.45);
     });
@@ -199,7 +232,7 @@ class AudioEngineManager {
       gain.gain.setValueAtTime(0.18, start);
       gain.gain.exponentialRampToValueAtTime(0.001, start + 0.12);
       osc.connect(gain);
-      gain.connect(this.ctx.destination);
+      gain.connect(this.getOutput());
       osc.start(start);
       osc.stop(start + 0.12);
     });
@@ -217,7 +250,7 @@ class AudioEngineManager {
     gain.gain.setValueAtTime(0.08, this.ctx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.05);
     osc.connect(gain);
-    gain.connect(this.ctx.destination);
+    gain.connect(this.getOutput());
     osc.start();
     osc.stop(this.ctx.currentTime + 0.05);
   }

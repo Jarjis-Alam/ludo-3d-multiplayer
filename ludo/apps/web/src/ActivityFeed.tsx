@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { SeatGlyph } from './SeatGlyph';
 
 export interface ActivityItem {
   id: string;
@@ -9,6 +10,10 @@ export interface ActivityItem {
   message: string;
   seat?: number;
   color?: string;
+  playerName?: string;
+  /** Groups every event belonging to the same roll/turn into one timeline block. */
+  turnId?: number;
+  dice?: number;
 }
 
 interface ActivityFeedProps {
@@ -18,12 +23,43 @@ interface ActivityFeedProps {
   onClose: () => void;
 }
 
+interface TurnGroup {
+  key: string;
+  turnId?: number;
+  seat?: number;
+  playerName?: string;
+  dice?: number;
+  time: number;
+  items: ActivityItem[];
+}
+
 function formatRelativeTime(timestamp: number): string {
   const diffSec = Math.max(0, Math.floor((Date.now() - timestamp) / 1000));
   if (diffSec < 3) return 'just now';
   if (diffSec < 60) return `${diffSec}s ago`;
   const diffMin = Math.floor(diffSec / 60);
   return `${diffMin}m ago`;
+}
+
+function groupTimeline(items: ActivityItem[]): TurnGroup[] {
+  const groups: TurnGroup[] = [];
+  for (const item of items) {
+    const previous = groups[groups.length - 1];
+    if (item.turnId !== undefined && previous && previous.turnId === item.turnId) {
+      previous.items.push(item);
+      continue;
+    }
+    groups.push({
+      key: item.id,
+      turnId: item.turnId,
+      seat: item.seat,
+      playerName: item.playerName,
+      dice: item.dice,
+      time: item.time,
+      items: [item],
+    });
+  }
+  return groups;
 }
 
 export const ActivityFeed: React.FC<ActivityFeedProps> = ({
@@ -59,7 +95,7 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({
     };
   }, [isOpen, onClose]);
 
-  const latestItems = [...items].slice(-25).reverse();
+  const timeline = groupTimeline([...items].slice(-30).reverse());
 
   return (
     <>
@@ -93,7 +129,7 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({
               <div className="feed-header">
                 <div className="feed-header-left">
                   <span className="feed-header-icon">📜</span>
-                  <span className="feed-header-title">Match Activity</span>
+                  <span className="feed-header-title">Match Timeline</span>
                   <span className="feed-total-pill">{items.length} events</span>
                 </div>
                 <button
@@ -107,21 +143,55 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({
               </div>
 
               <div className="feed-list-scroll">
-                {latestItems.length === 0 ? (
+                {timeline.length === 0 ? (
                   <div className="feed-empty-state">
                     <span className="empty-dice-icon">🎲</span>
                     <p>Match events will appear here as pawns move, capture, and roll!</p>
                   </div>
                 ) : (
-                  latestItems.map((item) => (
-                    <div key={item.id} className={`feed-item feed-item-${item.type}`}>
-                      <span className="feed-item-icon">{item.icon}</span>
-                      <div className="feed-item-content">
-                        <span className="feed-item-msg">{item.message}</span>
-                        <span className="feed-item-time">{formatRelativeTime(item.time)}</span>
+                  timeline.map((group) => {
+                    if (group.turnId === undefined) {
+                      const item = group.items[0];
+                      return (
+                        <div key={group.key} className={`feed-item feed-item-${item.type}`}>
+                          {typeof item.seat === 'number' ? (
+                            <SeatGlyph seat={item.seat} size={13} tone="cream" className="feed-item-seat" />
+                          ) : (
+                            <span className="feed-item-icon">{item.icon}</span>
+                          )}
+                          <div className="feed-item-content">
+                            <span className="feed-item-msg">{item.message}</span>
+                            <span className="feed-item-time">{formatRelativeTime(item.time)}</span>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div key={group.key} className="feed-turn-group">
+                        <div className="feed-turn-head">
+                          {typeof group.seat === 'number' && (
+                            <SeatGlyph seat={group.seat} size={14} tone="gold" />
+                          )}
+                          <span className="feed-turn-name">{group.playerName || 'Player'}</span>
+                          {group.dice ? (
+                            <span className="feed-turn-dice">rolled {group.dice}</span>
+                          ) : null}
+                          <span className="feed-turn-time">{formatRelativeTime(group.time)}</span>
+                        </div>
+                        <div className="feed-turn-events">
+                          {group.items.map((item) => (
+                            <div key={item.id} className={`feed-item feed-item-${item.type}`}>
+                              <span className="feed-item-icon">{item.icon}</span>
+                              <div className="feed-item-content">
+                                <span className="feed-item-msg">{item.message}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </div>

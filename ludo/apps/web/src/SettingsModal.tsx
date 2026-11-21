@@ -6,6 +6,10 @@ interface SettingsModalProps {
   onClose: () => void;
   soundEnabled: boolean;
   onToggleSound: () => void;
+  sfxVolume: number;
+  onVolumeChange: (volume: number) => void;
+  captureHints: boolean;
+  onToggleCaptureHints: () => void;
   hapticEnabled: boolean;
   onToggleHaptic: () => void;
   reducedMotion: boolean;
@@ -19,6 +23,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onClose,
   soundEnabled,
   onToggleSound,
+  sfxVolume,
+  onVolumeChange,
+  captureHints,
+  onToggleCaptureHints,
   hapticEnabled,
   onToggleHaptic,
   reducedMotion,
@@ -60,7 +68,50 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </button>
         </div>
 
-        {/* Setting 2: Haptic Feedback */}
+        {/* Setting 2: SFX Volume */}
+        <div className="setting-row setting-row-stacked">
+          <div className="setting-info">
+            <span className="setting-label">🎚 Sound Volume</span>
+            <span className="setting-desc">Room volume for the board sounds</span>
+          </div>
+          <div className="setting-slider-row">
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={5}
+              value={Math.round(sfxVolume * 100)}
+              onChange={(e) => onVolumeChange(Number(e.target.value) / 100)}
+              disabled={!soundEnabled}
+              aria-label="Sound effect volume"
+              className="volume-slider"
+            />
+            <span className="volume-value">{Math.round(sfxVolume * 100)}%</span>
+          </div>
+        </div>
+
+        {/* Setting 3: Capture threat hints */}
+        <div className="setting-row">
+          <div className="setting-info">
+            <span className="setting-label">🛡 Capture Threat Hints</span>
+            <span className="setting-desc">Mark your pawns an opponent could capture next roll</span>
+          </div>
+          <button
+            type="button"
+            className={`toggle-switch ${captureHints ? 'active' : ''}`}
+            onClick={() => {
+              triggerHaptic?.('light');
+              onToggleCaptureHints();
+            }}
+            role="switch"
+            aria-checked={captureHints}
+            aria-label="Toggle capture threat hints"
+          >
+            <span className="toggle-thumb" />
+          </button>
+        </div>
+
+        {/* Setting 4: Haptic Feedback */}
         <div className="setting-row">
           <div className="setting-info">
             <span className="setting-label">📳 Haptic Feedback</span>
@@ -81,7 +132,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </button>
         </div>
 
-        {/* Setting 3: Reduced Motion */}
+        {/* Setting 5: Reduced Motion */}
         <div className="setting-row">
           <div className="setting-info">
             <span className="setting-label">🏃 Reduced Motion</span>
@@ -102,7 +153,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </button>
         </div>
 
-        {/* Setting 4: Leave Match Table */}
+        {/* Setting 6: Leave Match Table */}
         <div className="settings-danger-zone">
           {!confirmLeave ? (
             <button

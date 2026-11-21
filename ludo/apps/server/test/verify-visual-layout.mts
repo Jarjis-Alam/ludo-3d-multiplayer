@@ -458,10 +458,15 @@ async function checkMatch(page: Page, vp: (typeof VIEWPORTS)[number], withScreen
     if (rollBtn) check(inside(rollBtn, dock), 'match: roll button stays inside the dock');
     const diceWell = await boxOf(page, '.master-dice-elevated-mound');
     if (diceWell) check(inside(diceWell, dock), 'match: dice tray stays inside the dock');
-    const dockChildren = await boxesOf(page, '.master-bottom-dock > .dock-flank, .master-bottom-dock > .dock-center-stage');
-    check(dockChildren.length >= 3, 'match: dock renders both flanks and the centre stage');
-    for (const child of dockChildren) {
-      check(inside(child, dock, 1), `match: dock control stays inside the dock (${fmt(child)})`);
+    const dockCenter = await requireBox(page, '.master-bottom-dock > .dock-center-stage');
+    const dockControls = await requireBox(page, '.master-bottom-dock > .dock-controls-row');
+    check(inside(dockCenter, dock, 1), `match: dice stage stays inside the dock (${fmt(dockCenter)})`);
+    check(inside(dockControls, dock, 1), `match: control row stays inside the dock (${fmt(dockControls)})`);
+    const controlButtons = await boxesOf(page, '.dock-controls-row > button');
+    check(controlButtons.length >= 3, `match: chat, players and timeline controls render in one row (${controlButtons.length})`);
+    for (const button of controlButtons) {
+      check(inside(button, dockControls, 1), `match: dock button stays inside the control row (${fmt(button)})`);
+      check(button.w >= 40 && button.h >= 40, `match: dock control keeps a large touch target (${button.w.toFixed(0)}×${button.h.toFixed(0)})`);
     }
     const activityBtn = await boxOf(page, '.dock-activity-pill-btn');
     if (activityBtn) check(activityBtn.x + activityBtn.w <= vp.width - EPS, `match: activity control stays on screen (${fmt(activityBtn)})`);
@@ -519,6 +524,38 @@ async function checkVictory(page: Page, vp: (typeof VIEWPORTS)[number], withScre
     await page.screenshot({ path: path.join(outDir, `victory-${vp.name}.png`), fullPage: true });
     ok(`screenshot victory-${vp.name}.png`);
   }
+}
+
+async function checkMovePreview(page: Page) {
+  const snapshot = { ...mockPlaying, dice: 4, currentPlayer: 0 };
+  snapshot.tokens = mockPlaying.tokens.map((seatTokens) => seatTokens.map((t) => ({ ...t })));
+  snapshot.tokens[0][2] = { kind: 'path', progress: 8 };
+  await page.evaluate((snap) => (window as any).__SET_MOCK_SNAPSHOT__(snap), snapshot);
+  await page.waitForSelector('.pawn-legal-pulse', { timeout: 4000 });
+
+  await page.hover('.pawn-legal-pulse');
+  await page.waitForTimeout(120);
+  const ghost = await page.locator('.move-preview-ghost').count();
+  const target = await page.locator('.move-preview-target').count();
+  const dots = await page.locator('.move-preview-dot').count();
+  check(ghost === 1, `preview: a ghost pawn shows the destination (${ghost})`);
+  check(target === 1, `preview: the destination cell is highlighted (${target})`);
+  check(dots >= 1, `preview: the travelled path is dotted (${dots} cells)`);
+
+  const ghostBox = await boxOf(page, '.move-preview-ghost');
+  const boardBox = await requireBox(page, '#ludoBoard');
+  if (ghostBox) {
+    const centerX = ghostBox.x + ghostBox.w / 2;
+    const centerY = ghostBox.y + ghostBox.h / 2;
+    check(
+      centerX >= boardBox.x && centerX <= boardBox.x + boardBox.w && centerY >= boardBox.y && centerY <= boardBox.y + boardBox.h,
+      'preview: ghost is centred on a board cell'
+    );
+  }
+
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(100);
+  check((await page.locator('.move-preview-ghost').count()) === 0, 'preview: Escape clears the preview');
 }
 
 async function checkPawnMotion(page: Page) {
@@ -612,6 +649,8 @@ async function run() {
       await checkMatch(page, vp, withScreenshot);
 
       if (vp.name === '390x844') {
+        console.log('  move preview');
+        await checkMovePreview(page);
         console.log('  pawn motion');
         await checkPawnMotion(page);
       }

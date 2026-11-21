@@ -1,4 +1,5 @@
 import React from 'react';
+import { SeatGlyph } from './SeatGlyph';
 
 export interface PlayerAvatarProps {
   seat: number;
@@ -34,6 +35,9 @@ export const PlayerAvatar: React.FC<PlayerAvatarProps> = ({
       style={{ width: size, height: size }}
       title={`${name}${isHost ? ' (Host)' : ''}`}
     >
+      <span className="avatar-seat-badge" aria-hidden="true">
+        <SeatGlyph seat={seat} size={8} tone="cream" />
+      </span>
       <svg
         width={size}
         height={size}

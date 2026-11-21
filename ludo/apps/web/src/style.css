@@ -3616,3 +3616,1204 @@ body {
     display: none;
   }
 }
+
+/* ==========================================================================
+   GAMEPLAY 2.0 — DESIGN TOKENS
+   ========================================================================== */
+:root {
+  --radius-control: 12px;
+  --radius-card: 18px;
+  --radius-panel: 24px;
+  --shadow-card: 0 12px 28px rgba(8, 5, 24, 0.45);
+  --shadow-panel: 0 22px 52px rgba(8, 5, 24, 0.6);
+  --shadow-float: 0 8px 18px rgba(8, 5, 24, 0.35);
+  --board-ivory: #fbf3e2;
+  --board-ivory-warm: #f6e8d0;
+  --board-grout: #e3d2b3;
+  --board-line: rgba(120, 88, 45, 0.16);
+}
+
+.master-card,
+.dice-tray-card,
+.telemetry-section,
+.table-entry-card {
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow-card);
+}
+
+/* ==========================================================================
+   BOARD 2.0 — ENAMEL TABLETOP
+   ========================================================================== */
+.board-v2-frame {
+  background: linear-gradient(150deg, #2d2557 0%, #191331 52%, #100c20 100%);
+  border: 1.5px solid rgba(255, 200, 61, 0.32);
+  border-radius: 28px;
+  padding: 9px;
+  box-shadow:
+    0 28px 60px rgba(0, 0, 0, 0.68),
+    0 0 0 1px rgba(255, 255, 255, 0.05) inset,
+    0 2px 0 rgba(255, 255, 255, 0.09) inset,
+    0 0 34px rgba(118, 80, 245, 0.22);
+}
+
+.board-v2-grid {
+  background: var(--board-grout);
+  border-radius: 20px;
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 200, 61, 0.22),
+    inset 0 8px 22px rgba(90, 62, 22, 0.22),
+    0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.board-v2-grid .track-arm {
+  background-color: var(--board-grout);
+}
+
+.board-v2-grid .cell {
+  background-image: linear-gradient(158deg, #fffdf6 0%, var(--board-ivory) 48%, var(--board-ivory-warm) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 -1.5px 0 rgba(122, 88, 42, 0.13);
+}
+
+.board-v2-grid .cell-safe {
+  background-image: radial-gradient(circle at 50% 38%, #fffdf2 0%, #fbeccd 100%);
+  box-shadow:
+    inset 0 0 0 1px rgba(212, 175, 55, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.board-v2-grid .star-haven-svg {
+  filter: drop-shadow(0 1px 2px rgba(120, 74, 10, 0.35));
+  opacity: 0.95;
+}
+
+/* Home lanes: satin enamel ribbons */
+.board-v2-grid .cell-red-lane {
+  background-image: linear-gradient(158deg, #ff7b86 0%, #e2323f 42%, #b01528 100%);
+}
+.board-v2-grid .cell-green-lane {
+  background-image: linear-gradient(158deg, #63dca1 0%, #10a865 42%, #067242 100%);
+}
+.board-v2-grid .cell-yellow-lane {
+  background-image: linear-gradient(158deg, #ffdf92 0%, #f8ab16 42%, #c27105 100%);
+}
+.board-v2-grid .cell-blue-lane {
+  background-image: linear-gradient(158deg, #8ec6ff 0%, #2f7fe0 42%, #18519f 100%);
+}
+
+.board-v2-grid .cell-red-lane,
+.board-v2-grid .cell-green-lane,
+.board-v2-grid .cell-yellow-lane,
+.board-v2-grid .cell-blue-lane,
+.board-v2-grid .cell-red-start,
+.board-v2-grid .cell-green-start,
+.board-v2-grid .cell-yellow-start,
+.board-v2-grid .cell-blue-start {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.16),
+    inset 0 0 10px rgba(0, 0, 0, 0.08);
+}
+
+.board-v2-grid .home-lane-arrow {
+  color: rgba(255, 255, 255, 0.55);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+.board-v2-grid .cell-red-start { background-image: linear-gradient(158deg, #ff6a78, #cf1730 60%, #8f0c21); }
+.board-v2-grid .cell-green-start { background-image: linear-gradient(158deg, #52d699, #079653 60%, #025a34); }
+.board-v2-grid .cell-yellow-start { background-image: linear-gradient(158deg, #ffd97c, #e9920a 60%, #a75d02); }
+.board-v2-grid .cell-blue-start { background-image: linear-gradient(158deg, #7dbdff, #2568c4 60%, #103a78); }
+
+/* Start chevrons: readable ivory arrow on a dark gold-rimmed seed */
+.board-v2-grid .start-chevron-badge {
+  top: 1px;
+  right: 1px;
+  width: 12px;
+  height: 12px;
+  background: rgba(16, 12, 32, 0.72);
+  border: 1px solid rgba(255, 226, 160, 0.85);
+}
+.board-v2-grid .start-chevron-symbol {
+  font-size: 6px;
+  color: #fff6dd;
+}
+
+/* Home quadrants: deep enamel panels with a gilded inner lip */
+.board-v2-grid .yard-box {
+  padding: 10px;
+  border-radius: 20px;
+  box-shadow:
+    inset 0 0 0 1.5px rgba(255, 236, 196, 0.32),
+    inset 0 10px 22px rgba(0, 0, 0, 0.26),
+    0 4px 12px rgba(0, 0, 0, 0.28);
+}
+.board-v2-grid .yard-red {
+  background: radial-gradient(120% 120% at 18% 8%, #ff8b96 0%, #e42c3c 44%, #9a0d21 100%);
+}
+.board-v2-grid .yard-green {
+  background: radial-gradient(120% 120% at 82% 8%, #7ee6b0 0%, #10a866 44%, #05643a 100%);
+}
+.board-v2-grid .yard-blue {
+  background: radial-gradient(120% 120% at 18% 92%, #96ccff 0%, #2f7fe0 44%, #123f86 100%);
+}
+.board-v2-grid .yard-yellow {
+  background: radial-gradient(120% 120% at 82% 92%, #ffe6a8 0%, #f9ae1c 44%, #b46803 100%);
+}
+
+.board-v2-grid .yard-inner {
+  position: relative;
+  z-index: 2;
+  border-radius: 15px;
+  background: linear-gradient(158deg, #fffcf3 0%, #f9efdc 55%, #f2e3c8 100%);
+  box-shadow:
+    inset 0 3px 9px rgba(96, 64, 22, 0.18),
+    0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+.yard-symbol {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff7e6;
+  opacity: 0.22;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.board-v2-grid .yard-badge {
+  z-index: 6;
+  background: rgba(16, 12, 32, 0.62);
+  border: 1px solid rgba(255, 226, 160, 0.38);
+  letter-spacing: 0.1em;
+}
+
+.board-v2-grid .base-socket {
+  background: linear-gradient(160deg, #ffffff 0%, #f8efdd 100%);
+  box-shadow:
+    inset 0 4px 9px rgba(84, 54, 18, 0.22),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.7),
+    0 1px 0 rgba(255, 255, 255, 0.55);
+}
+.base-socket-red { border-color: #f4909b; }
+.base-socket-green { border-color: #69d8a3; }
+.base-socket-yellow { border-color: #f6cd72; }
+.base-socket-blue { border-color: #82b5f8; }
+
+/* Centre: gilded victory hub */
+.board-v2-grid .goal-center {
+  background: #1a1334;
+  box-shadow:
+    inset 0 0 0 1.5px rgba(255, 200, 61, 0.42),
+    inset 0 0 26px rgba(0, 0, 0, 0.55);
+  border-radius: 4px;
+}
+
+.board-v2-grid .goal-svg {
+  filter: saturate(1.12) contrast(1.03);
+}
+
+.board-v2-grid .goal-crown-icon {
+  background: linear-gradient(160deg, #ffe9a6 0%, #ffc83d 55%, #d99a1c 100%);
+  border: 1.5px solid #241a48;
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.55),
+    0 0 0 3px rgba(255, 200, 61, 0.16);
+  color: #241a48;
+}
+
+/* ==========================================================================
+   PAWN 2.0 — SCULPTED ENAMEL TOKENS
+   ========================================================================== */
+.pawn-token {
+  filter: drop-shadow(0 2px 3px rgba(18, 8, 28, 0.42));
+  transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.18s ease;
+  border-radius: 50%;
+}
+
+.pawn-token .pawn-v2-svg {
+  overflow: visible;
+}
+
+.pawn-token.is-selectable {
+  z-index: 40;
+  cursor: pointer;
+}
+
+.pawn-token.pawn-legal-pulse {
+  animation: legalPawnGlow 1.5s infinite alternate ease-in-out;
+  filter: none;
+}
+
+@keyframes legalPawnGlow {
+  0% { filter: drop-shadow(0 0 3px rgba(255, 200, 61, 0.55)); }
+  100% { filter: drop-shadow(0 0 9px rgba(255, 200, 61, 0.95)); }
+}
+
+.pawn-token.is-selectable::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 200, 61, 0.55);
+  pointer-events: none;
+  animation: selectableRing 1.8s infinite ease-in-out;
+}
+
+@keyframes selectableRing {
+  0%, 100% { opacity: 0.35; transform: scale(0.96); }
+  50% { opacity: 0.85; transform: scale(1.02); }
+}
+
+.pawn-token.is-selectable:hover,
+.pawn-token.is-selectable:focus-visible {
+  transform: translateY(-4px) scale(1.07);
+}
+
+.pawn-token.pawn-selected {
+  transform: translateY(-3px) scale(1.09);
+  filter: drop-shadow(0 0 10px rgba(255, 200, 61, 0.75));
+}
+
+.pawn-token.pawn-selected::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 2px solid #ffc83d;
+  box-shadow: 0 0 14px rgba(255, 200, 61, 0.7);
+  opacity: 1;
+  animation: none;
+}
+
+.pawn-token.pawn-threatened::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 1.5px dashed rgba(255, 120, 120, 0.95);
+  animation: threatPulse 1.6s infinite ease-in-out;
+  pointer-events: none;
+  z-index: 3;
+}
+
+@keyframes threatPulse {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 0.9; }
+}
+
+.pawn-token.pawn-finished {
+  filter: drop-shadow(0 0 6px rgba(255, 200, 61, 0.55));
+}
+
+.pawn-token:focus-visible {
+  outline: 2px solid #ffc83d;
+  outline-offset: 2px;
+}
+
+/* ==========================================================================
+   MOVE PREVIEW + THREAT HINTS
+   ========================================================================== */
+.move-preview-target {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  border-radius: 24%;
+  border: 2px solid rgba(255, 200, 61, 0.95);
+  background: radial-gradient(circle, rgba(255, 200, 61, 0.26) 0%, rgba(255, 200, 61, 0.06) 70%);
+  box-shadow: 0 0 16px rgba(255, 200, 61, 0.45);
+  z-index: 38;
+  pointer-events: none;
+  animation: previewTargetPulse 1.3s infinite alternate ease-in-out;
+}
+
+.move-preview-target.preview-captures {
+  border-color: #ff6b6b;
+  background: radial-gradient(circle, rgba(255, 84, 96, 0.32) 0%, rgba(255, 84, 96, 0.06) 72%);
+  box-shadow: 0 0 18px rgba(255, 84, 96, 0.5);
+}
+
+@keyframes previewTargetPulse {
+  0% { opacity: 0.6; }
+  100% { opacity: 1; }
+}
+
+.move-preview-dot {
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #ffc83d;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 6px rgba(255, 200, 61, 0.85);
+  opacity: 0.9;
+  z-index: 38;
+  pointer-events: none;
+}
+
+.move-preview-ghost {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  opacity: 0.55;
+  filter: drop-shadow(0 0 9px rgba(255, 200, 61, 0.85));
+  z-index: 39;
+  pointer-events: none;
+}
+
+.move-preview-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 5px;
+  transform: translateX(-50%);
+  max-width: calc(100% - 16px);
+  padding: 4px 9px;
+  border-radius: 9999px;
+  background: rgba(16, 12, 32, 0.94);
+  border: 1px solid rgba(255, 200, 61, 0.55);
+  color: #ffe9ae;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  z-index: 55;
+  pointer-events: none;
+}
+
+/* ==========================================================================
+   TURN BAR — PHASES
+   ========================================================================== */
+.turn-seat-glyph {
+  margin-right: 5px;
+}
+
+.turn-subline-text {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.03em;
+  color: rgba(255, 240, 214, 0.62);
+  margin-top: 1px;
+}
+
+.turn-extra-calm {
+  border-color: rgba(255, 200, 61, 0.55) !important;
+  background: linear-gradient(100deg, rgba(255, 200, 61, 0.12) 0%, rgba(118, 80, 245, 0.2) 100%) !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 200, 61, 0.16), 0 6px 18px rgba(8, 5, 24, 0.45) !important;
+}
+
+.turn-extra-calm .turn-headline-text {
+  color: #ffe9ae;
+  letter-spacing: 0.04em;
+}
+
+.turn-notice .turn-headline-text {
+  color: #ffd6a8;
+}
+
+/* ==========================================================================
+   PLAYER RIBBON — COMPACT MODE
+   ========================================================================== */
+.master-card-seat-symbol {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 2px;
+  color: rgba(255, 244, 224, 0.75);
+  flex: 0 0 auto;
+}
+
+.ribbon-expand-btn {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 38px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 240, 214, 0.72);
+  font-size: 11px;
+  cursor: pointer;
+  align-self: center;
+}
+
+.ribbon-expand-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.mobile-player-ribbon.ribbon-compact {
+  align-items: center;
+  gap: 6px;
+}
+
+.mobile-player-ribbon.ribbon-compact .master-player-card {
+  min-height: 0;
+  padding: 4px;
+  gap: 3px;
+}
+
+.mobile-player-ribbon.ribbon-compact .master-card-info,
+.mobile-player-ribbon.ribbon-compact .master-card-seat-symbol {
+  display: none;
+}
+
+.mobile-player-ribbon.ribbon-compact .master-turn-badge-yellow {
+  padding: 1px 4px;
+  font-size: 0.58rem;
+}
+
+.mobile-player-ribbon.ribbon-compact .master-player-card .player-avatar-wrapper {
+  margin: 0 auto;
+}
+
+/* ==========================================================================
+   MOBILE DOCK — CONSOLIDATED CONTROLS + SAFE AREA
+   ========================================================================== */
+.board-under-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.master-bottom-dock.mobile-bottom-dock {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+}
+
+.dock-controls-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.dock-controls-row .dock-icon-btn {
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  font-size: 18px;
+}
+
+.dock-controls-row .dock-activity-pill-btn {
+  min-height: 46px;
+  border-radius: 14px;
+  padding: 0 16px;
+}
+
+.dock-controls-row .activity-unread-badge {
+  position: static;
+  margin-left: 2px;
+}
+
+.mobile-bottom-dock .dock-center-stage {
+  width: 100%;
+  align-items: center;
+}
+
+.mobile-bottom-dock .mobile-prominent-roll-btn {
+  width: 100%;
+  max-width: 320px;
+  min-height: 48px;
+}
+
+/* ==========================================================================
+   MATCH TIMELINE
+   ========================================================================== */
+.feed-turn-group {
+  background: linear-gradient(150deg, rgba(118, 80, 245, 0.16) 0%, rgba(118, 80, 245, 0.06) 100%);
+  border: 1px solid rgba(118, 80, 245, 0.3);
+  border-radius: var(--radius-card);
+  padding: 9px 10px;
+  margin-bottom: 9px;
+}
+
+.feed-turn-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  font-size: 0.78rem;
+}
+
+.feed-turn-name {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  color: #fff4e0;
+}
+
+.feed-turn-dice {
+  font-family: var(--font-mono);
+  font-size: 0.64rem;
+  font-weight: 700;
+  color: #ffc83d;
+  background: rgba(255, 200, 61, 0.12);
+  border: 1px solid rgba(255, 200, 61, 0.3);
+  padding: 1px 6px;
+  border-radius: 9999px;
+}
+
+.feed-turn-time {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  color: rgba(255, 240, 214, 0.5);
+}
+
+.feed-turn-events {
+  padding-top: 2px;
+}
+
+.feed-turn-events .feed-item {
+  background: none;
+  border: none;
+  padding: 4px 0;
+  margin: 0;
+}
+
+.feed-turn-events .feed-item + .feed-item {
+  border-top: 1px dashed rgba(255, 255, 255, 0.06);
+}
+
+.feed-item-seat {
+  flex: 0 0 auto;
+  color: rgba(255, 244, 224, 0.85);
+}
+
+/* ==========================================================================
+   DICE FEEDBACK
+   ========================================================================== */
+.dice-face-settle {
+  display: inline-flex;
+  animation: diceSettle 0.34s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes diceSettle {
+  0% { transform: scale(0.9) rotate(-4deg); }
+  55% { transform: scale(1.06) rotate(2deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+
+.dice-corner-badge {
+  animation: diceBadgePop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes diceBadgePop {
+  0% { transform: scale(0.6); opacity: 0; }
+  60% { transform: scale(1.14); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dice-face-settle,
+  .dice-corner-badge,
+  .pawn-token.pawn-legal-pulse,
+  .pawn-token.is-selectable::after,
+  .pawn-token.pawn-threatened::before,
+  .move-preview-target {
+    animation: none;
+  }
+}
+
+/* ==========================================================================
+   RECONNECT SUCCESS
+   ========================================================================== */
+.reconnect-success-toast {
+  position: fixed;
+  top: max(72px, calc(env(safe-area-inset-top, 0px) + 62px));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px;
+  border-radius: 9999px;
+  background: linear-gradient(100deg, #0f9f6e 0%, #067a55 100%);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 12px 30px rgba(2, 40, 26, 0.5);
+  color: #f2fff9;
+  font-size: 0.8rem;
+  font-weight: 600;
+  animation: successToastLife 1.6s ease forwards;
+  pointer-events: none;
+}
+
+.reconnect-success-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.18);
+  font-size: 11px;
+}
+
+@keyframes successToastLife {
+  0% { opacity: 0; transform: translate(-50%, -8px); }
+  12% { opacity: 1; transform: translate(-50%, 0); }
+  82% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -4px); }
+}
+
+/* ==========================================================================
+   SETTINGS — VOLUME SLIDER
+   ========================================================================== */
+.setting-row-stacked {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.setting-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.volume-slider {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, #7650f5 0%, #ffc83d 100%);
+  outline: none;
+  opacity: 1;
+}
+
+.volume-slider:disabled {
+  opacity: 0.35;
+}
+
+.volume-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff4de;
+  border: 2px solid #7650f5;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+  cursor: pointer;
+}
+
+.volume-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff4de;
+  border: 2px solid #7650f5;
+  cursor: pointer;
+}
+
+.volume-value {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: #ffe9ae;
+  min-width: 38px;
+  text-align: right;
+}
+
+/* ==========================================================================
+   LOADING SKELETONS
+   ========================================================================== */
+.match-skeleton-page {
+  min-height: 100vh;
+}
+
+.match-skeleton {
+  max-width: 1140px;
+  margin: 0 auto;
+  padding: 4px 16px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.skeleton-info-bar {
+  height: 54px;
+  border-radius: var(--radius-card);
+}
+
+.skeleton-ribbon {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
+.skeleton-player-card {
+  flex: 0 1 128px;
+  height: 52px;
+  border-radius: 14px;
+}
+
+.skeleton-main {
+  display: flex;
+  justify-content: center;
+  gap: 28px;
+}
+
+.skeleton-board {
+  width: min(520px, 100%);
+  aspect-ratio: 1 / 1;
+  border-radius: 28px;
+}
+
+.skeleton-side {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 300px;
+}
+
+.skeleton-panel {
+  height: 190px;
+  border-radius: var(--radius-panel);
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    100deg,
+    rgba(255, 255, 255, 0.05) 28%,
+    rgba(255, 255, 255, 0.14) 48%,
+    rgba(255, 255, 255, 0.05) 68%
+  );
+  background-size: 220% 100%;
+  animation: skeletonShimmer 1.35s linear infinite;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 0 10px 24px rgba(8, 5, 24, 0.35);
+}
+
+@keyframes skeletonShimmer {
+  0% { background-position: 120% 0; }
+  100% { background-position: -120% 0; }
+}
+
+/* ==========================================================================
+   FOCUS VISIBILITY & SEAT GLYPHS
+   ========================================================================== */
+.seat-glyph {
+  display: inline-block;
+  vertical-align: middle;
+  flex: 0 0 auto;
+}
+
+.seat-glyph-current { color: currentColor; }
+.seat-glyph-cream { color: rgba(255, 246, 228, 0.9); }
+.seat-glyph-gold { color: #ffc83d; }
+
+:where(button, [role='button'], a, input[type='range'], [tabindex='0']):focus-visible {
+  outline: 2px solid #ffc83d;
+  outline-offset: 2px;
+}
+
+/* ==========================================================================
+   GAMEPLAY FOCUS — QUIETER AMBIENCE, LANDSCAPE, NARROW SCREENS
+   ========================================================================== */
+.gameplay-dimmed .bg-floating-dice {
+  opacity: 0.4;
+}
+
+.gameplay-dimmed .bg-geom-shape {
+  opacity: 0.7;
+}
+
+@media (max-width: 640px) {
+  .gameplay-dimmed .bg-floating-dice {
+    opacity: 0.16;
+  }
+
+  .gameplay-dimmed .bg-geom-shape {
+    opacity: 0.32;
+  }
+
+  .match-skeleton {
+    padding: 4px 12px 28px;
+  }
+
+  .skeleton-side {
+    display: none;
+  }
+
+  .skeleton-player-card {
+    flex: 1 1 0;
+    height: 46px;
+  }
+}
+
+@media (max-width: 430px) {
+  .master-bottom-dock.mobile-bottom-dock {
+    padding-left: 4px;
+    padding-right: 4px;
+    gap: 8px;
+  }
+
+  .dock-controls-row {
+    gap: 8px;
+  }
+
+  .dock-controls-row .dock-icon-btn {
+    width: 44px;
+    height: 44px;
+  }
+
+  .dock-controls-row .dock-activity-pill-btn {
+    min-height: 44px;
+    flex: 1;
+    justify-content: center;
+    max-width: 190px;
+  }
+}
+
+/* Landscape phones: board keeps the stage, controls become a side rail */
+@media (orientation: landscape) and (max-height: 560px) {
+  .game-screen-main .master-app-header {
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
+
+  .game-screen-wrapper {
+    padding-top: 2px;
+    padding-bottom: 4px;
+  }
+
+  .game-screen-wrapper .room-info-bar-container {
+    display: none;
+  }
+
+  .mobile-player-ribbon {
+    display: none;
+  }
+
+  .game-main-stage {
+    align-items: center;
+  }
+
+  .board-column {
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    max-width: none;
+    gap: 14px;
+  }
+
+  .game-board-container {
+    width: auto;
+    flex: 0 0 auto;
+  }
+
+  .ludo-arena-container {
+    width: min(calc(100vh - 91px), 56vw);
+  }
+
+  .board-under-rail {
+    width: min(36vw, 330px);
+    flex: 0 0 auto;
+    gap: 8px;
+    align-self: center;
+  }
+
+  .board-under-rail .turn-indicator-bar-container {
+    margin: 0;
+  }
+
+  .mobile-bottom-dock.mobile-bottom-dock {
+    padding: 8px;
+  }
+
+  .mobile-bottom-dock .master-dice-elevated-mound {
+    max-width: 128px;
+    padding: 6px 10px;
+  }
+
+  .mobile-bottom-dock .master-tactile-dice-btn svg {
+    width: 46px;
+    height: 46px;
+  }
+
+  .mobile-bottom-dock .mobile-prominent-roll-btn {
+    min-height: 40px;
+    font-size: 0.76rem;
+  }
+
+  .dock-controls-row {
+    gap: 6px;
+  }
+
+  .dock-controls-row .dock-icon-btn,
+  .dock-controls-row .dock-activity-pill-btn {
+    height: 38px;
+    min-height: 38px;
+  }
+
+  .gameplay-dimmed .bg-floating-dice {
+    opacity: 0.12;
+  }
+}
+
+/* ==========================================================================
+   GAMEPLAY 2.0 — VISUAL CORRECTIONS
+   ========================================================================== */
+.avatar-seat-badge {
+  position: absolute;
+  left: -3px;
+  bottom: -3px;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: #17122e;
+  border: 1px solid rgba(255, 226, 160, 0.6);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff3d8;
+  z-index: 6;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+}
+
+/* Rich enamel quadrants (keeps the pale inner well for contrast) */
+.board-v2-grid .yard-red {
+  background: radial-gradient(130% 130% at 20% 6%, #ff6f7e 0%, #d81f34 36%, #8d091c 100%);
+}
+.board-v2-grid .yard-green {
+  background: radial-gradient(130% 130% at 80% 6%, #63dda0 0%, #0a9555 36%, #035c33 100%);
+}
+.board-v2-grid .yard-blue {
+  background: radial-gradient(130% 130% at 20% 94%, #7ab4f7 0%, #2a6fca 36%, #0d346c 100%);
+}
+.board-v2-grid .yard-yellow {
+  background: radial-gradient(130% 130% at 80% 94%, #ffe08a 0%, #f2a112 36%, #a85f04 100%);
+}
+
+.board-v2-grid .base-socket-red {
+  border-color: #ef6d7a;
+  background: radial-gradient(circle at 50% 32%, #ffffff 0%, #ffe9eb 100%);
+}
+.board-v2-grid .base-socket-green {
+  border-color: #4dcf90;
+  background: radial-gradient(circle at 50% 32%, #ffffff 0%, #e6faef 100%);
+}
+.board-v2-grid .base-socket-yellow {
+  border-color: #f0bd4f;
+  background: radial-gradient(circle at 50% 32%, #ffffff 0%, #fff4d8 100%);
+}
+.board-v2-grid .base-socket-blue {
+  border-color: #5f9dee;
+  background: radial-gradient(circle at 50% 32%, #ffffff 0%, #e6f1ff 100%);
+}
+
+.yard-symbol {
+  opacity: 0.13;
+  z-index: 3;
+}
+
+/* Compact ribbon keeps the home count, hides the long name and pips */
+.mobile-player-ribbon.ribbon-compact .master-card-info {
+  display: flex;
+  align-items: center;
+}
+
+.mobile-player-ribbon.ribbon-compact .master-card-name,
+.mobile-player-ribbon.ribbon-compact .master-token-dots {
+  display: none;
+}
+
+.mobile-player-ribbon.ribbon-compact .master-card-progress {
+  justify-content: center;
+}
+
+.mobile-player-ribbon.ribbon-compact .master-home-text {
+  font-size: 0.6rem;
+}
+
+.mobile-player-ribbon.ribbon-compact .master-player-card {
+  height: 42px;
+}
+
+@media (min-width: 1024px) {
+  .ribbon-expand-btn {
+    display: none;
+  }
+}
+
+.yard-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+/* Safe havens read clearly on cream tiles */
+.board-v2-grid .cell-safe {
+  background-image:
+    radial-gradient(circle at 50% 48%, rgba(255, 200, 61, 0.22) 0%, rgba(255, 200, 61, 0.04) 62%, transparent 72%),
+    linear-gradient(158deg, #fffdf4 0%, #fbeecf 100%);
+}
+
+.board-v2-grid .cell-safe::before {
+  content: '';
+  position: absolute;
+  inset: 13%;
+  border-radius: 50%;
+  border: 1px solid rgba(185, 133, 28, 0.42);
+  background: radial-gradient(circle at 40% 30%, rgba(255, 244, 205, 0.9), rgba(255, 214, 120, 0.35));
+  pointer-events: none;
+  z-index: 1;
+}
+
+.board-v2-grid .star-haven-svg {
+  width: 78%;
+  height: 78%;
+  max-width: 24px;
+  max-height: 24px;
+  filter: saturate(1.35) contrast(1.08) drop-shadow(0 1px 1px rgba(105, 66, 6, 0.5));
+  opacity: 1;
+}
+
+/* Compact ribbon: timer is a tiny corner chip so the home count stays visible */
+.mobile-player-ribbon.ribbon-compact .master-turn-badge-yellow {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  padding: 0 4px;
+  font-size: 0.56rem;
+  border-radius: 6px;
+  z-index: 3;
+}
+
+.mobile-player-ribbon.ribbon-compact .badge-clock-icon {
+  display: none;
+}
+
+/* Compact ribbon cards stay readable instead of stretching on 2–3 player tables */
+.master-player-card {
+  max-width: 168px;
+}
+
+.mobile-player-ribbon {
+  justify-content: center;
+}
+
+/* Unused seats recede so active colours own the board */
+.board-v2-grid .yard-box.inactive-seat {
+  opacity: 0.62;
+  filter: grayscale(0.45) brightness(0.85);
+}
+
+/* Finished pawns carry a quiet gold halo in the centre */
+.goal-quadrant .pawn-token {
+  filter: drop-shadow(0 1px 3px rgba(18, 8, 28, 0.5)) drop-shadow(0 0 5px rgba(255, 200, 61, 0.55));
+}
+
+/* Landscape player strip (ribbon is hidden to protect board height) */
+.landscape-seat-strip {
+  display: none;
+}
+
+@media (orientation: landscape) and (max-height: 560px) {
+  .landscape-seat-strip {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 4px;
+    width: 100%;
+  }
+
+  .landscape-seat {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 6px 2px 2px;
+    border-radius: 9999px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    max-width: 140px;
+    min-width: 0;
+  }
+
+  .landscape-seat.is-active {
+    border-color: rgba(255, 200, 61, 0.7);
+    background: rgba(255, 200, 61, 0.1);
+  }
+
+  .landscape-seat.is-offline {
+    opacity: 0.55;
+  }
+
+  .landscape-seat .player-avatar-wrapper {
+    width: 22px;
+    height: 22px;
+  }
+
+  .landscape-seat-name {
+    font-size: 0.62rem;
+    font-weight: 600;
+    color: #fff1d6;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .landscape-seat-home {
+    font-family: var(--font-mono);
+    font-size: 0.56rem;
+    color: rgba(255, 240, 214, 0.65);
+  }
+}
+
+/* In short landscape the reconnect banner floats instead of pushing the board down */
+@media (orientation: landscape) and (max-height: 560px) {
+  .game-screen-main .reconnect-floating-banner {
+    position: fixed;
+    top: auto;
+    bottom: 6px;
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    margin: 0;
+    padding: 4px 12px;
+    font-size: 0.68rem;
+    z-index: 9800;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pawn-token {
+    transition: none;
+  }
+}
+
+/* The inner well must include its padding, otherwise the outer sockets clip on the board edge */
+.board-v2-grid .yard-inner {
+  box-sizing: border-box;
+}
+
+/* Keep the four yard wells clear of the rounded yard border */
+.board-v2-grid .base-socket {
+  width: 92%;
+  height: auto;
+  aspect-ratio: 1;
+  justify-self: center;
+  align-self: center;
+  background:
+    radial-gradient(circle at 34% 24%, #ffffff 0%, #fdf8ec 52%, #efe2c8 100%);
+  border-width: 2px;
+  box-shadow:
+    inset 0 2px 6px rgba(120, 84, 32, 0.22),
+    inset 0 -1px 2px rgba(255, 255, 255, 0.9),
+    0 1px 3px rgba(20, 12, 6, 0.18);
+}
+
+.board-v2-grid .base-socket-red { border-color: #cf5262; }
+.board-v2-grid .base-socket-green { border-color: #2f9e6d; }
+.board-v2-grid .base-socket-yellow { border-color: #cd9326; }
+.board-v2-grid .base-socket-blue { border-color: #3f7fd0; }

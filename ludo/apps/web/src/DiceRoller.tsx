@@ -199,8 +199,10 @@ export const DiceRoller: React.FC<DiceRollerProps> = ({
           title={canRoll ? 'Tap to roll the dice' : `Dice value: ${displayVal}`}
           aria-label={canRoll ? 'Roll dice' : `Dice value ${displayVal}`}
         >
-          <DiceFaceSVG value={displayVal} size={64} />
-          <div className="dice-corner-badge">
+          <span className="dice-face-settle" key={`face-${displayVal}-${rolling ? 'roll' : 'idle'}`}>
+            <DiceFaceSVG value={displayVal} size={64} />
+          </span>
+          <div className="dice-corner-badge" key={`badge-${displayVal}`}>
             {displayVal}
           </div>
         </button>

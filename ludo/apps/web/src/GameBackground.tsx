@@ -87,9 +87,12 @@ export const FloatingDiceSVG: React.FC<{
  * Master Game Background with Atmospheric Lighting, Cropped Violet/Orange Geometric Shapes,
  * and Floating 3D Dice - shared across Homepage, Lobby, Match, and Victory screens.
  */
-export const GameBackground: React.FC<{ children?: React.ReactNode }> = ({ children }) => {
+export const GameBackground: React.FC<{ children?: React.ReactNode; dimmed?: boolean }> = ({
+  children,
+  dimmed = false,
+}) => {
   return (
-    <div className="game-master-backdrop">
+    <div className={`game-master-backdrop ${dimmed ? 'gameplay-dimmed' : ''}`}>
       {/* Ambient Lighting Cones */}
       <div className="ambient-glow ambient-glow-top" aria-hidden="true" />
       <div className="ambient-glow ambient-glow-center" aria-hidden="true" />

@@ -1,6 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { absoluteCell, SAFE_CELLS, START_OFFSETS, moveToken as advanceState } from '@ludo/game-engine';
+import type { GameState } from '@ludo/game-engine';
 import { AudioEngine } from './AudioEngine';
 import { PawnToken, PawnDefs } from './PawnToken';
+import { SeatGlyph } from './SeatGlyph';
 
 export type BoardToken = { kind: 'base' | 'path' | 'home'; progress: number };
 export type BoardPlayer = { id: string; name: string; color: string; seat: number; connected?: boolean };
@@ -14,12 +17,12 @@ export interface Board2DProps {
   legal: number[];
   isMoving?: boolean;
   reducedMotion?: boolean;
+  showCaptureHints?: boolean;
   onTokenClick: (tokenIdx: number) => void;
 }
 
 const SEAT_COLORS = ['red', 'green', 'yellow', 'blue'] as const;
-const START_OFFSETS = [0, 13, 26, 39];
-const SAFE_CELLS = new Set([0, 8, 13, 21, 26, 34, 39, 47]);
+const CELL = 100 / 15;
 
 export const cellToPercent = (col: number, row: number) => ({
   x: ((col + 0.5) / 15) * 100,
@@ -323,9 +326,11 @@ export const Board2D: React.FC<Board2DProps> = ({
   tokens,
   currentPlayer,
   localSeat,
+  diceDisplay,
   legal,
   isMoving = false,
   reducedMotion = false,
+  showCaptureHints = false,
   onTokenClick,
 }) => {
   const activeSeats = useMemo(() => new Set(players.map((p) => p.seat)), [players]);
@@ -353,6 +358,118 @@ export const Board2D: React.FC<Board2DProps> = ({
   const [captureEffect, setCaptureEffect] = useState<{ x: number; y: number } | null>(null);
   const [goalBurst, setGoalBurst] = useState<{ x: number; y: number } | null>(null);
   const [isAnimating, setIsAnimating] = useState<boolean>(false);
+
+  // Selection / hover preview (destination + travelled path)
+  const [previewTokenIdx, setPreviewTokenIdx] = useState<number | null>(null);
+  const [hoverTokenIdx, setHoverTokenIdx] = useState<number | null>(null);
+  const pointerTypeRef = useRef<'mouse' | 'touch' | 'pen'>('mouse');
+
+  const activePreviewIdx = previewTokenIdx ?? hoverTokenIdx;
+
+  useEffect(() => {
+    const onPointerDown = (e: PointerEvent) => {
+      pointerTypeRef.current = e.pointerType === 'touch' ? 'touch' : e.pointerType === 'pen' ? 'pen' : 'mouse';
+    };
+    window.addEventListener('pointerdown', onPointerDown, { passive: true });
+    return () => window.removeEventListener('pointerdown', onPointerDown);
+  }, []);
+
+  // Clear the preview whenever the actionable state changes
+  useEffect(() => {
+    setPreviewTokenIdx(null);
+    setHoverTokenIdx(null);
+  }, [tokens, diceDisplay, currentPlayer, localSeat, legal.join(',')]);
+
+  useEffect(() => {
+    if (previewTokenIdx === null && hoverTokenIdx === null) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setPreviewTokenIdx(null);
+        setHoverTokenIdx(null);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [previewTokenIdx, hoverTokenIdx]);
+
+  // Destination comes from the same pure engine function the server uses — never a
+  // second movement implementation.
+  const movePreview = useMemo(() => {
+    if (activePreviewIdx === null || diceDisplay === null) return null;
+    if (localSeat < 0 || localSeat !== currentPlayer) return null;
+    if (!legal.includes(activePreviewIdx)) return null;
+    const currentPos = tokens[localSeat]?.[activePreviewIdx];
+    if (!currentPos) return null;
+    try {
+      const virtualState = {
+        players: players.map((p, i) => ({
+          id: p.id,
+          name: p.name,
+          color: p.color,
+          seat: (typeof p.seat === 'number' ? p.seat : i) as any,
+        })),
+        tokens: tokens as any,
+        currentPlayer: localSeat as any,
+        dice: diceDisplay,
+        consecutiveSixes: 0,
+        status: 'playing',
+        winner: null,
+        rankings: [],
+        version: 0,
+      } as GameState;
+      const result = advanceState(virtualState, localSeat as any, activePreviewIdx, diceDisplay);
+      const destination = result.state.tokens[localSeat][activePreviewIdx] as BoardToken;
+      const waypoints = computeWaypoints(currentPos, destination, localSeat, activePreviewIdx);
+      return {
+        destination,
+        destinationPoint: waypoints[waypoints.length - 1],
+        pathPoints: waypoints.slice(1, -1),
+        captured: result.captured,
+      };
+    } catch {
+      return null;
+    }
+  }, [activePreviewIdx, diceDisplay, legal, localSeat, currentPlayer, tokens, players]);
+
+  // Which of my pawns can be captured on the opponent's next roll (engine rules:
+  // track cell, not a safe cell, reachable within 1–6 steps, opponent still on track).
+  const threatenedTokens = useMemo(() => {
+    const threatened = new Set<string>();
+    if (!showCaptureHints || localSeat < 0) return threatened;
+    const myTokens = tokens[localSeat] || [];
+    myTokens.forEach((pos, tokenIdx) => {
+      if (pos.kind !== 'path') return;
+      const myCell = absoluteCell(localSeat as any, pos.progress);
+      if (SAFE_CELLS.has(myCell)) return;
+      for (const p of players) {
+        if (p.seat === localSeat) continue;
+        (tokens[p.seat] || []).forEach((opponentPos) => {
+          if (opponentPos.kind !== 'path' || opponentPos.progress >= 50) return;
+          const opponentCell = absoluteCell(p.seat as any, opponentPos.progress);
+          let distance = (myCell - opponentCell + 52) % 52;
+          if (distance === 0) distance = 52;
+          if (distance >= 1 && distance <= 6 && opponentPos.progress + distance <= 50) {
+            threatened.add(`${localSeat}-${tokenIdx}`);
+          }
+        });
+      }
+    });
+    return threatened;
+  }, [showCaptureHints, tokens, players, localSeat]);
+
+  const activatePawn = (tokenIdx: number) => {
+    if (!legal.includes(tokenIdx) || isAnimating || isMoving) return;
+    const isTouch = pointerTypeRef.current !== 'mouse';
+    if (!isTouch || previewTokenIdx === tokenIdx) {
+      setPreviewTokenIdx(null);
+      setHoverTokenIdx(null);
+      onTokenClick(tokenIdx);
+      return;
+    }
+    AudioEngine.playHop();
+    setHoverTokenIdx(null);
+    setPreviewTokenIdx(tokenIdx);
+  };
 
   const lastCommittedTokensRef = useRef<BoardToken[][] | null>(null);
   const animTimeoutsRef = useRef<NodeJS.Timeout[]>([]);
@@ -463,7 +580,7 @@ export const Board2D: React.FC<Board2DProps> = ({
 
       // Match the pawn size to its destination so landing does not resize the token
       const movingSize =
-        newPos.kind === 'base' ? 34 : newPos.kind === 'home' && newPos.progress >= 6 ? 20 : 28;
+        newPos.kind === 'base' ? 46 : newPos.kind === 'home' && newPos.progress >= 6 ? 20 : 28;
 
       // Lean into horizontal travel so the pawn feels like it is running
       const leanFor = (from: { x: number; y: number }, to: { x: number; y: number }) =>
@@ -624,22 +741,42 @@ export const Board2D: React.FC<Board2DProps> = ({
     }
 
     const colorKey = SEAT_COLORS[seat] || 'red';
+    const isSelected = previewTokenIdx === tokenIdx && seat === localSeat;
 
     return (
       <PawnToken
         key={`pawn-${seat}-${tokenIdx}`}
         color={colorKey}
+        seat={seat}
         isLegal={isLegal}
+        isSelected={isSelected}
+        isThreatened={seat === localSeat && threatenedTokens.has(`${seat}-${tokenIdx}`)}
         size={size}
         onClick={(e) => {
           e.stopPropagation();
           if (isLegal && !isAnimating && !isMoving) {
-            AudioEngine.playHop();
-            onTokenClick(tokenIdx);
+            activatePawn(tokenIdx);
           }
         }}
+        onActivate={() => activatePawn(tokenIdx)}
+        onPointerEnter={() => {
+          if (isLegal && pointerTypeRef.current === 'mouse') setHoverTokenIdx(tokenIdx);
+        }}
+        onPointerLeave={() => {
+          if (hoverTokenIdx === tokenIdx) setHoverTokenIdx(null);
+        }}
+        onFocus={() => {
+          if (isLegal) setHoverTokenIdx(tokenIdx);
+        }}
+        onBlur={() => {
+          if (hoverTokenIdx === tokenIdx) setHoverTokenIdx(null);
+        }}
         title={`Seat ${seat + 1} (${colorKey.toUpperCase()}) - Pawn ${tokenIdx + 1}${
-          isLegal ? ' (Click to Move)' : ''
+          isLegal ? ' (Press Enter or tap to preview the move)' : ''
+        }${
+          seat === localSeat && threatenedTokens.has(`${seat}-${tokenIdx}`)
+            ? ' — can be captured next roll'
+            : ''
         }`}
       />
     );
@@ -700,18 +837,68 @@ export const Board2D: React.FC<Board2DProps> = ({
 
     return (
       <div className="goal-occupants-cluster">
-        {visibleOccupants.map((occ) => renderPawn(occ.seat, occ.tokenIdx, occ.isLegal, 20))}
+        {visibleOccupants.map((occ) => renderPawn(occ.seat, occ.tokenIdx, occ.isLegal, 22))}
       </div>
     );
   }
 
   return (
-    <div className="ludo-arena-container">
+    <div className="ludo-arena-container board-v2-container">
       <PawnDefs />
-      <div className="ludo-arena-frame">
-        <div className="ludo-grid" id="ludoBoard" style={{ position: 'relative' }}>
+      <div className="ludo-arena-frame board-v2-frame">
+        <div
+          className="ludo-grid board-v2-grid"
+          id="ludoBoard"
+          style={{ position: 'relative' }}
+          onClick={() => {
+            setPreviewTokenIdx(null);
+            setHoverTokenIdx(null);
+          }}
+        >
           {/* ==================== DYNAMIC ANIMATION OVERLAY LAYER ==================== */}
           <div className="board-anim-layer" aria-hidden="true">
+            {/* Move preview: destination tile, travelled cells and a ghost pawn */}
+            {movePreview && activePreviewIdx !== null && (
+              <>
+                <div
+                  className={`move-preview-target ${movePreview.captured ? 'preview-captures' : ''}`}
+                  style={{
+                    left: `${movePreview.destinationPoint.x}%`,
+                    top: `${movePreview.destinationPoint.y}%`,
+                    width: `${CELL}%`,
+                    height: `${CELL}%`,
+                  }}
+                />
+                {movePreview.pathPoints.map((point, idx) => (
+                  <span
+                    key={`preview-dot-${idx}`}
+                    className="move-preview-dot"
+                    style={{ left: `${point.x}%`, top: `${point.y}%` }}
+                  />
+                ))}
+                <div
+                  className="move-preview-ghost"
+                  style={{
+                    left: `${movePreview.destinationPoint.x}%`,
+                    top: `${movePreview.destinationPoint.y}%`,
+                  }}
+                >
+                  <PawnToken
+                    color={SEAT_COLORS[localSeat] || 'red'}
+                    seat={localSeat}
+                    size={
+                      movePreview.destination.kind === 'base'
+                        ? 46
+                        : movePreview.destination.kind === 'home' &&
+                          movePreview.destination.progress >= 6
+                        ? 20
+                        : 28
+                    }
+                  />
+                </div>
+              </>
+            )}
+
             {animatingPawn && (
               <div
                 key={`pawn-anim-${animatingPawn.seat}-${animatingPawn.tokenIdx}`}
@@ -770,11 +957,17 @@ export const Board2D: React.FC<Board2DProps> = ({
                 }
               >
                 <div className="captured-pawn-inner">
-                  <PawnToken color={SEAT_COLORS[capturedPawnAnim.seat]} size={34} />
+                  <PawnToken color={SEAT_COLORS[capturedPawnAnim.seat]} size={40} />
                 </div>
               </div>
             )}
           </div>
+
+          {previewTokenIdx !== null && (
+            <div className="move-preview-hint" role="status" aria-live="polite">
+              Tap again to move
+            </div>
+          )}
 
           {/* ==================== 1. RED HOME YARD (Cols 1-6, Rows 1-6) ==================== */}
           <div
@@ -797,16 +990,24 @@ export const Board2D: React.FC<Board2DProps> = ({
                         if (legalOcc) onTokenClick(legalOcc.tokenIdx);
                       }
                     }}
+                    onKeyDown={(e) => {
+                      if (!hasLegalMove || (e.key !== 'Enter' && e.key !== ' ')) return;
+                      e.preventDefault();
+                      e.stopPropagation();
+                      const legalOcc = occupants.find((occ) => occ.isLegal);
+                      if (legalOcc && !isAnimating && !isMoving) onTokenClick(legalOcc.tokenIdx);
+                    }}
                     role="button"
                     tabIndex={hasLegalMove ? 0 : -1}
                     aria-label={`Red Yard Socket ${slotIdx + 1}${hasLegalMove ? ' - Tap to Deploy' : ''}`}
                   >
-                    {occupants.map((occ) => renderPawn(occ.seat, occ.tokenIdx, occ.isLegal, 34))}
+                    {occupants.map((occ) => renderPawn(occ.seat, occ.tokenIdx, occ.isLegal, 46))}
                   </div>
                 );
               })}
             </div>
             <span className="yard-badge yard-badge-tl">
+              {activeSeats.has(0) && <SeatGlyph seat={0} size={8} tone="cream" />}
               {activeSeats.has(0) ? 'RED' : 'VACANT'}
             </span>
           </div>
@@ -856,7 +1057,7 @@ export const Board2D: React.FC<Board2DProps> = ({
               currentPlayer === 1 ? 'active-yard-turn' : ''
             }`}
           >
-            <div className="yard-inner">
+                <div className="yard-inner">
               {[0, 1, 2, 3].map((slotIdx) => {
                 const occupants = tokensOnBoard[`base-1-${slotIdx}`] || [];
                 const hasLegalMove = occupants.some((occ) => occ.isLegal);
@@ -871,16 +1072,24 @@ export const Board2D: React.FC<Board2DProps> = ({
                         if (legalOcc) onTokenClick(legalOcc.tokenIdx);
                       }
                     }}
+                    onKeyDown={(e) => {
+                      if (!hasLegalMove || (e.key !== 'Enter' && e.key !== ' ')) return;
+                      e.preventDefault();
+                      e.stopPropagation();
+                      const legalOcc = occupants.find((occ) => occ.isLegal);
+                      if (legalOcc && !isAnimating && !isMoving) onTokenClick(legalOcc.tokenIdx);
+                    }}
                     role="button"
                     tabIndex={hasLegalMove ? 0 : -1}
                     aria-label={`Green Yard Socket ${slotIdx + 1}${hasLegalMove ? ' - Tap to Deploy' : ''}`}
                   >
-                    {occupants.map((occ) => renderPawn(occ.seat, occ.tokenIdx, occ.isLegal, 34))}
+                    {occupants.map((occ) => renderPawn(occ.seat, occ.tokenIdx, occ.isLegal, 46))}
                   </div>
                 );
               })}
             </div>
             <span className="yard-badge yard-badge-tr">
+              {activeSeats.has(1) && <SeatGlyph seat={1} size={8} tone="cream" />}
               {activeSeats.has(1) ? 'GREEN' : 'VACANT'}
             </span>
           </div>
@@ -1019,16 +1228,24 @@ export const Board2D: React.FC<Board2DProps> = ({
                         if (legalOcc) onTokenClick(legalOcc.tokenIdx);
                       }
                     }}
+                    onKeyDown={(e) => {
+                      if (!hasLegalMove || (e.key !== 'Enter' && e.key !== ' ')) return;
+                      e.preventDefault();
+                      e.stopPropagation();
+                      const legalOcc = occupants.find((occ) => occ.isLegal);
+                      if (legalOcc && !isAnimating && !isMoving) onTokenClick(legalOcc.tokenIdx);
+                    }}
                     role="button"
                     tabIndex={hasLegalMove ? 0 : -1}
                     aria-label={`Blue Yard Socket ${slotIdx + 1}${hasLegalMove ? ' - Tap to Deploy' : ''}`}
                   >
-                    {occupants.map((occ) => renderPawn(occ.seat, occ.tokenIdx, occ.isLegal, 34))}
+                    {occupants.map((occ) => renderPawn(occ.seat, occ.tokenIdx, occ.isLegal, 46))}
                   </div>
                 );
               })}
             </div>
             <span className="yard-badge yard-badge-bl">
+              {activeSeats.has(3) && <SeatGlyph seat={3} size={8} tone="cream" />}
               {activeSeats.has(3) ? 'BLUE' : 'VACANT'}
             </span>
           </div>
@@ -1093,16 +1310,24 @@ export const Board2D: React.FC<Board2DProps> = ({
                         if (legalOcc) onTokenClick(legalOcc.tokenIdx);
                       }
                     }}
+                    onKeyDown={(e) => {
+                      if (!hasLegalMove || (e.key !== 'Enter' && e.key !== ' ')) return;
+                      e.preventDefault();
+                      e.stopPropagation();
+                      const legalOcc = occupants.find((occ) => occ.isLegal);
+                      if (legalOcc && !isAnimating && !isMoving) onTokenClick(legalOcc.tokenIdx);
+                    }}
                     role="button"
                     tabIndex={hasLegalMove ? 0 : -1}
                     aria-label={`Yellow Yard Socket ${slotIdx + 1}${hasLegalMove ? ' - Tap to Deploy' : ''}`}
                   >
-                    {occupants.map((occ) => renderPawn(occ.seat, occ.tokenIdx, occ.isLegal, 34))}
+                    {occupants.map((occ) => renderPawn(occ.seat, occ.tokenIdx, occ.isLegal, 46))}
                   </div>
                 );
               })}
             </div>
             <span className="yard-badge yard-badge-br">
+              {activeSeats.has(2) && <SeatGlyph seat={2} size={8} tone="cream" />}
               {activeSeats.has(2) ? 'YELLOW' : 'VACANT'}
             </span>
           </div>

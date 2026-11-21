@@ -14,6 +14,7 @@ import { GameBackground } from './GameBackground';
 import { PlayerAvatar } from './PlayerAvatar';
 import { RoomInfoBar } from './RoomInfoBar';
 import { TurnIndicatorBar } from './TurnIndicatorBar';
+import type { TurnPhase } from './TurnIndicatorBar';
 import './style.css';
 
 const socket: Socket = io(import.meta.env.VITE_SERVER_URL || 'http://localhost:3001', {
@@ -159,6 +160,8 @@ interface MobilePlayerRibbonProps {
   localSeat: number;
   tokens: Array<Array<{ kind: 'base' | 'path' | 'home'; progress: number }>>;
   turnTimeLeft: number;
+  expanded: boolean;
+  onToggleExpanded: () => void;
 }
 
 const MobilePlayerRibbon: React.FC<MobilePlayerRibbonProps> = ({
@@ -167,9 +170,15 @@ const MobilePlayerRibbon: React.FC<MobilePlayerRibbonProps> = ({
   localSeat,
   tokens,
   turnTimeLeft,
+  expanded,
+  onToggleExpanded,
 }) => {
   return (
-    <div className="mobile-player-ribbon" role="region" aria-label="Active players turn status">
+    <div
+      className={`mobile-player-ribbon ${expanded ? '' : 'ribbon-compact'}`}
+      role="region"
+      aria-label="Active players turn status"
+    >
       {players.map((p) => {
         const isActive = p.seat === currentPlayer;
         const playerTokens = tokens[p.seat] || [];
@@ -229,6 +238,16 @@ const MobilePlayerRibbon: React.FC<MobilePlayerRibbonProps> = ({
           </div>
         );
       })}
+      <button
+        type="button"
+        className="ribbon-expand-btn"
+        onClick={onToggleExpanded}
+        aria-expanded={expanded}
+        aria-label={expanded ? 'Collapse player details' : 'Expand player details'}
+        title={expanded ? 'Compact players' : 'Show player details'}
+      >
+        {expanded ? '▴' : '▾'}
+      </button>
     </div>
   );
 };
@@ -315,29 +334,7 @@ const MobileBottomDock: React.FC<MobileBottomDockProps> = ({
           </span>
         )}
       </div>
-      {/* Flanking Left Controls */}
-      <div className="dock-flank dock-flank-left">
-        <button
-          type="button"
-          className="dock-icon-btn btn-chat"
-          onClick={onOpenActivity}
-          title="Chat & Activity"
-          aria-label="Chat"
-        >
-          <span>💬</span>
-        </button>
-        <button
-          type="button"
-          className="dock-icon-btn btn-players"
-          onClick={onOpenShare}
-          title="Players & Share"
-          aria-label="Players"
-        >
-          <span>👥</span>
-        </button>
-      </div>
-
-      {/* Center Elevated Violet Dome Stage with Tactile Ivory Dice */}
+      {/* Center Elevated Violet Dice Well */}
       <div className="dock-center-stage mobile-unified-control-card">
         <div className={`master-dice-elevated-mound mobile-central-dice-area ${canRoll ? 'mound-glow-active' : ''}`}>
           {/* Action Sparkle Lines */}
@@ -386,8 +383,26 @@ const MobileBottomDock: React.FC<MobileBottomDockProps> = ({
         </button>
       </div>
 
-      {/* Flanking Right Controls */}
-      <div className="dock-flank dock-flank-right">
+      {/* One consolidated control row: large targets, even spacing, safe-area aware */}
+      <div className="dock-controls-row">
+        <button
+          type="button"
+          className="dock-icon-btn btn-chat"
+          onClick={onOpenActivity}
+          title="Chat & Activity"
+          aria-label="Chat"
+        >
+          <span>💬</span>
+        </button>
+        <button
+          type="button"
+          className="dock-icon-btn btn-players"
+          onClick={onOpenShare}
+          title="Players & Share"
+          aria-label="Players"
+        >
+          <span>👥</span>
+        </button>
         <button
           type="button"
           className="dock-activity-pill-btn btn-feed"
@@ -395,9 +410,9 @@ const MobileBottomDock: React.FC<MobileBottomDockProps> = ({
           title="Match Activity Feed"
           aria-label="Activity Feed"
         >
-          <span className="activity-icon">≣</span>
-          <span className="activity-label">Activity</span>
-          <span className="activity-unread-badge">{unreadCount}</span>
+          <span className="activity-icon">≜</span>
+          <span className="activity-label">Timeline</span>
+          {unreadCount > 0 && <span className="activity-unread-badge">{unreadCount}</span>}
         </button>
       </div>
     </div>
@@ -439,9 +454,25 @@ function App() {
     return typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   });
   const [activityLog, setActivityLog] = useState<ActivityItem[]>([]);
+  const [sfxVolume, setSfxVolume] = useState(() => AudioEngine.getVolume());
+  const [captureHints, setCaptureHints] = useState(
+    () => localStorage.getItem('ludo_capture_hints') === 'true'
+  );
+  const [ribbonExpanded, setRibbonExpanded] = useState(
+    () => typeof window === 'undefined' || window.innerWidth > 520
+  );
+  const [reconnectToast, setReconnectToast] = useState(false);
+  const [restoringSession, setRestoringSession] = useState(
+    () => typeof window !== 'undefined' && !!localStorage.getItem('ludo-room')
+  );
+  const [turnAnnouncement, setTurnAnnouncement] = useState('');
 
   const snapshotRef = useRef(snapshot);
   snapshotRef.current = snapshot;
+  const currentTurnRef = useRef<{ id: number; seat: number; name: string; dice: number } | null>(null);
+  const turnSeqRef = useRef(0);
+  const warnedTurnRef = useRef<string | null>(null);
+  const wasDisconnectedRef = useRef(false);
 
   const canJoin = name.trim().length > 0 && name.trim().length <= 16;
 
@@ -470,16 +501,51 @@ function App() {
     localStorage.setItem('ludo_reduced_motion', String(next));
   };
 
-  const addActivityItem = (item: Omit<ActivityItem, 'id' | 'timestamp'>) => {
+  /**
+   * Adds one timeline entry. Movement/capture events inherit the current roll so the
+   * feed can group a real turn together; no turn is invented for independent events.
+   */
+  const addActivityItem = (item: Omit<ActivityItem, 'id' | 'time'>) => {
+    const turn = currentTurnRef.current;
+    const inheritsTurn =
+      turn &&
+      (item.type === 'deploy' ||
+        item.type === 'move' ||
+        item.type === 'capture' ||
+        item.type === 'home' ||
+        item.type === 'finish' ||
+        item.type === 'bonus');
     setActivityLog((prev) => [
       {
         ...item,
+        playerName: item.playerName ?? turn?.name,
+        turnId: item.turnId ?? (inheritsTurn ? turn!.id : undefined),
+        dice: item.dice ?? (inheritsTurn ? turn!.dice : undefined),
         id: `act-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-        timestamp: Date.now(),
+        time: Date.now(),
       },
-      ...prev.slice(0, 39),
+      ...prev.slice(0, 49),
     ]);
   };
+
+  const toggleCaptureHints = () => {
+    const next = !captureHints;
+    setCaptureHints(next);
+    localStorage.setItem('ludo_capture_hints', String(next));
+    triggerHaptic('light');
+  };
+
+  const changeVolume = (volume: number) => {
+    setSfxVolume(volume);
+    AudioEngine.setVolume(volume);
+  };
+
+  // Never leave the restore skeleton up indefinitely if the socket stays silent
+  useEffect(() => {
+    if (!restoringSession) return;
+    const timeout = window.setTimeout(() => setRestoringSession(false), 4500);
+    return () => window.clearTimeout(timeout);
+  }, [restoringSession]);
 
   // Synchronized server-authoritative turn timer countdown
   useEffect(() => {
@@ -514,6 +580,7 @@ function App() {
       setSessionId(data.playerId);
     };
     const onState = (data: Snapshot) => {
+      setRestoringSession(false);
       setSnapshot((prev) => {
         if (prev && data.version < prev.version) return prev;
         if (prev && data.version > prev.version + 1 && prev.roomCode) {
@@ -536,6 +603,13 @@ function App() {
       setLastDice(data.value);
 
       const pColor = snapshotRef.current?.players.find((p) => p.seat === data.seat)?.color;
+      turnSeqRef.current += 1;
+      currentTurnRef.current = {
+        id: turnSeqRef.current,
+        seat: data.seat,
+        name: data.playerName,
+        dice: data.value,
+      };
       addActivityItem({
         type: data.value === 6 ? 'bonus' : 'dice',
         icon: data.value === 6 ? '🎉' : '🎲',
@@ -546,6 +620,9 @@ function App() {
             : `${data.playerName} rolled a ${data.value}`,
         seat: data.seat,
         color: pColor,
+        playerName: data.playerName,
+        turnId: turnSeqRef.current,
+        dice: data.value,
       });
 
       window.setTimeout(() => {
@@ -655,7 +732,9 @@ function App() {
         icon: '⏰',
         message: `${name} timed out! Turn forfeited.`,
         seat: data.seat,
+        playerName: name,
       });
+      currentTurnRef.current = null;
     };
     const onPlayerDisconnect = (data: Snapshot) => {
       onState(data);
@@ -676,18 +755,29 @@ function App() {
     const onConnect = () => {
       setConnected(true);
       setMessage('');
+      if (wasDisconnectedRef.current) {
+        wasDisconnectedRef.current = false;
+        setReconnectToast(true);
+        window.setTimeout(() => setReconnectToast(false), 1600);
+      }
       const savedRoom = localStorage.getItem('ludo-room');
       if (savedRoom) {
         socket.emit('request_game_state', savedRoom, (res: any) => {
+          setRestoringSession(false);
           if (res?.ok && res.state) {
             setSnapshot(res.state);
           } else if (res && !res.ok) {
             localStorage.removeItem('ludo-room');
           }
         });
+      } else {
+        setRestoringSession(false);
       }
     };
-    const onDisconnect = () => setConnected(false);
+    const onDisconnect = () => {
+      wasDisconnectedRef.current = true;
+      setConnected(false);
+    };
     const onConnectError = () => {
       setConnected(false);
       setMessage('Connecting to game server…');
@@ -952,6 +1042,78 @@ function App() {
     [snapshot, localSeat]
   );
 
+  // One restrained five-second warning per turn (only cues the local player)
+  useEffect(() => {
+    if (!snapshot || snapshot.status !== 'playing') return;
+    if (turnTimeLeft > 5 || turnTimeLeft <= 0) return;
+    const key = `${snapshot.currentPlayer}-${snapshot.turnExpiresAt}`;
+    if (warnedTurnRef.current === key) return;
+    warnedTurnRef.current = key;
+    if (snapshot.currentPlayer === localSeat) {
+      AudioEngine.playWarningTick();
+      if (hapticEnabled) triggerHaptic('warning');
+    }
+  }, [turnTimeLeft, snapshot, localSeat, hapticEnabled]);
+
+  // Screen readers hear one announcement per turn, never one per socket snapshot
+  useEffect(() => {
+    if (!snapshot || snapshot.status !== 'playing') return;
+    if (snapshot.currentPlayer === localSeat) {
+      setTurnAnnouncement(
+        snapshot.lastNotice?.type === 'extra_turn' && snapshot.dice === null
+          ? 'Your turn again. Extra roll awarded. Roll the dice.'
+          : 'Your turn. Roll the dice.'
+      );
+    } else {
+      const active = snapshot.players.find((p) => p.seat === snapshot.currentPlayer);
+      setTurnAnnouncement(`${active?.name || 'Player'}'s turn.`);
+    }
+  }, [snapshot?.currentPlayer, snapshot?.turnExpiresAt, snapshot?.status, localSeat]);
+
+  // Desktop keyboard controls: Space/R rolls, 1–4 select a legal pawn, Escape closes panels
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+      if (settingsModalOpen || shareModalOpen || activityFeedOpen) return;
+      if (!snapshot || snapshot.status !== 'playing') return;
+
+      const key = e.key.toLowerCase();
+      if ((key === ' ' || key === 'r') && isMyTurn && snapshot.dice === null && !rolling && !isMoving) {
+        e.preventDefault();
+        rollDice();
+        return;
+      }
+      if (/^[1-4]$/.test(key) && isMyTurn && snapshot.dice !== null && !isMoving) {
+        const tokenIdx = Number(key) - 1;
+        if (legal.includes(tokenIdx)) {
+          e.preventDefault();
+          moveToken(tokenIdx);
+        }
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [
+    snapshot,
+    isMyTurn,
+    rolling,
+    isMoving,
+    legal,
+    settingsModalOpen,
+    shareModalOpen,
+    activityFeedOpen,
+  ]);
+
   /**
    * Master Design Top Header
    * Matching 3-color clover logo + LUDO + MULTIPLAYER pill + circular controls.
@@ -1052,6 +1214,13 @@ function App() {
           <span>Reconnecting to game server… Actions locked.</span>
         </div>
       )}
+
+      {reconnectToast && connected && (
+        <div className="reconnect-success-toast" role="status">
+          <span className="reconnect-success-icon">✓</span>
+          <span>Reconnected — you're back at the table.</span>
+        </div>
+      )}
     </>
   );
 
@@ -1070,6 +1239,10 @@ function App() {
         onClose={() => setSettingsModalOpen(false)}
         soundEnabled={!isMuted}
         onToggleSound={toggleSound}
+        sfxVolume={sfxVolume}
+        onVolumeChange={changeVolume}
+        captureHints={captureHints}
+        onToggleCaptureHints={toggleCaptureHints}
         hapticEnabled={hapticEnabled}
         onToggleHaptic={toggleHaptic}
         reducedMotion={reducedMotion}
@@ -1088,6 +1261,34 @@ function App() {
       />
     </>
   );
+
+  // =========================================================================
+  // VIEW 0: RESTORING A SAVED TABLE (skeletons, no layout jump)
+  // =========================================================================
+  if (!snapshot && restoringSession) {
+    return (
+      <GameBackground dimmed>
+        <main className="match-skeleton-page" aria-busy="true" aria-label="Restoring your match">
+          {renderHeader()}
+          <div className="match-skeleton">
+            <div className="skeleton-info-bar skeleton-shimmer" />
+            <div className="skeleton-ribbon">
+              {[0, 1, 2, 3].map((i) => (
+                <div key={i} className="skeleton-player-card skeleton-shimmer" />
+              ))}
+            </div>
+            <div className="skeleton-main">
+              <div className="skeleton-board skeleton-shimmer" />
+              <div className="skeleton-side">
+                <div className="skeleton-panel skeleton-shimmer" />
+                <div className="skeleton-panel skeleton-shimmer" />
+              </div>
+            </div>
+          </div>
+        </main>
+      </GameBackground>
+    );
+  }
 
   // =========================================================================
   // VIEW 1: LANDING & MATCHMAKING
@@ -1411,8 +1612,34 @@ function App() {
   // =========================================================================
   const displayDiceValue = rolling ? lastDice : (snapshot.dice ?? lastDice);
 
+  const recentNotice =
+    snapshot.lastNotice && Date.now() - snapshot.lastNotice.timestamp < 6000 ? snapshot.lastNotice : null;
+  let turnPhase: TurnPhase = 'waiting';
+  let turnNoticeMessage: string | null = null;
+  if (isMyTurn) {
+    if (snapshot.dice === null) {
+      turnPhase = recentNotice?.type === 'extra_turn' ? 'extra' : 'roll';
+    } else if (legal.length > 0) {
+      turnPhase = 'select';
+    } else {
+      turnPhase = 'passed';
+    }
+  } else if (
+    recentNotice?.type === 'extra_turn' &&
+    recentNotice.seat === snapshot.currentPlayer &&
+    snapshot.dice === null
+  ) {
+    turnPhase = 'extra';
+  } else if (
+    recentNotice &&
+    (recentNotice.type === 'timeout' || recentNotice.type === 'auto_pass' || recentNotice.type === 'three_sixes')
+  ) {
+    turnPhase = 'notice';
+    turnNoticeMessage = recentNotice.message;
+  }
+
   return (
-    <GameBackground>
+    <GameBackground dimmed>
       <main className={`game-screen-main ${reducedMotion ? 'reduced-motion' : ''}`}>
         {renderHeader()}
 
@@ -1434,7 +1661,13 @@ function App() {
             localSeat={localSeat}
             tokens={snapshot.tokens}
             turnTimeLeft={turnTimeLeft}
+            expanded={ribbonExpanded}
+            onToggleExpanded={() => setRibbonExpanded((prev) => !prev)}
           />
+
+          <div className="sr-only" aria-live="polite" aria-atomic="true">
+            {turnAnnouncement}
+          </div>
 
           <div className="game-main-stage">
             {/* Main 2D Board Stage */}
@@ -1450,17 +1683,43 @@ function App() {
                   isMoving={isMoving}
                   onTokenClick={moveToken}
                   reducedMotion={reducedMotion}
+                  showCaptureHints={captureHints}
                 />
               </div>
 
-              {/* Recreated Turn Indicator Bar Directly Below Board */}
+              <div className="board-under-rail">
+              {/* Landscape keeps player identity and progress visible without the ribbon */}
+              <div className="landscape-seat-strip" aria-label="Players and progress">
+                {snapshot.players.map((p) => {
+                  const home = (snapshot.tokens[p.seat] || []).filter(
+                    (t) => t.kind === 'home' && t.progress >= 6
+                  ).length;
+                  return (
+                    <div
+                      key={p.id}
+                      className={`landscape-seat ${p.seat === snapshot.currentPlayer ? 'is-active' : ''} ${
+                        !p.connected ? 'is-offline' : ''
+                      }`}
+                    >
+                      <PlayerAvatar seat={p.seat} name={p.name} size={24} isHost={p.id === snapshot.host} />
+                      <span className="landscape-seat-name">{p.name}</span>
+                      <span className="landscape-seat-home">{home}/4</span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Turn state bar: roll, select, extra turn, timeout */}
               <TurnIndicatorBar
                 playerName={activePlayer?.name || 'Player'}
+                seat={snapshot.currentPlayer}
                 isMyTurn={isMyTurn}
                 timeLeft={turnTimeLeft}
                 maxTime={15}
                 diceValue={snapshot.dice}
                 hasLegalMoves={legal.length > 0}
+                phase={turnPhase}
+                noticeMessage={turnNoticeMessage}
               />
 
               {/* Master Recreated Bottom Gameplay Controls (Mobile Bottom Dock) */}
@@ -1483,6 +1742,7 @@ function App() {
                 onOpenShare={() => setShareModalOpen(true)}
                 onOpenActivity={() => setActivityFeedOpen((prev) => !prev)}
               />
+              </div>
             </div>
 
             {/* Desktop Right Side Control & Telemetry Panel (Hidden on Mobile < 1024px) */}
