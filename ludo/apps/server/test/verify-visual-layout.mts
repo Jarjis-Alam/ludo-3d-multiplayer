@@ -399,7 +399,11 @@ async function checkMatch(page: Page, vp: (typeof VIEWPORTS)[number], withScreen
   check(feedToggle === 'none', 'match: no stray standalone feed control at the page edge');
 
   const wrapper = await requireBox(page, '.game-screen-wrapper');
-  const infoBar = await requireBox(page, '.room-info-bar-container');
+  const infoBarHidden = await page.evaluate(() => {
+    const el = document.querySelector('.room-info-bar-container');
+    return !el || window.getComputedStyle(el).display === 'none';
+  });
+  const infoBar = infoBarHidden ? null : await requireBox(page, '.room-info-bar-container');
   const ribbon = await requireBox(page, '.mobile-player-ribbon');
   const playerCards = await boxesOf(page, '.master-player-card');
   const frame = await requireBox(page, '.ludo-arena-frame');
@@ -439,7 +443,19 @@ async function checkMatch(page: Page, vp: (typeof VIEWPORTS)[number], withScreen
   }
 
   check(wrapper.x >= -EPS && wrapper.x + wrapper.w <= vp.width + EPS, 'match: wrapper respects the page gutter');
-  check(inside(infoBar, wrapper), 'match: room info bar stays inside the wrapper');
+  const shortPortrait = vp.width < 1024 && vp.height > vp.width && vp.height <= 740;
+  if (shortPortrait) {
+    check(infoBarHidden, 'match: short portrait reclaims the room strip for the board');
+  } else if (infoBar) {
+    check(inside(infoBar, wrapper), 'match: room info bar stays inside the wrapper');
+  }
+  if (vp.width < 1024 && vp.height > vp.width) {
+    const viewport = await page.evaluate(() => ({
+      inner: window.innerHeight,
+      scroll: document.documentElement.scrollHeight,
+    }));
+    check(viewport.scroll <= viewport.inner + 1, `match: portrait page fits the viewport (${viewport.scroll} <= ${viewport.inner})`);
+  }
   check(inside(ribbon, wrapper), 'match: player ribbon stays inside the wrapper');
   check(playerCards.length >= 2, `match: player cards render (${playerCards.length})`);
   for (const card of playerCards) {
@@ -467,6 +483,9 @@ async function checkMatch(page: Page, vp: (typeof VIEWPORTS)[number], withScreen
     for (const button of controlButtons) {
       check(inside(button, dockControls, 1), `match: dock button stays inside the control row (${fmt(button)})`);
       check(button.w >= 40 && button.h >= 40, `match: dock control keeps a large touch target (${button.w.toFixed(0)}×${button.h.toFixed(0)})`);
+      if (vp.width < 1024 && vp.height > vp.width) {
+        check(button.w >= 44 && button.h >= 44, `match: portrait dock control keeps a 44px touch target (${button.w.toFixed(0)}×${button.h.toFixed(0)})`);
+      }
     }
     const activityBtn = await boxOf(page, '.dock-activity-pill-btn');
     if (activityBtn) check(activityBtn.x + activityBtn.w <= vp.width - EPS, `match: activity control stays on screen (${fmt(activityBtn)})`);
