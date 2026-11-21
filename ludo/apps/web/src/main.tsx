@@ -1278,7 +1278,7 @@ function App() {
           {renderHeader()}
           <div className="lobby-container">
             <div className="lobby-head-card master-card">
-              <div>
+              <div className="lobby-head-info">
                 <span className="hero-eyebrow">PRIVATE GAME LOBBY</span>
                 <div className="room-code-tag">ROOM #{snapshot.roomCode}</div>
                 <p className="hero-lede">
@@ -1338,7 +1338,7 @@ function App() {
               <span className="lobby-seats-count font-mono text-sm text-amber-200">
                 {snapshot.players.length}/4 Players · {snapshot.players.filter((p) => p.connected).length} Connected
               </span>
-              <div className="flex gap-2">
+              <div className="lobby-footer-actions">
                 <button
                   type="button"
                   className="primary-game-btn lobby-start-btn"

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
+import { Modal } from './Modal';
 
 interface ShareModalProps {
   roomCode: string;
@@ -41,8 +42,6 @@ export const ShareModal: React.FC<ShareModalProps> = ({
       .catch((err) => console.error('Failed to generate QR code', err));
   }, [isOpen, inviteUrl]);
 
-  if (!isOpen) return null;
-
   const handleCopyCode = async () => {
     try {
       await navigator.clipboard.writeText(roomCode);
@@ -76,87 +75,77 @@ export const ShareModal: React.FC<ShareModalProps> = ({
       });
     } catch (err: any) {
       if (err.name !== 'AbortError') {
-        // Fallback to copying link
         handleCopyLink();
       }
     }
   };
 
   return (
-    <div className="modal-backdrop" onClick={onClose} role="dialog" aria-modal="true" aria-label="Invite Friends">
-      <div className="modal-card share-modal-card" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <div className="modal-title-group">
-            <span className="modal-badge-eyebrow">PRIVATE SALON</span>
-            <h3 className="modal-title">Invite Players</h3>
-          </div>
-          <button
-            type="button"
-            className="modal-close-btn"
-            onClick={onClose}
-            aria-label="Close dialog"
-          >
-            ✕
-          </button>
-        </div>
-
-        <div className="modal-body share-modal-body">
-          {/* 1. Large Room Code Pill */}
-          <div className="share-code-box">
-            <span className="share-label">ROOM CODE</span>
-            <div className="share-code-display">
-              <span className="share-code-text">#{roomCode}</span>
-              <button
-                type="button"
-                className={`share-action-btn ${copiedCode ? 'btn-copied' : ''}`}
-                onClick={handleCopyCode}
-              >
-                {copiedCode ? '✓ COPIED' : '📋 COPY CODE'}
-              </button>
-            </div>
-          </div>
-
-          {/* 2. QR Code Scannable Card */}
-          <div className="share-qr-section">
-            <span className="share-label">SCAN TO JOIN INSTANTLY</span>
-            <div className="share-qr-wrapper">
-              {qrSvg ? (
-                <div
-                  className="share-qr-svg-container"
-                  dangerouslySetInnerHTML={{ __html: qrSvg }}
-                  aria-label={`QR Code to join room ${roomCode}`}
-                />
-              ) : (
-                <div className="share-qr-placeholder">Generating QR…</div>
-              )}
-            </div>
-            <p className="share-qr-hint">Point phone camera to open salon automatically</p>
-          </div>
-
-          {/* 3. Direct Share Link & Native Share Button */}
-          <div className="share-link-group">
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      eyebrow="PRIVATE SALON"
+      title="Invite Players"
+      ariaLabel="Invite Friends"
+      maxWidth={460}
+      className="share-modal-card"
+    >
+      <div className="share-modal-body">
+        {/* 1. Large Room Code Pill */}
+        <div className="share-code-box">
+          <span className="share-label">ROOM CODE</span>
+          <div className="share-code-display">
+            <span className="share-code-text">#{roomCode}</span>
             <button
               type="button"
-              className={`btn-secondary share-copy-link-btn ${copiedLink ? 'btn-copied' : ''}`}
-              onClick={handleCopyLink}
+              className={`share-action-btn ${copiedCode ? 'btn-copied' : ''}`}
+              onClick={handleCopyCode}
             >
-              {copiedLink ? '✓ LINK COPIED!' : '🔗 COPY INVITATION LINK'}
+              {copiedCode ? '✓ COPIED' : '📋 COPY CODE'}
             </button>
+          </div>
+        </div>
 
-            {hasNativeShare && (
-              <button
-                type="button"
-                className="btn-primary share-native-btn"
-                onClick={handleNativeShare}
-              >
-                📤 SHARE VIA APPS (WhatsApp, Messages, etc.)
-              </button>
+        {/* 2. QR Code Scannable Card */}
+        <div className="share-qr-section">
+          <span className="share-label">SCAN TO JOIN INSTANTLY</span>
+          <div className="share-qr-wrapper">
+            {qrSvg ? (
+              <div
+                className="share-qr-svg-container"
+                dangerouslySetInnerHTML={{ __html: qrSvg }}
+                aria-label={`QR Code to join room ${roomCode}`}
+              />
+            ) : (
+              <div className="share-qr-placeholder">Generating QR…</div>
             )}
           </div>
-
-          {shareError && <div className="share-error-toast">{shareError}</div>}
+          <p className="share-qr-hint">Point phone camera to open salon automatically</p>
         </div>
+
+        {/* 3. Direct Share Link & Native Share Button */}
+        <div className="share-link-group">
+          <button
+            type="button"
+            className={`btn-secondary share-copy-link-btn ${copiedLink ? 'btn-copied' : ''}`}
+            onClick={handleCopyLink}
+          >
+            {copiedLink ? '✓ LINK COPIED!' : '🔗 COPY INVITATION LINK'}
+          </button>
+
+          {hasNativeShare && (
+            <button
+              type="button"
+              className="btn-primary share-native-btn"
+              onClick={handleNativeShare}
+            >
+              📤 SHARE VIA APPS (WhatsApp, Messages, etc.)
+            </button>
+          )}
+        </div>
+
+        {shareError && <div className="share-error-toast">{shareError}</div>}
       </div>
-    </div>
+    </Modal>
   );
 };
