@@ -659,6 +659,20 @@ body {
     justify-content: center;
     gap: 36px;
   }
+
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animating-pawn-wrapper {
+    transition: none;
+  }
+
+  .pawn-hop-bounce-inner,
+  .captured-pawn-inner,
+  .capture-shockwave-ring,
+  .goal-landing-ring {
+    animation: none;
+  }
 }
 
 .board-column {
@@ -1148,16 +1162,105 @@ body {
   transform: translate(-50%, -50%);
   pointer-events: none;
   z-index: 45;
+  transition: left var(--step-ms, 150ms) linear, top var(--step-ms, 150ms) linear;
+  will-change: left, top;
+  filter: drop-shadow(0 5px 5px rgba(0, 0, 0, 0.35));
+}
+
+/* Grounded contact shadow that separates the pawn from the board while it hops */
+.animating-pawn-wrapper::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -7%;
+  width: 82%;
+  height: 22%;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.42) 0%, transparent 72%);
+  z-index: -1;
+  pointer-events: none;
 }
 
 .pawn-hop-bounce-inner {
-  animation: hopBounce 0.24s cubic-bezier(0.25, 1, 0.5, 1);
+  animation: pawnStepHop var(--step-ms, 150ms) cubic-bezier(0.33, 0.66, 0.5, 1) both;
+  transform-origin: 50% 88%;
 }
 
-@keyframes hopBounce {
+@keyframes pawnStepHop {
+  0% { transform: translateY(0) rotate(var(--pawn-lean, 0deg)) scale(1); }
+  38% { transform: translateY(-28%) rotate(var(--pawn-lean, 0deg)) scale(1.07, 0.95); }
+  72% { transform: translateY(-10%) rotate(var(--pawn-lean, 0deg)) scale(1.02, 1); }
+  100% { transform: translateY(0) rotate(var(--pawn-lean, 0deg)) scale(1); }
+}
+
+/* Deployment from the yard: a higher launch arc with a soft rise */
+.deploying-pawn .pawn-hop-bounce-inner {
+  animation-name: pawnDeployHop;
+}
+
+@keyframes pawnDeployHop {
+  0% { transform: translateY(0) scale(0.92); opacity: 0.65; }
+  45% { transform: translateY(-55%) rotate(var(--pawn-lean, 0deg)) scale(1.12); opacity: 1; }
+  100% { transform: translateY(0) rotate(var(--pawn-lean, 0deg)) scale(1); opacity: 1; }
+}
+
+/* Entry into the centre goal: a brighter, slower final hop */
+.goal-entry-pawn {
+  z-index: 47;
+}
+
+.goal-entry-pawn .pawn-hop-bounce-inner {
+  animation-name: pawnGoalHop;
+  filter: drop-shadow(0 0 8px rgba(255, 200, 61, 0.85));
+}
+
+@keyframes pawnGoalHop {
   0% { transform: translateY(0) scale(1); }
-  50% { transform: translateY(-16px) scale(1.15); }
+  45% { transform: translateY(-42%) scale(1.18); }
   100% { transform: translateY(0) scale(1); }
+}
+
+/* Captured pawn returning to its yard */
+.captured-return-arc {
+  z-index: 46;
+}
+
+.captured-return-arc .captured-pawn-inner {
+  animation: capturedSpin 0.42s linear infinite;
+  transform-origin: 50% 50%;
+  opacity: 0.92;
+}
+
+@keyframes capturedSpin {
+  from { transform: rotate(0deg) scale(0.88); }
+  to { transform: rotate(-360deg) scale(0.88); }
+}
+
+/* Impact rings for captures and goal finishes */
+.capture-shockwave-ring,
+.goal-landing-ring {
+  position: absolute;
+  width: 13%;
+  aspect-ratio: 1 / 1;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  border: 2px solid #FFC83D;
+  box-shadow: 0 0 18px rgba(255, 200, 61, 0.8), inset 0 0 12px rgba(255, 200, 61, 0.35);
+  pointer-events: none;
+  z-index: 44;
+  animation: captureShockwave 0.6s cubic-bezier(0.2, 0.7, 0.3, 1) forwards;
+}
+
+.goal-landing-ring {
+  border-color: #FFF0D9;
+  box-shadow: 0 0 26px rgba(255, 200, 61, 0.9), inset 0 0 16px rgba(255, 240, 217, 0.5);
+  animation-duration: 0.75s;
+}
+
+@keyframes captureShockwave {
+  0% { opacity: 0.95; transform: translate(-50%, -50%) scale(0.4); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(3); }
 }
 
 /* ==========================================================================
@@ -1344,26 +1447,33 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
+  gap: 10px;
   position: relative;
+  min-width: 0;
 }
 
 .master-dice-elevated-mound {
   position: relative;
-  background: #312166;
+  width: 100%;
+  max-width: 190px;
+  box-sizing: border-box;
+  background: radial-gradient(circle at 50% 28%, #3A2A78 0%, #2A2050 100%);
   border: 2px solid #7650F5;
-  border-bottom: none;
-  border-radius: 26px 26px 0 0;
-  padding: 12px 28px 8px;
+  border-radius: 22px;
+  padding: 10px 16px;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 -4px 20px rgba(118, 80, 245, 0.35);
-  transform: translateY(4px);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.45), inset 0 2px 10px rgba(0, 0, 0, 0.35),
+    0 0 0 6px rgba(118, 80, 245, 0.06);
   z-index: 10;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .mound-glow-active {
-  box-shadow: 0 -6px 26px rgba(118, 80, 245, 0.6);
+  border-color: #965BFF;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.45), 0 0 26px rgba(118, 80, 245, 0.55),
+    0 0 0 6px rgba(118, 80, 245, 0.1);
 }
 
 .master-tactile-dice-btn {
@@ -1371,6 +1481,9 @@ body {
   border: none;
   cursor: pointer;
   position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   transition: transform 0.15s ease;
 }
 
@@ -1388,16 +1501,25 @@ body {
 }
 
 .master-tactile-dice-btn.rolling-tumbling {
-  animation: diceTumble 0.5s cubic-bezier(0.25, 1, 0.5, 1);
+  animation: diceTumble 0.5s cubic-bezier(0.25, 1, 0.5, 1), diceShake 0.32s ease-in-out;
 }
 
 @keyframes diceTumble {
   0% { transform: rotate(0deg) scale(0.9); }
-  25% { transform: rotate(90deg) scale(1.1); }
-  50% { transform: rotate(180deg) scale(0.95); }
-  75% { transform: rotate(270deg) scale(1.05); }
+  25% { transform: rotate(90deg) scale(1.12); }
+  50% { transform: rotate(180deg) scale(0.94); }
+  75% { transform: rotate(270deg) scale(1.06); }
   100% { transform: rotate(360deg) scale(1); }
 }
+
+@keyframes diceShake {
+  0%, 100% { translate: 0 0; }
+  20% { translate: -3px 1px; }
+  40% { translate: 3px -1px; }
+  60% { translate: -2px -1px; }
+  80% { translate: 2px 1px; }
+}
+
 
 /* Action Sparkle Lines */
 .dice-action-sparkles {
@@ -1504,9 +1626,12 @@ body {
 }
 
 .master-tap-roll-btn.btn-disabled {
-  opacity: 0.55;
+  background: rgba(255, 200, 61, 0.1);
+  color: #FFD77A;
+  border: 1.5px solid rgba(255, 200, 61, 0.35);
   cursor: not-allowed;
   box-shadow: none;
+  opacity: 1;
 }
 
 .master-tap-roll-btn.btn-urgent-pulse {
@@ -3481,5 +3606,13 @@ body {
 
   .victory-actions-group > button {
     width: 100%;
+  }
+}
+
+/* Desktop uses the tactile dice tray in the side panel; the mobile dock is redundant.
+   Declared last so it overrides the base dock rule above. */
+@media (min-width: 1024px) {
+  .master-bottom-dock {
+    display: none;
   }
 }

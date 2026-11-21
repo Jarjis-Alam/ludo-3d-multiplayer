@@ -337,6 +337,10 @@ export const Board2D: React.FC<Board2DProps> = ({
     x: number;
     y: number;
     hopIndex: number;
+    mode: 'deploy' | 'move' | 'home' | 'goal';
+    stepMs: number;
+    lean: number;
+    size: number;
   } | null>(null);
 
   const [capturedPawnAnim, setCapturedPawnAnim] = useState<{
@@ -347,6 +351,7 @@ export const Board2D: React.FC<Board2DProps> = ({
   } | null>(null);
 
   const [captureEffect, setCaptureEffect] = useState<{ x: number; y: number } | null>(null);
+  const [goalBurst, setGoalBurst] = useState<{ x: number; y: number } | null>(null);
   const [isAnimating, setIsAnimating] = useState<boolean>(false);
 
   const lastCommittedTokensRef = useRef<BoardToken[][] | null>(null);
@@ -439,9 +444,30 @@ export const Board2D: React.FC<Board2DProps> = ({
       // Clear any running animation timers
       animTimeoutsRef.current.forEach(clearTimeout);
       animTimeoutsRef.current = [];
+      setGoalBurst(null);
 
       setIsAnimating(true);
-      const stepDuration = 115; // ~115ms per cell hop
+
+      const mode: 'deploy' | 'move' | 'home' | 'goal' =
+        oldPos.kind === 'base'
+          ? 'deploy'
+          : newPos.kind === 'home' && newPos.progress >= 6
+          ? 'goal'
+          : newPos.kind === 'home'
+          ? 'home'
+          : 'move';
+
+      // Pacing per cell: deployments launch slower, goal entry settles slower
+      const stepDuration = mode === 'deploy' ? 240 : mode === 'goal' ? 190 : 150;
+      const initialDelay = 60;
+
+      // Match the pawn size to its destination so landing does not resize the token
+      const movingSize =
+        newPos.kind === 'base' ? 34 : newPos.kind === 'home' && newPos.progress >= 6 ? 20 : 28;
+
+      // Lean into horizontal travel so the pawn feels like it is running
+      const leanFor = (from: { x: number; y: number }, to: { x: number; y: number }) =>
+        Math.max(-12, Math.min(12, (to.x - from.x) * 2.2));
 
       // Set initial position
       setAnimatingPawn({
@@ -450,11 +476,17 @@ export const Board2D: React.FC<Board2DProps> = ({
         x: waypoints[0].x,
         y: waypoints[0].y,
         hopIndex: 0,
+        mode,
+        stepMs: stepDuration,
+        lean: 0,
+        size: movingSize,
       });
 
-      // Animate through subsequent waypoints with continuous position interpolation
+      // Animate through subsequent waypoints; CSS interpolates left/top between them
       waypoints.slice(1).forEach((wp, idx) => {
         const stepNum = idx + 1;
+        const lean = leanFor(waypoints[stepNum - 1], wp);
+
         const t = setTimeout(() => {
           setAnimatingPawn({
             seat: movedSeat!,
@@ -462,6 +494,10 @@ export const Board2D: React.FC<Board2DProps> = ({
             x: wp.x,
             y: wp.y,
             hopIndex: stepNum,
+            mode,
+            stepMs: stepDuration,
+            lean,
+            size: movingSize,
           });
           AudioEngine.playHop();
 
@@ -471,6 +507,8 @@ export const Board2D: React.FC<Board2DProps> = ({
             if (capturedSeat !== null && capturedTokenIdx !== null && capturedOldPos) {
               AudioEngine.playStrike();
               setCaptureEffect({ x: wp.x, y: wp.y });
+              const effectTimer = setTimeout(() => setCaptureEffect(null), 700);
+              animTimeoutsRef.current.push(effectTimer);
 
               const returnWaypoints = computeCaptureReturnWaypoints(
                 capturedOldPos,
@@ -478,8 +516,8 @@ export const Board2D: React.FC<Board2DProps> = ({
                 capturedTokenIdx
               );
 
-              // Animate captured pawn returning backwards along track
-              const returnStepMs = 55;
+              // Animate captured pawn spinning back to its yard
+              const returnStepMs = 45;
               returnWaypoints.forEach((rwp, rIdx) => {
                 const rt = setTimeout(() => {
                   setCapturedPawnAnim({
@@ -491,12 +529,12 @@ export const Board2D: React.FC<Board2DProps> = ({
 
                   if (rIdx === returnWaypoints.length - 1) {
                     AudioEngine.playExit();
-                    setTimeout(() => {
+                    const settle = setTimeout(() => {
                       setAnimatingPawn(null);
                       setCapturedPawnAnim(null);
-                      setCaptureEffect(null);
                       setIsAnimating(false);
-                    }, 120);
+                    }, 140);
+                    animTimeoutsRef.current.push(settle);
                   }
                 }, rIdx * returnStepMs);
                 animTimeoutsRef.current.push(rt);
@@ -511,14 +549,21 @@ export const Board2D: React.FC<Board2DProps> = ({
                 AudioEngine.playLand();
               }
 
-              setTimeout(() => {
+              if (mode === 'goal') {
+                setGoalBurst({ x: wp.x, y: wp.y });
+                const burstTimer = setTimeout(() => setGoalBurst(null), 800);
+                animTimeoutsRef.current.push(burstTimer);
+              }
+
+              // Let the final glide finish before removing the overlay pawn
+              const settle = setTimeout(() => {
                 setAnimatingPawn(null);
-                setCaptureEffect(null);
                 setIsAnimating(false);
-              }, 120);
+              }, stepDuration + 90);
+              animTimeoutsRef.current.push(settle);
             }
           }
-        }, stepNum * stepDuration);
+        }, initialDelay + stepNum * stepDuration);
 
         animTimeoutsRef.current.push(t);
       });
@@ -670,14 +715,24 @@ export const Board2D: React.FC<Board2DProps> = ({
             {animatingPawn && (
               <div
                 key={`pawn-anim-${animatingPawn.seat}-${animatingPawn.tokenIdx}`}
-                className="animating-pawn-wrapper"
-                style={{
-                  left: `${animatingPawn.x}%`,
-                  top: `${animatingPawn.y}%`,
-                }}
+                className={`animating-pawn-wrapper ${
+                  animatingPawn.mode === 'deploy'
+                    ? 'deploying-pawn'
+                    : animatingPawn.mode === 'goal'
+                    ? 'goal-entry-pawn'
+                    : ''
+                }`}
+                style={
+                  {
+                    left: `${animatingPawn.x}%`,
+                    top: `${animatingPawn.y}%`,
+                    '--step-ms': `${animatingPawn.stepMs}ms`,
+                    '--pawn-lean': `${animatingPawn.lean}deg`,
+                  } as React.CSSProperties
+                }
               >
                 <div key={`hop-inner-${animatingPawn.hopIndex}`} className="pawn-hop-bounce-inner">
-                  <PawnToken color={SEAT_COLORS[animatingPawn.seat]} size={38} />
+                  <PawnToken color={SEAT_COLORS[animatingPawn.seat]} size={animatingPawn.size} />
                 </div>
               </div>
             )}
@@ -692,16 +747,31 @@ export const Board2D: React.FC<Board2DProps> = ({
               />
             )}
 
+            {goalBurst && (
+              <div
+                className="goal-landing-ring"
+                style={{
+                  left: `${goalBurst.x}%`,
+                  top: `${goalBurst.y}%`,
+                }}
+              />
+            )}
+
             {capturedPawnAnim && (
               <div
                 key={`captured-anim-${capturedPawnAnim.seat}-${capturedPawnAnim.tokenIdx}`}
                 className="animating-pawn-wrapper captured-return-arc"
-                style={{
-                  left: `${capturedPawnAnim.x}%`,
-                  top: `${capturedPawnAnim.y}%`,
-                }}
+                style={
+                  {
+                    left: `${capturedPawnAnim.x}%`,
+                    top: `${capturedPawnAnim.y}%`,
+                    '--step-ms': '45ms',
+                  } as React.CSSProperties
+                }
               >
-                <PawnToken color={SEAT_COLORS[capturedPawnAnim.seat]} size={32} />
+                <div className="captured-pawn-inner">
+                  <PawnToken color={SEAT_COLORS[capturedPawnAnim.seat]} size={34} />
+                </div>
               </div>
             )}
           </div>

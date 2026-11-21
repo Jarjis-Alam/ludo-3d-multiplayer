@@ -406,6 +406,37 @@ async function checkMatch(page: Page, vp: (typeof VIEWPORTS)[number], withScreen
   const board = await requireBox(page, '#ludoBoard');
   const turnBar = await requireBox(page, '.turn-indicator-bar-container');
   const dock = await requireBox(page, '.master-bottom-dock');
+  const dockVisible = await page.evaluate(() => {
+    const el = document.querySelector('.master-bottom-dock');
+    if (!el) return false;
+    const rect = el.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0 && window.getComputedStyle(el).display !== 'none';
+  });
+
+  // A single dice control must be visible: dock on phones/tablets, tray on desktop
+  const visibleDice = await page.evaluate(() => {
+    let count = 0;
+    const selectors = ['.master-tactile-dice-btn', '.dice-cube-btn'];
+    for (const selector of selectors) {
+      const nodes = document.querySelectorAll(selector);
+      for (let i = 0; i < nodes.length; i += 1) {
+        const rect = nodes[i].getBoundingClientRect();
+        const style = window.getComputedStyle(nodes[i]);
+        if (rect.width > 1 && rect.height > 1 && style.display !== 'none' && style.visibility !== 'hidden') {
+          count += 1;
+        }
+      }
+    }
+    return count;
+  });
+  check(visibleDice === 1, `match: exactly one dice control is rendered (${visibleDice})`);
+  if (dockVisible) {
+    check(vp.width < 1024, 'match: mobile dock only renders below the desktop breakpoint');
+  } else {
+    check(vp.width >= 1024, 'match: desktop uses the side-panel dice tray only');
+    const trayDice = await boxOf(page, '.dice-cube-btn');
+    check(!!trayDice, 'match: desktop dice tray is visible');
+  }
 
   check(wrapper.x >= -EPS && wrapper.x + wrapper.w <= vp.width + EPS, 'match: wrapper respects the page gutter');
   check(inside(infoBar, wrapper), 'match: room info bar stays inside the wrapper');
@@ -418,18 +449,26 @@ async function checkMatch(page: Page, vp: (typeof VIEWPORTS)[number], withScreen
   check(Math.abs(frame.w - frame.h) <= 2, `match: board frame stays square (${frame.w.toFixed(1)}×${frame.h.toFixed(1)})`);
   check(inside(board, frame), 'match: board grid stays inside its frame');
   check(inside(turnBar, wrapper), 'match: turn indicator stays inside the wrapper');
-  check(inside(dock, wrapper), 'match: bottom dock stays inside the wrapper');
   check(turnBar.y >= frame.y + frame.h - 4, 'match: turn indicator does not overlap the board');
-  check(dock.y >= turnBar.y + turnBar.h - 4, 'match: bottom dock does not overlap the turn indicator');
-  const rollBtn = await boxOf(page, '.master-tap-roll-btn');
-  if (rollBtn) check(inside(rollBtn, dock), 'match: roll button stays inside the dock');
-  const dockChildren = await boxesOf(page, '.master-bottom-dock > .dock-flank, .master-bottom-dock > .dock-center-stage');
-  check(dockChildren.length >= 3, 'match: dock renders both flanks and the centre stage');
-  for (const child of dockChildren) {
-    check(inside(child, dock, 1), `match: dock control stays inside the dock (${fmt(child)})`);
+
+  if (dockVisible) {
+    check(inside(dock, wrapper), 'match: bottom dock stays inside the wrapper');
+    check(dock.y >= turnBar.y + turnBar.h - 4, 'match: bottom dock does not overlap the turn indicator');
+    const rollBtn = await boxOf(page, '.master-tap-roll-btn');
+    if (rollBtn) check(inside(rollBtn, dock), 'match: roll button stays inside the dock');
+    const diceWell = await boxOf(page, '.master-dice-elevated-mound');
+    if (diceWell) check(inside(diceWell, dock), 'match: dice tray stays inside the dock');
+    const dockChildren = await boxesOf(page, '.master-bottom-dock > .dock-flank, .master-bottom-dock > .dock-center-stage');
+    check(dockChildren.length >= 3, 'match: dock renders both flanks and the centre stage');
+    for (const child of dockChildren) {
+      check(inside(child, dock, 1), `match: dock control stays inside the dock (${fmt(child)})`);
+    }
+    const activityBtn = await boxOf(page, '.dock-activity-pill-btn');
+    if (activityBtn) check(activityBtn.x + activityBtn.w <= vp.width - EPS, `match: activity control stays on screen (${fmt(activityBtn)})`);
+    if (rollBtn && diceWell) {
+      check(rollBtn.y >= diceWell.y + diceWell.h, `match: dice tray and roll button do not overlap (${(rollBtn.y - diceWell.y - diceWell.h).toFixed(1)}px gap)`);
+    }
   }
-  const activityBtn = await boxOf(page, '.dock-activity-pill-btn');
-  if (activityBtn) check(activityBtn.x + activityBtn.w <= vp.width - EPS, `match: activity control stays on screen (${fmt(activityBtn)})`);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   check(overflow <= 0, `match: page has no horizontal overflow (${overflow}px)`);
 
@@ -482,6 +521,64 @@ async function checkVictory(page: Page, vp: (typeof VIEWPORTS)[number], withScre
   }
 }
 
+async function checkPawnMotion(page: Page) {
+  const before = { ...mockPlaying, tokens: mockPlaying.tokens.map((seatTokens) => seatTokens.map((t) => ({ ...t }))) };
+  const after = { ...mockPlaying, tokens: mockPlaying.tokens.map((seatTokens) => seatTokens.map((t) => ({ ...t }))) };
+  // Red pawn on the track at progress 8 moves to progress 14 (six cells)
+  before.tokens[0][2] = { kind: 'path', progress: 8 };
+  after.tokens[0][2] = { kind: 'path', progress: 14 };
+
+  await page.evaluate((snap) => (window as any).__SET_MOCK_SNAPSHOT__(snap), before);
+  await page.waitForTimeout(150);
+  await page
+    .waitForFunction(() => !document.querySelector('.animating-pawn-wrapper'), null, { timeout: 4000 })
+    .catch(() => undefined);
+
+  await page.evaluate((snap) => (window as any).__SET_MOCK_SNAPSHOT__(snap), after);
+
+  const samples = await page.evaluate(
+    () =>
+      new Promise<Array<{ left: string; top: string } | null>>((resolve) => {
+        const frames: Array<{ left: string; top: string } | null> = [];
+        let ticks = 0;
+        const id = setInterval(() => {
+          const el = document.querySelector('.animating-pawn-wrapper');
+          if (!el) {
+            frames.push(null);
+          } else {
+            const style = window.getComputedStyle(el);
+            frames.push({ left: style.left, top: style.top });
+          }
+          ticks += 1;
+          if (ticks >= 38) {
+            clearInterval(id);
+            resolve(frames);
+          }
+        }, 35);
+      })
+  );
+
+  const movingFrames = samples.filter((s): s is { left: string; top: string } => Boolean(s));
+  const uniqueFrames = new Set(movingFrames.map((s) => `${s.left}|${s.top}`)).size;
+  check(movingFrames.length >= 8, `motion: moving pawn stays visible through the move (${movingFrames.length} frames)`);
+  check(uniqueFrames >= 6, `motion: pawn is interpolated between cells instead of snapping (${uniqueFrames} distinct frames)`);
+
+  const points = movingFrames
+    .map((s) => ({ left: parseFloat(s.left), top: parseFloat(s.top) }))
+    .filter((p) => !Number.isNaN(p.left) && !Number.isNaN(p.top));
+  let maxJump = 0;
+  for (let i = 1; i < points.length; i += 1) {
+    maxJump = Math.max(maxJump, Math.hypot(points[i].left - points[i - 1].left, points[i].top - points[i - 1].top));
+  }
+  check(maxJump < 60, `motion: no teleport frames during movement (largest step ${maxJump.toFixed(1)}px)`);
+
+  await page.waitForTimeout(500);
+  const overlayGone = await page.evaluate(() => !document.querySelector('.animating-pawn-wrapper'));
+  check(overlayGone, 'motion: animation overlay is cleared once the move settles');
+  const landed = await page.locator('#ludoBoard .traditional-pawn-wrapper').count();
+  check(landed > 0, 'motion: landed pawn is restored to the board');
+}
+
 async function run() {
   console.log('================================================================');
   console.log('--- VISUAL LAYOUT AUDIT (rendered geometry) ---');
@@ -513,6 +610,11 @@ async function run() {
 
       console.log('  match');
       await checkMatch(page, vp, withScreenshot);
+
+      if (vp.name === '390x844') {
+        console.log('  pawn motion');
+        await checkPawnMotion(page);
+      }
 
       console.log('  victory');
       await checkVictory(page, vp, withScreenshot);
