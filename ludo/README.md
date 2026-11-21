@@ -1,35 +1,48 @@
-# 🎲 LUDO Monorepo Workspace
+# Ludo Monorepo Workspace
 
-The canonical monorepo workspace containing the game engine, backend server, and web client.
+The canonical pnpm workspace containing the game engine, realtime server and web client for Ludo Royal Arena.
 
-## 📦 Packages & Applications
+## Packages and applications
 
-| Path | Name | Description |
+| Path | Package | Description |
 | :--- | :--- | :--- |
-| `packages/game-engine` | `@ludo/game-engine` | Pure TypeScript deterministic Ludo rules engine, state transitions, legal move validator, and podium ranking logic. |
-| `apps/server` | `@ludo/server` | Authoritative Node.js + Express + Socket.IO server with atomic action queues, turn timer orchestration, and PostgreSQL / Supabase persistence. |
-| `apps/web` | `@ludo/web` | Mobile-first React 18 + Vite frontend featuring Royal Arena 2D styling, enamel pawns, GPU movement interpolation, and tactile audio. |
+| `packages/game-engine` | `@ludo/game-engine` | Pure, deterministic Ludo rules: legal moves, state transitions, home lanes and podium ranking. |
+| `apps/server` | `@ludo/server` | Authoritative Node.js + Express + Socket.IO API with per-room action queues, turn timers and optional PostgreSQL persistence. |
+| `apps/web` | `@ludo/web` | Mobile-first React 18 + Vite client implementing the Neo Arcade design system, animated pawns and tactile audio. |
 
----
+## Scripts
 
-## 🛠️ Monorepo Scripts
+Run the following from this directory (`ludo/`). From the repository root, prefix workspace scripts with `pnpm --dir ludo`.
 
 ```bash
-# Run unit & integration tests
-pnpm test          # Game engine rules tests (48 tests)
-pnpm test:server   # Server integration, netcode sync, & persistence tests (26 tests)
-pnpm test:all      # All packages test suite (74 tests)
-
-# Build all packages (game-engine, web, server)
-pnpm build
-
-# Launch development environment (server on :3001, web client on :5173)
+# Development — API on :3001, web client on :5173
 pnpm dev
 
-# QA & Simulation Suites
-pnpm qa:players    # Dynamic 2, 3, & 4-player seat rotation verification
-pnpm --filter @ludo/server exec tsx test/e2e-quality-of-life.mts # Playwright real multiplayer E2E
-pnpm --filter @ludo/server exec tsx test/run-20-matches.mts     # 20-match Monte Carlo simulation
+# Build the engine, client and server
+pnpm build
+
+# Tests
+pnpm test           # Game engine rules (48 tests)
+pnpm test:server    # Server integration, netcode and persistence (26 tests)
+pnpm test:all       # Complete workspace suite (74 tests)
+
+# Responsive visual layout audit (Playwright, 8 viewports, screenshots)
+pnpm --filter @ludo/server test:visual
+
+# Real multiplayer end-to-end match (Socket.IO + live browsers)
+pnpm --filter @ludo/server exec tsx test/e2e-quality-of-life.mts
+
+# QA and simulation
+pnpm qa:players     # 2 / 3 / 4-player rotation and lifecycle checks
+pnpm --filter @ludo/server exec tsx test/run-20-matches.mts
 ```
 
-For the complete project overview, visual showcase, and deployment guide, see the root [README.md](../README.md).
+The visual audit requires the Chromium browser once:
+
+```bash
+pnpm exec playwright install chromium
+```
+
+Its screenshots are written to `../docs/layout-qa/after/`.
+
+For the project overview, architecture, deployment guide and visual showcase, see the root [README.md](../README.md).

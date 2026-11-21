@@ -1,261 +1,323 @@
 <div align="center">
 
-# 🎲 LUDO ROYAL ARENA
-### Real-Time Server-Authoritative Multiplayer Board Game
+# LUDO ROYAL ARENA
 
-[![Node.js](https://img.shields.io/badge/Node.js-24.x%20LTS-339933?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.6-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![React](https://img.shields.io/badge/React-18.3-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
-[![Socket.IO](https://img.shields.io/badge/Socket.IO-4.8-010101?style=for-the-badge&logo=socket.io&logoColor=white)](https://socket.io/)
-[![Vite](https://img.shields.io/badge/Vite-5.4-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
-[![Vitest](https://img.shields.io/badge/Vitest-2.1-6E9F18?style=for-the-badge&logo=vitest&logoColor=white)](https://vitest.dev/)
-[![Playwright](https://img.shields.io/badge/Playwright-1.48-2EAD33?style=for-the-badge&logo=playwright&logoColor=white)](https://playwright.dev/)
-[![License](https://img.shields.io/badge/License-MIT-F59E0B?style=for-the-badge)](LICENSE)
+**A real-time, server-authoritative multiplayer Ludo game**
 
-<p align="center">
-  A zero-budget, production-ready, server-authoritative multiplayer Ludo game designed with a mobile-first philosophy, royal navy-and-gold aesthetics, traditional enamel pawn styling, smooth GPU movement animations, and deterministic netcode.
-</p>
+[![Node.js](https://img.shields.io/badge/Node.js-24.x_LTS-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![React](https://img.shields.io/badge/React-18.3-61DAFB?style=flat-square&logo=react&logoColor=black)](https://react.dev/)
+[![Socket.IO](https://img.shields.io/badge/Socket.IO-4.8-010101?style=flat-square&logo=socket.io&logoColor=white)](https://socket.io/)
+[![Vite](https://img.shields.io/badge/Vite-5.4-646CFF?style=flat-square&logo=vite&logoColor=white)](https://vitejs.dev/)
+[![Vitest](https://img.shields.io/badge/Vitest-2.1-6E9F18?style=flat-square&logo=vitest&logoColor=white)](https://vitest.dev/)
+[![Playwright](https://img.shields.io/badge/Playwright-1.65-2EAD33?style=flat-square&logo=playwright&logoColor=white)](https://playwright.dev/)
+[![License](https://img.shields.io/badge/License-MIT-F59E0B?style=flat-square)](https://opensource.org/licenses/MIT)
 
-[Key Features](#-key-features) •
-[Architecture](#-repository-architecture) •
-[Quick Start](#-quick-start) •
-[Netcode & Synchronization](#-state-synchronization--netcode) •
-[Testing & QA](#-testing--qa-verification) •
-[Deployment](#-production-deployment) •
-[Documentation](#-technical-audits--documentation)
+A zero-install, private-table Ludo experience for 2–4 players. Every dice roll, move, capture and finish is validated on the server; the client is a responsive, mobile-first interface built around a midnight-violet “Neo Arcade” design system.
 
----
+[Quick Start](#quick-start) · [Architecture](#architecture) · [Testing & QA](#testing--qa) · [Netcode](#state-synchronisation) · [Deployment](#deployment) · [Documentation](#documentation)
 
 </div>
 
-## 📸 Visual Showcase
+---
+
+## Overview
+
+Ludo Royal Arena is a pnpm monorepo with a deterministic rules engine, an authoritative Socket.IO server, and a React client. It is designed for private matches: one player creates a table, shares a six-character room code or QR invite, and the match starts automatically once at least two players have joined.
+
+| Capability | Implementation |
+| :--- | :--- |
+| Authoritative rules | All rolls and moves are produced and validated by `@ludo/game-engine` on the server |
+| Concurrency safety | Per-room FIFO action queue, idempotent `actionId` handling, monotonic state versions |
+| Session recovery | Snapshot resynchronisation after reconnects; no room reset required |
+| Match lifecycle | 2-player matches end on the first finish; 3–4 player matches end when second place finishes |
+| Persistence | In-memory by default; PostgreSQL / Supabase when `DATABASE_URL` is present |
+| Presentation | Responsive landing, lobby, match and victory screens with tactile audio and haptics |
+
+---
+
+## Visual Showcase
 
 <div align="center">
 
-| Mobile Portrait (390×844) | Active Bonus Turn | Tablet Arena (768×1024) |
+| Mobile Match (390×844) | Bonus Turn | Tablet Match (768×1024) |
 | :---: | :---: | :---: |
-| <img src="docs/mobile_screenshots/mobile_portrait_gameplay.png" width="260" alt="Mobile Portrait Gameplay" /> | <img src="docs/mobile_screenshots/mobile_bonus_turn_banner.png" width="260" alt="Bonus Turn Banner" /> | <img src="docs/mobile_screenshots/tablet_gameplay.png" width="260" alt="Tablet Arena" /> |
+| <img src="docs/mobile_screenshots/mobile_portrait_gameplay.png" width="240" alt="Mobile gameplay" /> | <img src="docs/mobile_screenshots/mobile_bonus_turn_banner.png" width="240" alt="Bonus turn banner" /> | <img src="docs/mobile_screenshots/tablet_gameplay.png" width="240" alt="Tablet gameplay" /> |
 
-| Desktop 1080p Arena | Mobile Landscape (844×390) |
+| Desktop Match (1080p) | Mobile Landscape |
 | :---: | :---: |
-| <img src="docs/screenshots/real_multiplayer_all_four_colors_home_lanes.png" width="460" alt="Desktop Match Overview" /> | <img src="docs/mobile_screenshots/mobile_landscape_gameplay.png" width="460" alt="Mobile Landscape Gameplay" /> |
+| <img src="docs/screenshots/real_multiplayer_all_four_colors_home_lanes.png" width="460" alt="Desktop match with all four home lanes" /> | <img src="docs/mobile_screenshots/mobile_landscape_gameplay.png" width="460" alt="Mobile landscape gameplay" /> |
 
 </div>
 
 ---
 
-## ✨ Key Features
+## Features
 
-### 🎮 Gameplay & Authentic Ludo Rules
-- **Server-Authoritative Dice & Movement**: All rolls and moves are validated and calculated strictly on the backend.
-- **Mathematical Movement Precision**: Exact movement calculation ($\Delta \text{progress} = \text{dice}$) across all 52 circuit cells and 6 home-lane steps.
-- **Home Runway & Exact Center Finish**: Pawns complete a full circuit and transition smoothly into their respective colored home runway, requiring an exact roll to enter the Center Goal.
-- **Capture & Finishing Bonus Turns**:
-  - Capturing an opponent pawn sends it back to the base socket and awards an extra turn.
-  - Bringing an individual pawn home into the Center Goal (`progress === 6`) immediately awards a bonus turn (*"Pawn reached home — Bonus turn!"*).
-- **Two-Winner Match Lifecycle**:
-  - **2-Player Matches**: Conclude immediately when the first player brings all 4 pawns home.
-  - **3-Player & 4-Player Matches**: The game continues seamlessly after 1st place finishes and only concludes when 2nd place achieves victory. Finished players are ranked on the victory podium and safely removed from active turn rotation.
-- **Configurable Turn Timer**: Automatic turn passing/forfeiture when the countdown timer expires, skipping vacant or disconnected seats.
+### Gameplay
 
-### 🎨 Visual & Interaction Design
-- **Royal Navy & Gold Visual Identity**: Elegant, dark-mode board design with high-contrast colored track routes (Red, Green, Yellow, Blue) and glowing safe star cells.
-- **Traditional Enamel Ludo Pawns**: Custom SVG tokens featuring tiered circular pedestals, glossy enamel highlights, and realistic ground contact drop shadows.
-- **Continuous Movement Interpolation**: Waypoint hopping utilizes continuous linear CSS position transitions (`left, top 115ms linear`) paired with subtle vertical bounce keyframes (`translateY(-8px)`), eliminating DOM position jitter.
-- **Dynamic Deployment & Return Animations**: Smooth 3-point parabolic launch arc when deploying from base sockets, and rapid spinning return arcs upon capture.
-- **Mobile-First Ergonomics**: Purpose-built mobile interface with a unified thumb-reachable control card, 74px tactile dice tray, rolling tumble animation, and prominent "TAP TO ROLL" action triggers.
-- **Integrated Audio Engine**: Synthesized and tactile sound design for rolling, hopping, capturing, safe-landing, timeout warnings, and podium victory.
+- **Server-authoritative dice and movement** — clients request an action; the server rolls, validates and broadcasts the resulting state.
+- **Exact movement mathematics** — progress advances by the rolled value across the 52-cell circuit and six home-lane steps.
+- **Home lane and exact finish** — pawns enter their colour’s runway after a full circuit and need the exact roll to reach the centre goal.
+- **Bonus turns** — capturing an opponent pawn or bringing a pawn home grants an extra turn.
+- **Configurable turn timer** — expired turns are forfeited server-side, skipping disconnected or vacant seats.
+- **Ranked multi-winner lifecycle** — finished players are removed from turn rotation and placed on the podium.
 
-### 🔒 Enterprise-Grade Netcode
-- **Monotonic State Versioning**: Every state transition increments an authoritative version number ($v_{t+1} = v_t + 1$) preserved across rematches.
-- **Per-Room Action Serialization**: Asynchronous promise tail (`actionTail`) guarantees atomic action execution without race conditions.
-- **Idempotent Action Deduplication**: Unique client `actionId` tagging suppresses duplicate network requests.
-- **State Recovery & Reconnection**: Automatic snapshot synchronization (`request_game_state`) recovers interrupted sessions without room resets.
-- **Pluggable Persistence**: Dual-mode engine supports zero-config in-memory operations for development and PostgreSQL / Supabase connection pooling for production.
+### Interface
+
+- **Neo Arcade design system** — midnight navy, electric violet and gold tokens with consistent spacing and breakpoints.
+- **Responsive by construction** — purpose-built layouts for 320 px phones through 1440 px desktops, including landscape.
+- **Tactile controls** — elevated dice tray, prominent roll action, animated pawn interpolation and capture effects.
+- **Accessibility-minded** — reduced-motion mode, sound and haptic toggles, live-region status announcements and labelled controls.
+- **Share and activity tools** — room code copy, QR invites, and a match activity drawer.
+
+### Engineering
+
+- **Deterministic engine** — pure TypeScript rules module with no side effects, covered by unit tests.
+- **Atomic room actions** — a promise tail serialises every mutation so concurrent events cannot interleave.
+- **Versioned snapshots** — out-of-order or duplicate client actions are rejected and resynchronised.
+- **Optional PostgreSQL persistence** — connection-pooled storage for room and session state in production.
+- **Visual regression layer** — Playwright geometry audits assert real rendered layout, not only overflow widths.
 
 ---
 
-## 🏛️ Repository Architecture
-
-This project is structured as a **pnpm monorepo** in the `ludo/` workspace:
+## Architecture
 
 ```text
 .
-├── README.md                      # Main project documentation & visual guide
-├── DEPLOYMENT.md                  # Complete step-by-step production deployment guide
-├── render.yaml                    # Infrastructure-as-code blueprint for Render
-├── docs/                          # Comprehensive audits, architecture & screenshot archives
-│   ├── quality-of-life-audit.md   # QoL Update 2 audit (Movement, Bonus turns, 2-winner lifecycle)
-│   ├── gameplay-animation-audit.md# Comprehensive animation & home lane audit report
-│   ├── game-rules-audit.md        # Engine rules verification & mathematical audit
-│   └── mobile_screenshots/        # High-resolution real gameplay captures across viewports
-└── ludo/                          # Single Source of Truth Monorepo
-    ├── pnpm-workspace.yaml        # Monorepo workspace configuration
-    ├── package.json               # Monorepo root scripts & dev dependencies
-    ├── packages/
-    │   └── game-engine/           # Pure TypeScript deterministic Ludo rules engine
-    │       ├── src/index.ts       # Board math, legal moves, state transitions & rankings
-    │       └── test/              # 48 unit tests (rules, home-lane, quality-of-life)
+├── README.md                     # Project overview (this file)
+├── DEPLOYMENT.md                 # Step-by-step production deployment guide
+├── render.yaml                   # Render infrastructure blueprint for the API
+├── vercel.json                   # Vercel configuration for the client
+├── docs/                         # Audits, screenshots and layout QA captures
+│   ├── layout-qa/                # Before/after captures from the visual audit
+│   ├── mobile_screenshots/       # Real gameplay captures across viewports
+│   ├── screenshots/              # Desktop gameplay and home-lane captures
+│   └── *.md                      # Rules, animation and quality-of-life audits
+└── ludo/                         # Monorepo workspace
+    ├── packages/game-engine/     # Deterministic Ludo rules engine + unit tests
     └── apps/
-        ├── server/                # Node.js + Express + Socket.IO authoritative server
-        │   ├── src/               # Game server, room manager, timer & persistence
-        │   └── test/              # 26 integration tests + Playwright real multiplayer E2E
-        └── web/                   # Mobile-first React 18 + Vite frontend
-            ├── src/               # Board2D, PawnToken, DiceRoller, AudioEngine, main UI
-            └── dist/              # Production static client bundle
+        ├── server/               # Express + Socket.IO API, room manager, persistence
+        │   └── test/             # Integration, netcode, simulation and Playwright suites
+        └── web/                  # React 18 + Vite client and design system
 ```
 
-### Monorepo Packages
-| Package | Role | Key Technologies |
+| Package | Role | Key technologies |
 | :--- | :--- | :--- |
-| **`@ludo/game-engine`** | Pure, deterministic game logic and rules | TypeScript, Vitest |
-| **`@ludo/server`** | Authoritative WebSocket & REST backend | Node.js, Express, Socket.IO, PostgreSQL / Supabase, Zod |
-| **`@ludo/web`** | Responsive, mobile-first client application | React 18, Vite, SVG/CSS3 hardware acceleration, Web Audio |
+| `@ludo/game-engine` | Pure rules, legal moves, state transitions, rankings | TypeScript, Vitest |
+| `@ludo/server` | Authoritative realtime API and persistence | Node.js, Express, Socket.IO, Zod, PostgreSQL |
+| `@ludo/web` | Responsive game client and design system | React 18, Vite, CSS, Web Audio |
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
-- **Node.js**: `>= 24.x LTS` (verified on v24.22.3)
-- **pnpm**: `>= 9.x`
-- **PostgreSQL** *(Optional)*: Supabase or local PostgreSQL instance (in-memory mode used by default)
 
-### 1. Installation
-Clone the repository and install all workspace dependencies:
+- **Node.js 24.x LTS** (verified on 24.22.3)
+- **pnpm 9.x** (pinned to 9.15.0)
+- **PostgreSQL** — optional; the server uses in-memory persistence when `DATABASE_URL` is absent
+
+### Install and run
+
 ```bash
 git clone https://github.com/Jarjis-Alam/ludo-3d-multiplayer.git
-cd "Build a Real-Time Multiplayer 3D Ludo Game"
+cd ludo-3d-multiplayer
+
 pnpm --dir ludo install
-```
-
-### 2. Build Monorepo
-Compile the game engine, client bundle, and server:
-```bash
-pnpm build
-```
-
-### 3. Launch Development Servers
-Start both the backend server and frontend client concurrently:
-```bash
 pnpm dev
 ```
-* **Frontend Client**: `http://localhost:5173`
-* **Backend Server**: `http://localhost:3001`
-* **Health Check Endpoint**: `http://localhost:3001/health`
 
-Open `http://localhost:5173` in multiple browser tabs or devices on your local network to test real-time multiplayer gameplay.
+| Service | URL |
+| :--- | :--- |
+| Web client | http://localhost:5173 |
+| Realtime API | http://localhost:3001 |
+| Health check | http://localhost:3001/health |
 
----
+Open the client in two or more tabs (or devices on the same network) to test a real match.
 
-## 🧪 Testing & QA Verification
-
-The codebase maintains rigorous automated test coverage across unit, integration, simulation, and real end-to-end browser environments.
+### Production build
 
 ```bash
-# 1. Run all pure game engine unit tests (48 tests)
-pnpm test:engine
-
-# 2. Run server integration, netcode sync & timer tests (26 tests)
-pnpm test:server
-
-# 3. Run the complete test suite across all monorepo packages (74 tests)
-pnpm test:all
-
-# 4. Run real multiplayer Playwright E2E suite (Socket.IO + live browsers)
-pnpm --dir ludo/apps/server exec tsx test/e2e-quality-of-life.mts
-
-# 5. Run 20-match Monte Carlo simulation with PRNG seeds
-pnpm sim:20
-
-# 6. Run multi-player dynamic turn rotation QA suite (2, 3 & 4 players)
-pnpm qa:players
+pnpm build          # builds game-engine, web client and server
 ```
 
-### Test Suite Highlights
-- **Engine Rules Verification**: Tests pawn deployment on 6, consecutive-six penalties, safe cell immunity, capture mechanics, home entry calculations, exact finish requirements, and bonus turn grants.
-- **Multiplayer Turn Sync**: Tests turn passing, timeout forfeiture, reconnect state preservation, and monotonic state versioning across rematches.
-- **Playwright End-to-End**: Spins up an actual Socket.IO server and static client to simulate real players rolling, moving, entering home runways, and reaching the podium.
+### Environment variables
+
+The API and client read the following variables. For local development they can be exported in your shell; production deployments should set them in the hosting provider’s dashboard.
+
+| Variable | Used by | Required | Description |
+| :--- | :--- | :---: | :--- |
+| `PORT` | Server | No | HTTP/WebSocket port (default `3001`). |
+| `CLIENT_ORIGIN` | Server | Production | Exact allowed frontend origin. `*` is rejected in production. |
+| `DATABASE_URL` | Server | No | PostgreSQL connection string. Enables persistent rooms; omit for in-memory mode. |
+| `SESSION_SECRET` | Server | Production | HMAC secret used to hash session tokens. A development fallback is used when unset. |
+| `VITE_SERVER_URL` | Web build | Production | Public URL of the realtime API. Defaults to `http://localhost:3001`. |
+
+A reference file is provided at [`.env.example`](.env.example).
 
 ---
 
-## 🔒 State Synchronization & Netcode
+## Testing & QA
+
+The project combines five complementary verification layers: pure engine tests, server integration and netcode tests, multiplayer simulations, real-browser end-to-end matches, and rendered-geometry visual audits.
+
+```bash
+# Install the Playwright browser once
+pnpm --dir ludo exec playwright install chromium
+
+# Rules engine — 48 unit tests
+pnpm test:engine
+
+# Server integration, netcode and persistence — 26 tests
+pnpm test:server
+
+# Everything — 74 tests across the workspace
+pnpm test:all
+
+# Responsive visual layout audit (Playwright, 8 viewports)
+pnpm --dir ludo --filter @ludo/server test:visual
+
+# Real multiplayer end-to-end match (Socket.IO + live browsers)
+pnpm --dir ludo --filter @ludo/server exec tsx test/e2e-quality-of-life.mts
+
+# 2 / 3 / 4-player rotation and lifecycle QA
+pnpm qa:players
+
+# 20 seeded Monte Carlo matches
+pnpm sim:20
+```
+
+### Visual layout audit
+
+`test:visual` renders the homepage, lobby, match and victory screens at **320×568, 360×800, 375×667, 390×844, 430×932, 800×1332, 1280×720 and 1440×900**. It performs over a thousand rendered-geometry assertions per run, including:
+
+- text line boxes never intersecting floating decorations;
+- buttons, inputs and board previews staying inside their parent panels;
+- the board remaining square and fully contained;
+- header, dock and podium controls staying on screen and not overlapping;
+- screenshots of every audited screen written to `docs/layout-qa/after/`.
+
+Capture examples are committed in [`docs/layout-qa/`](docs/layout-qa/).
+
+### Test coverage summary
+
+| Suite | Scope |
+| :--- | :--- |
+| Engine unit tests | Deployment, legal moves, captures, safe cells, home lanes, exact finish, rankings |
+| Server integration | Room lifecycle, turn rotation, timeout forfeiture, reconnect resync, persistence |
+| Simulations | Long-running seeded matches for rule and state-integrity regressions |
+| Playwright E2E | Real browsers and Socket.IO clients playing complete matches |
+| Visual audit | Rendered layout, containment, decoration collisions and responsive screenshots |
+
+---
+
+## State Synchronisation
 
 ```mermaid
 sequenceDiagram
     autonumber
-    actor Alice as Player (Client)
-    participant Srv as Server (LudoService)
+    actor Alice as Player (client)
+    participant Srv as Ludo server
     participant Eng as @ludo/game-engine
-    actor Bob as Opponent (Client)
+    actor Bob as Opponent
 
-    Alice->>Srv: emit("roll_dice", { roomCode, actionId })
-    Note over Srv: Queue action in per-room promise tail<br/>Check actionId idempotency
-    Srv->>Eng: roll(state, seat, diceValue)
-    Eng-->>Srv: nextState (version: v + 1)
-    Srv->>Alice: emit("dice_rolled", { value, legalMoves })
-    Srv->>Bob: emit("dice_rolled", { value, legalMoves })
-    Srv->>Alice: emit("room_state", snapshot)
-    Srv->>Bob: emit("room_state", snapshot)
+    Alice->>Srv: roll_dice { roomCode, actionId }
+    Note over Srv: Enqueue on the room's action tail<br/>Deduplicate by actionId
+    Srv->>Eng: roll(state, seat)
+    Eng-->>Srv: nextState (version + 1)
+    Srv->>Alice: dice_rolled + room_state
+    Srv->>Bob: dice_rolled + room_state
 
-    Alice->>Srv: emit("move_token", { roomCode, token, actionId })
+    Alice->>Srv: move_token { roomCode, token, actionId }
     Srv->>Eng: moveToken(state, seat, token, dice)
-    Eng-->>Srv: { state, captured, pawnReachedHome, winner }
-    Note over Srv: Reset authoritative turn timer<br/>Check podium ranking
-    Srv->>Alice: emit("token_moved", { token, pawnReachedHome, ... })
-    Srv->>Bob: emit("token_moved", { token, pawnReachedHome, ... })
-    Srv->>Alice: emit("room_state", snapshot)
-    Srv->>Bob: emit("room_state", snapshot)
+    Eng-->>Srv: state, captured, pawnReachedHome, winner
+    Note over Srv: Reset turn timer<br/>Update podium ranking
+    Srv->>Alice: token_moved + room_state
+    Srv->>Bob: token_moved + room_state
 ```
 
-1. **Deterministic State Invariance**: Game logic in `@ludo/game-engine` is purely functional without side effects.
-2. **Action Queue (`actionTail`)**: Eliminates race conditions by chaining mutations into a per-room FIFO promise queue.
-3. **Monotonic Version Increment**: Every mutation increments `state.version`. Clients sending an out-of-order `expectedVersion` are rejected and resynchronized.
-4. **Authoritative Timers**: Server controls turn deadlines with automatic fallback when turns expire.
+1. **Deterministic state** — the engine is a pure reducer; identical inputs always produce identical state.
+2. **Serialised mutations** — `actionTail` chains room mutations to eliminate race conditions.
+3. **Monotonic versions** — every mutation increments `state.version`; stale clients are resynchronised.
+4. **Authoritative timers** — the server owns turn deadlines and applies timeout forfeiture.
 
 ---
 
-## 🌐 Production Deployment
+## Deployment
 
-The project is designed for zero-cost deployment using industry-standard platforms:
+The reference topology is a static client on Vercel, a Node.js realtime service on Render, and optional PostgreSQL on Supabase.
 
 ```text
-┌────────────────────────┐      Persistent WebSockets      ┌────────────────────────┐
-│      Vercel (SPA)      │ ◄─────────────────────────────► │     Render (Server)    │
-│  React 18 + Vite Web   │                                 │ Node.js + Socket.IO    │
-└────────────────────────┘                                 └───────────┬────────────┘
-                                                                       │ SSL Pooler
-                                                           ┌───────────▼────────────┐
-                                                           │   Supabase (PostgreSQL)│
-                                                           │   Room & Session State │
-                                                           └────────────────────────┘
+┌────────────────────────┐      WebSockets       ┌────────────────────────┐
+│      Vercel (SPA)      │ ◄───────────────────► │     Render (API)       │
+│  React 18 + Vite web   │                       │ Node.js + Socket.IO    │
+└────────────────────────┘                       └───────────┬────────────┘
+                                                             │ SSL pooler
+                                                 ┌───────────▼────────────┐
+                                                 │ Supabase (PostgreSQL)  │
+                                                 └────────────────────────┘
 ```
 
-1. **Frontend (Vercel)**:
-   - Root directory: `ludo/apps/web`
-   - Build command: `pnpm build`
-   - Output directory: `dist`
-   - Environment variable: `VITE_SERVER_URL=https://<your-render-backend>.onrender.com`
-2. **Backend (Render)**:
-   - Deployed via the included `render.yaml` blueprint with persistent WebSocket support enabled.
-   - Environment variables: `NODE_ENV=production`, `PORT=10000`, `CLIENT_ORIGIN=https://<your-vercel-app>.vercel.app`, `DATABASE_URL=<supabase_pooler_uri>`.
-3. **Database (Supabase PostgreSQL)**:
-   - Free-tier PostgreSQL database using Transaction Pooler port (`6543`) with SSL enabled.
+### Frontend — Vercel
 
-*For complete step-by-step instructions, see [DEPLOYMENT.md](file:///Users/munshijarjisalam/Documents/Projects/Build%20a%20Real-Time%20Multiplayer%203D%20Ludo%20Game/DEPLOYMENT.md).*
+Import the repository at its root; the committed [`vercel.json`](vercel.json) supplies the build and routing configuration.
+
+| Setting | Value |
+| :--- | :--- |
+| Project root | Repository root |
+| Build command | `pnpm --dir ludo --filter @ludo/game-engine build && pnpm --dir ludo --filter @ludo/web build` |
+| Output directory | `ludo/apps/web/dist` |
+| Environment variable | `VITE_SERVER_URL=https://<your-render-service>.onrender.com` |
+
+Alternatively, point the Vercel project at `ludo/apps/web` and use its local `vercel.json` (`dist` output).
+
+### Backend — Render
+
+Deploy with the included [`render.yaml`](render.yaml) blueprint. It installs with a frozen lockfile, builds the engine and server, and starts `node ludo/apps/server/dist/index.js` with the `/health` check. Configure:
+
+- `NODE_ENV=production`
+- `PORT=10000`
+- `CLIENT_ORIGIN=https://<your-vercel-app>.vercel.app`
+- `DATABASE_URL=<supabase-pooler-connection-string>`
+- `SESSION_SECRET` — generated by the blueprint; keep it stable across deploys
+
+### Database — Supabase
+
+Use the transaction pooler connection string (port `6543`) with SSL enabled. Without `DATABASE_URL`, the API runs in in-memory mode, which is suitable for development only. Restrict `CLIENT_ORIGIN` to the exact deployed frontend origin; the server refuses a wildcard origin in production.
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for the complete walkthrough.
 
 ---
 
-## 📚 Technical Audits & Documentation
+## Design System Notes
 
-Detailed engineering reports and audits documenting the game's evolution:
-- [**Quality of Life Update 2 Audit**](file:///Users/munshijarjisalam/Documents/Projects/Build%20a%20Real-Time%20Multiplayer%203D%20Ludo%20Game/docs/quality-of-life-audit.md): Deep dive into movement interpolation, bonus turn mechanics, and multi-winner lifecycle implementation.
-- [**Gameplay & Animation Audit**](file:///Users/munshijarjisalam/Documents/Projects/Build%20a%20Real-Time%20Multiplayer%203D%20Ludo%20Game/docs/gameplay-animation-audit.md): Complete audit of home-lane transitions across Red, Green, Yellow, and Blue with live Playwright verification.
-- [**Game Rules Engine Audit**](file:///Users/munshijarjisalam/Documents/Projects/Build%20a%20Real-Time%20Multiplayer%203D%20Ludo%20Game/docs/game-rules-audit.md): Mathematical correctness of coordinate mapping, safe cells, turn timer forfeiture, and dynamic seat rotation.
-- [**Production Deployment Guide**](file:///Users/munshijarjisalam/Documents/Projects/Build%20a%20Real-Time%20Multiplayer%203D%20Ludo%20Game/DEPLOYMENT.md): Step-by-step instructions for Vercel, Render, and Supabase deployment.
+The interface uses the Neo Arcade token set in [`ludo/apps/web/src/style.css`](ludo/apps/web/src/style.css):
+
+- **Surfaces:** midnight `#111329`, deep purple `#201B3B`, card `#272049`
+- **Accents:** electric violet `#7650F5`, purple `#965BFF`, gold `#FFC83D`, coral `#FF765F`
+- **Player colours:** red `#ED3945`, green `#08A66A`, yellow `#FFAA13`, blue `#3978F6`
+- **Spacing:** 4 px base scale (`--space-1` … `--space-8`) with a shared page gutter
+- **Breakpoints:** 960 px (single-column landing), 640 px (compact layout), 430 px (phone header), 380 px (small phone)
+
+Decorative shapes and dice are positioned behind the content layer, use `pointer-events: none`, and are scaled and edge-anchored per breakpoint rather than removed.
 
 ---
 
-## 📄 License
+## Documentation
 
-This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
+| Document | Contents |
+| :--- | :--- |
+| [DEPLOYMENT.md](DEPLOYMENT.md) | Vercel, Render and Supabase setup |
+| [Game Rules Audit](docs/game-rules-audit.md) | Board mathematics, safe cells, home lanes, finish rules |
+| [Gameplay & Animation Audit](docs/gameplay-animation-audit.md) | Movement interpolation and home-lane verification |
+| [Quality of Life Audit](docs/quality-of-life-audit.md) | Bonus turns, two-winner lifecycle, movement polish |
+| [UI/UX Redesign Docs](docs/ui-ux-redesign/) | Product overview, screen inventory, journeys, responsive requirements |
+| [Layout QA Captures](docs/layout-qa/) | Before/after screenshots from the visual audit |
+| [Monorepo README](ludo/README.md) | Package-level scripts and workspace layout |
+
+---
+
+## License
+
+Released under the MIT License.
