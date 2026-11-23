@@ -67,7 +67,7 @@ describe('Turn Timer and Rules Integration Suite', () => {
     server.httpServer.close();
   });
 
-  it('2. Timeout after dice roll: forfeits remaining turn and clears active dice', async () => {
+  it('2. Timeout after dice roll: auto-plays the legal pawn instead of wasting the roll', async () => {
     const server = await createLudoServer();
     await new Promise<void>((res) => server.httpServer.listen(0, res));
     const url = `http://127.0.0.1:${(server.httpServer.address() as any).port}`;
@@ -95,9 +95,15 @@ describe('Turn Timer and Rules Integration Suite', () => {
     expect(timeoutResult.timedOutSeat).toBe(0);
     expect(timeoutResult.hadRolled).toBe(true);
     expect(timeoutResult.previousDice).toBe(6);
-    expect(timeoutResult.nextPlayerSeat).toBe(1);
+    expect(timeoutResult.autoMoved).toBe(true);
+    expect(timeoutResult.autoToken).toBe(0);
+    // The roll was spent on the board instead of discarded, and the 6 keeps the turn.
     expect(timeoutResult.state.dice).toBeNull();
-    expect(timeoutResult.state.consecutiveSixes).toBe(0);
+    expect(timeoutResult.state.tokens[0][0]).toEqual({ kind: 'path', progress: 0 });
+    expect(timeoutResult.nextPlayerSeat).toBe(0);
+    expect(timeoutResult.state.currentPlayer).toBe(0);
+    // This room runs a 50ms test timer, so the deadline is fresh but short.
+    expect(timeoutResult.state.turnExpiresAt).toBeGreaterThan(Date.now() - 500);
 
     server.service.close();
     server.httpServer.close();

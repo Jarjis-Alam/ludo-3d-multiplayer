@@ -849,12 +849,18 @@ function App() {
     const onTimeout = (data: any) => {
       AudioEngine.playTimeout();
       const name = data.timedOutPlayer || 'Player';
-      setActivityNotice(`⏰ ${name} timed out! Turn forfeited.`);
+      const autoMoved = Boolean(data.autoMoved);
+      const notice = autoMoved
+        ? `⏰ ${name} ran out of time — the game played their pawn automatically.`
+        : `⏰ ${name} timed out! Turn forfeited.`;
+      setActivityNotice(notice);
       setTimeout(() => setActivityNotice(null), 4000);
       addActivityItem({
         type: 'timeout',
         icon: '⏰',
-        message: `${name} timed out! Turn forfeited.`,
+        message: autoMoved
+          ? `${name} ran out of time — pawn moved automatically.`
+          : `${name} timed out! Turn forfeited.`,
         seat: data.seat,
         playerName: name,
       });

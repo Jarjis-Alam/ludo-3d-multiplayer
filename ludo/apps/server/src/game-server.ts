@@ -9,6 +9,7 @@ import {
   type GameState,
   type Player,
   type PlayerIndex,
+  type TokenPosition,
   legalTokens,
 } from '@ludo/game-engine';
 import type { Persistence, PersistedRoom } from './persistence.js';
@@ -336,6 +337,20 @@ export class LudoService {
     }
   }
 
+  /**
+   * Auto-play choice: advance the most advanced legal pawn. Ties keep the board
+   * order, so a timeout is deterministic for the same state.
+   */
+  private pickAutoToken(state: GameState, seat: PlayerIndex, dice: number): number | null {
+    const legal = legalTokens(state, seat, dice);
+    if (legal.length === 0) return null;
+    const rank = (pos: TokenPosition) =>
+      pos.kind === 'base' ? -1 : pos.kind === 'home' ? 1000 + pos.progress : pos.progress;
+    return legal.reduce((best, idx) =>
+      rank(state.tokens[seat][idx]) > rank(state.tokens[seat][best]) ? idx : best
+    , legal[0]);
+  }
+
   private async handleTurnTimeout(roomCode: string, expectedVersion: number): Promise<ActionResult> {
     const room = this.rooms.get(roomCode);
     if (!room) return { ok: false, error: 'Room not found' };
@@ -356,7 +371,43 @@ export class LudoService {
       const fallbackSeats = [...room.players.values()].filter((p) => !finishedSet.has(p.seat)).map((p) => p.seat);
       const targetSeats = connectedSeats.length > 0 ? connectedSeats : (allOccupiedSeats.length > 0 ? allOccupiedSeats : fallbackSeats);
 
+      // The player ran out of time with a dice waiting: play the move for them
+      // instead of throwing the roll away. Without a legal move the turn is
+      // forfeited exactly as before.
       const previousDice = room.state.dice;
+      const autoToken = previousDice !== null ? this.pickAutoToken(room.state, timedOutSeat, previousDice) : null;
+      if (previousDice !== null && autoToken !== null) {
+        try {
+          const moveResult = moveToken(room.state, timedOutSeat, autoToken, previousDice);
+          room.state = moveResult.state;
+          this.resetTurnTimer(room);
+          await this.save(room);
+          this.emitRoom(this.io, room, 'token_moved', {
+            seat: timedOutSeat,
+            playerName: timedOutPlayerName,
+            token: autoToken,
+            captured: moveResult.captured,
+            winner: moveResult.winner,
+            finished: moveResult.finished,
+            pawnReachedHome: moveResult.pawnReachedHome,
+            rank: moveResult.rank,
+            auto: true,
+          });
+          this.emitRoom(this.io, room, 'turn_timeout', {
+            timedOutSeat,
+            timedOutPlayer: timedOutPlayerName,
+            hadRolled: true,
+            previousDice,
+            autoMoved: true,
+            autoToken,
+            nextPlayerSeat: room.state.currentPlayer,
+          });
+          return { ok: true, version: room.state.version, state: this.snapshot(room) };
+        } catch {
+          // Fall through to the forfeit path if the auto move could not be applied.
+        }
+      }
+
       const now = Date.now();
       room.state = forfeitTurn(room.state, targetSeats, now);
 
