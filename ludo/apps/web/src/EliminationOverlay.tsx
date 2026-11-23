@@ -53,15 +53,19 @@ export const EliminationOverlay: React.FC<EliminationOverlayProps> = ({ event, r
       <span className="elim-dash elim-dash-left" aria-hidden="true" />
       <span className="elim-dash elim-dash-right" aria-hidden="true" />
 
-      <div className="elim-banner">
-        <span className="elim-banner-text">ELIMINATED!</span>
-      </div>
+      {/* Ribbon and caption share one column so the caption always clears the ribbon,
+          whatever the ribbon's height works out to at this viewport. */}
+      <div className="elim-caption">
+        <div className="elim-banner">
+          <span className="elim-banner-text">ELIMINATED!</span>
+        </div>
 
-      <p className="elim-sub">
-        {event.victimName
-          ? `${event.victimName}'s pawn was sent back to base`
-          : 'A pawn has been sent back to base'}
-      </p>
+        <p className="elim-sub">
+          {event.victimName
+            ? `${event.victimName}'s pawn was sent back to base`
+            : 'A pawn has been sent back to base'}
+        </p>
+      </div>
     </div>
   </div>
 );

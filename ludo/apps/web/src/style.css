@@ -5419,7 +5419,7 @@ body {
 .elim-dash-left {
   --rot: -12deg;
   left: 1%;
-  top: 76%;
+  top: 47%;
   transform: rotate(-12deg);
   animation: elimDash 0.35s 0.52s ease-out both;
 }
@@ -5432,12 +5432,26 @@ body {
   animation: elimDash 0.35s 0.58s ease-out both;
 }
 
-.elim-banner {
+/* Ribbon + caption stack so the caption is always clear of the ribbon's height */
+.elim-caption {
   position: absolute;
-  left: -8%;
-  right: -8%;
+  left: 0;
+  right: 0;
   top: 56%;
   z-index: 6;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(7px, 2vw, 14px);
+  pointer-events: none;
+}
+
+.elim-banner {
+  position: relative;
+  flex: none;
+  /* Wider than the scene so the ribbon runs past the board on both sides */
+  width: 116%;
+  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -5474,10 +5488,7 @@ body {
 }
 
 .elim-sub {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: calc(56% + clamp(58px, 15vw, 80px));
+  position: relative;
   margin: 0;
   text-align: center;
   font-family: var(--font-heading);
@@ -5486,7 +5497,6 @@ body {
   font-weight: 700;
   color: #ffe9d2;
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
-  z-index: 6;
   animation: elimSub 0.35s 0.64s ease-out both;
 }
 
