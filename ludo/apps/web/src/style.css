@@ -4592,6 +4592,11 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 3px;
+  /* Seats are labelled with player names, so long names must not spill out. */
+  max-width: calc(100% - 12px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Safe havens read clearly on cream tiles */

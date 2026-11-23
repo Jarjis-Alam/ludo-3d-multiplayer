@@ -188,9 +188,6 @@ const PlayerTelemetryCard: React.FC<{
             {isLocal && <span className="hud-badge-local">YOU</span>}
           </div>
           <div className="hud-sub-row">
-            <span className={`seat-pill seat-pill-${player.color}`}>
-              {player.color.toUpperCase()}
-            </span>
             <span className={player.connected ? 'conn-status-online' : 'conn-status-reconnecting'}>
               <span className={`status-dot-mini ${player.connected ? 'online' : 'reconnecting'}`} />
               <span>{player.connected ? 'ONLINE' : 'RECONNECTING'}</span>

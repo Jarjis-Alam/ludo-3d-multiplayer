@@ -357,6 +357,8 @@ export const Board2D: React.FC<Board2DProps> = ({
 }) => {
   const activeSeats = useMemo(() => new Set(players.map((p) => p.seat)), [players]);
   const pawnSizes = compactPawns ? SHOWCASE_PAWN_SIZES : MATCH_PAWN_SIZES;
+  /* Seats are labelled by player name instead of colour so the board reads as people. */
+  const nameForSeat = (seat: number) => players.find((p) => p.seat === seat)?.name || `Seat ${seat + 1}`;
 
   // One pawn in flight at a time. Its position is written straight to the DOM by a
   // requestAnimationFrame loop, so no React render happens while a pawn is moving.
@@ -815,12 +817,10 @@ export const Board2D: React.FC<Board2DProps> = ({
       return null;
     }
 
-    const colorKey = SEAT_COLORS[seat] || 'red';
-
     return (
       <PawnToken
         key={`pawn-${seat}-${tokenIdx}`}
-        color={colorKey}
+        color={SEAT_COLORS[seat] || 'red'}
         seat={seat}
         isLegal={isLegal}
         isThreatened={seat === localSeat && threatenedTokens.has(`${seat}-${tokenIdx}`)}
@@ -832,7 +832,7 @@ export const Board2D: React.FC<Board2DProps> = ({
           }
         }}
         onActivate={() => activatePawn(tokenIdx)}
-        title={`Seat ${seat + 1} (${colorKey.toUpperCase()}) - Pawn ${tokenIdx + 1}${
+        title={`${nameForSeat(seat)} - Pawn ${tokenIdx + 1}${
           isLegal ? ' (tap to move)' : ''
         }${
           seat === localSeat && threatenedTokens.has(`${seat}-${tokenIdx}`)
@@ -1014,7 +1014,7 @@ export const Board2D: React.FC<Board2DProps> = ({
             </div>
             <span className="yard-badge yard-badge-tl">
               {activeSeats.has(0) && <SeatGlyph seat={0} size={8} tone="cream" />}
-              {activeSeats.has(0) ? 'RED' : 'VACANT'}
+              {activeSeats.has(0) ? nameForSeat(0) : 'VACANT'}
             </span>
           </div>
 
@@ -1096,7 +1096,7 @@ export const Board2D: React.FC<Board2DProps> = ({
             </div>
             <span className="yard-badge yard-badge-tr">
               {activeSeats.has(1) && <SeatGlyph seat={1} size={8} tone="cream" />}
-              {activeSeats.has(1) ? 'GREEN' : 'VACANT'}
+              {activeSeats.has(1) ? nameForSeat(1) : 'VACANT'}
             </span>
           </div>
 
@@ -1252,7 +1252,7 @@ export const Board2D: React.FC<Board2DProps> = ({
             </div>
             <span className="yard-badge yard-badge-bl">
               {activeSeats.has(3) && <SeatGlyph seat={3} size={8} tone="cream" />}
-              {activeSeats.has(3) ? 'BLUE' : 'VACANT'}
+              {activeSeats.has(3) ? nameForSeat(3) : 'VACANT'}
             </span>
           </div>
 
@@ -1334,7 +1334,7 @@ export const Board2D: React.FC<Board2DProps> = ({
             </div>
             <span className="yard-badge yard-badge-br">
               {activeSeats.has(2) && <SeatGlyph seat={2} size={8} tone="cream" />}
-              {activeSeats.has(2) ? 'YELLOW' : 'VACANT'}
+              {activeSeats.has(2) ? nameForSeat(2) : 'VACANT'}
             </span>
           </div>
         </div>
