@@ -11,6 +11,8 @@ import {
   type PlayerIndex,
   type TokenPosition,
   legalTokens,
+  absoluteCell,
+  SAFE_CELLS,
 } from '@ludo/game-engine';
 import type { Persistence, PersistedRoom } from './persistence.js';
 
@@ -23,6 +25,20 @@ const MAX_HISTORY_SNAPSHOTS = 100;
 const SESSION_SECRET = process.env.SESSION_SECRET || 'ludo-secret-session-key-development';
 
 export type RoomPlayer = Player & { connected: boolean; socketId?: string; lastSeenAt: number };
+
+/** Per-match counters for the victory screen. They live on the room, not in the engine. */
+export type MatchStats = {
+  startedAt: number;
+  finishedAt?: number;
+  /** Dice rolls, i.e. turns taken. */
+  rolls: number;
+  captures: number;
+  /** Moves that landed on a safe cell where no capture can happen. */
+  safeMoves: number;
+};
+
+const makeMatchStats = (): MatchStats => ({ startedAt: Date.now(), rolls: 0, captures: 0, safeMoves: 0 });
+
 export type RoomSnapshot = GameState & {
   roomCode: string;
   host: string;
@@ -30,6 +46,7 @@ export type RoomSnapshot = GameState & {
   players: RoomPlayer[];
   /** Server wall clock at snapshot time; clients pair it with turnExpiresAt to ignore device clock skew. */
   serverNow: number;
+  matchStats: MatchStats;
 };
 type Session = { id: string; name: string; tokenHash: string; roomCode?: string };
 export type ActionResult = {
@@ -53,6 +70,7 @@ type Room = {
   actionTail: Promise<void>;
   processedActions: Map<string, ActionResult>;
   snapshotHistory: Map<number, RoomSnapshot>;
+  matchStats: MatchStats;
 };
 export type ActionEnvelope = {
   roomCode?: string;
@@ -138,6 +156,7 @@ export class LudoService {
         actionTail: Promise.resolve(),
         processedActions: new Map(),
         snapshotHistory: new Map(),
+        matchStats: makeMatchStats(),
       };
       this.recordSnapshot(room);
       this.rooms.set(saved.code, room);
@@ -183,6 +202,7 @@ export class LudoService {
       invitationPath: `${this.invitationOrigin}/?room=${room.code}`,
       players: [...room.players.values()],
       serverNow: Date.now(),
+      matchStats: room.matchStats,
     };
   }
 
@@ -337,6 +357,24 @@ export class LudoService {
     }
   }
 
+  private recordMoveStats(
+    room: Room,
+    seat: PlayerIndex,
+    token: number,
+    result: { captured: boolean }
+  ) {
+    const stats = room.matchStats;
+    if (!stats) return;
+    if (result.captured) stats.captures += 1;
+    const landed = room.state.tokens[seat]?.[token];
+    if (landed?.kind === 'path' && SAFE_CELLS.has(absoluteCell(seat, landed.progress))) {
+      stats.safeMoves += 1;
+    }
+    if (room.state.status === 'finished' && !stats.finishedAt) {
+      stats.finishedAt = Date.now();
+    }
+  }
+
   /**
    * Auto-play choice: advance the most advanced legal pawn. Ties keep the board
    * order, so a timeout is deterministic for the same state.
@@ -380,6 +418,7 @@ export class LudoService {
         try {
           const moveResult = moveToken(room.state, timedOutSeat, autoToken, previousDice);
           room.state = moveResult.state;
+          this.recordMoveStats(room, timedOutSeat, autoToken, moveResult);
           this.resetTurnTimer(room);
           await this.save(room);
           this.emitRoom(this.io, room, 'token_moved', {
@@ -460,6 +499,7 @@ export class LudoService {
           actionTail: Promise.resolve(),
           processedActions: new Map(),
           snapshotHistory: new Map(),
+          matchStats: makeMatchStats(),
         };
         this.rooms.set(code, room);
         session.roomCode = code;
@@ -583,6 +623,7 @@ export class LudoService {
             players: [...room.players.values()],
             version: currentVer,
           });
+          room.matchStats = makeMatchStats();
           this.resetTurnTimer(room);
           await this.save(room);
           this.emitRoom(io, room, 'game_started');
@@ -623,6 +664,7 @@ export class LudoService {
             players: [...room.players.values()],
             version: currentVer,
           });
+          room.matchStats = makeMatchStats();
 
           this.resetTurnTimer(room);
           await this.save(room);
@@ -680,6 +722,7 @@ export class LudoService {
           try {
             const moves = legalTokens(room.state, player.seat, value);
             room.state = roll(room.state, player.seat, value);
+            room.matchStats.rolls += 1;
             this.resetTurnTimer(room);
             await this.save(room);
             this.emitRoom(io, room, 'dice_rolled', {
@@ -744,6 +787,7 @@ export class LudoService {
           try {
             const moveResult = moveToken(room.state, player.seat, token, room.state.dice);
             room.state = moveResult.state;
+            this.recordMoveStats(room, player.seat, token, moveResult);
             this.resetTurnTimer(room);
             await this.save(room);
             this.emitRoom(io, room, 'token_moved', {

@@ -43,6 +43,14 @@ type Snapshot = {
   turnExpiresAt: number | null;
   /** Server clock at snapshot time; absent on legacy/mock snapshots. */
   serverNow?: number;
+  /** Per-match counters for the victory screen; absent on legacy/mock snapshots. */
+  matchStats?: {
+    startedAt: number;
+    finishedAt?: number;
+    rolls: number;
+    captures: number;
+    safeMoves: number;
+  };
   tokens: Token[][];
   winner: number | null;
   rankings?: number[];
@@ -1729,8 +1737,10 @@ function App() {
           hostId={snapshot.host}
           rematching={rematching}
           message={message}
+          stats={snapshot.matchStats ?? null}
           onRematch={rematch}
           onLeave={leave}
+          onShare={() => setShareModalOpen(true)}
         />
         {renderModals()}
       </main>
