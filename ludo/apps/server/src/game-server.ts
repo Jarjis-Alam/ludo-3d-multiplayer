@@ -22,7 +22,14 @@ const MAX_HISTORY_SNAPSHOTS = 100;
 const SESSION_SECRET = process.env.SESSION_SECRET || 'ludo-secret-session-key-development';
 
 export type RoomPlayer = Player & { connected: boolean; socketId?: string; lastSeenAt: number };
-export type RoomSnapshot = GameState & { roomCode: string; host: string; invitationPath: string; players: RoomPlayer[] };
+export type RoomSnapshot = GameState & {
+  roomCode: string;
+  host: string;
+  invitationPath: string;
+  players: RoomPlayer[];
+  /** Server wall clock at snapshot time; clients pair it with turnExpiresAt to ignore device clock skew. */
+  serverNow: number;
+};
 type Session = { id: string; name: string; tokenHash: string; roomCode?: string };
 export type ActionResult = {
   ok: boolean;
@@ -174,6 +181,7 @@ export class LudoService {
       host: room.host,
       invitationPath: `${this.invitationOrigin}/?room=${room.code}`,
       players: [...room.players.values()],
+      serverNow: Date.now(),
     };
   }
 

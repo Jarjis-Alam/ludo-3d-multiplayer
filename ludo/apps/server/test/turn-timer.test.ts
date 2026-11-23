@@ -126,6 +126,11 @@ describe('Turn Timer and Rules Integration Suite', () => {
     expect(moveRes2.ok).toBe(true);
     expect(moveRes2.state.currentPlayer).toBe(1); // Turned passed to P1
     expect(moveRes2.state.turnExpiresAt).toBeGreaterThan(Date.now() + 1000);
+    // Snapshot carries the server clock so clients can count down to the deadline
+    // without trusting the device clock.
+    expect(typeof moveRes2.state.serverNow).toBe('number');
+    expect(Math.abs(moveRes2.state.serverNow - Date.now())).toBeLessThan(1000);
+    expect(moveRes2.state.turnExpiresAt - moveRes2.state.serverNow).toBeGreaterThan(14000);
 
     server.service.close();
     server.httpServer.close();

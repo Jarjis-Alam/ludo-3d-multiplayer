@@ -40,7 +40,9 @@ type Snapshot = {
   players: ClientPlayer[];
   currentPlayer: number;
   dice: number | null;
-  turnExpiresAt: number;
+  turnExpiresAt: number | null;
+  /** Server clock at snapshot time; absent on legacy/mock snapshots. */
+  serverNow?: number;
   tokens: Token[][];
   winner: number | null;
   rankings?: number[];
@@ -69,6 +71,84 @@ const triggerHaptic = (style: 'light' | 'medium' | 'heavy' | 'success' | 'warnin
     }
   }
 };
+
+type WakeLockSentinelLike = {
+  release: () => Promise<void>;
+  addEventListener?: (type: 'release', listener: () => void) => void;
+};
+
+/**
+ * Holds a screen wake lock for the duration of a live match so a phone does not
+ * sleep mid-turn. The lock is released when the match ends or the page is hidden,
+ * and re-acquired when the page becomes visible again (browsers drop the lock on
+ * their own when a page is backgrounded). Unsupported or denied requests are
+ * ignored — the match plays normally without it.
+ */
+function useScreenWakeLock(active: boolean) {
+  useEffect(() => {
+    if (!active || typeof navigator === 'undefined' || typeof document === 'undefined') return;
+    const wakeLock = (
+      navigator as unknown as {
+        wakeLock?: { request: (type: 'screen') => Promise<WakeLockSentinelLike> };
+      }
+    ).wakeLock;
+    if (!wakeLock) return;
+
+    let sentinel: WakeLockSentinelLike | null = null;
+    let disposed = false;
+
+    const acquire = async () => {
+      if (disposed || document.visibilityState !== 'visible') return;
+      try {
+        const lock = await wakeLock.request('screen');
+        if (disposed) {
+          void lock.release();
+          return;
+        }
+        sentinel = lock;
+        lock.addEventListener?.('release', () => {
+          if (sentinel === lock) sentinel = null;
+        });
+      } catch {
+        // Denied, unsupported or battery-saver mode: keep playing without it.
+      }
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        void acquire();
+        return;
+      }
+      // Release explicitly on hide; browsers also drop the lock on their own.
+      const lock = sentinel;
+      sentinel = null;
+      if (lock) {
+        try {
+          void lock.release();
+        } catch {
+          // Already released by the browser.
+        }
+      }
+    };
+
+    void acquire();
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      disposed = true;
+      document.removeEventListener('visibilitychange', handleVisibility);
+      const lock = sentinel;
+      sentinel = null;
+      if (lock) {
+        try {
+          void lock.release();
+        } catch {
+          // Already released by the browser.
+        }
+      }
+    };
+  }, [active]);
+}
 
 /**
  * Desktop Side Panel Player Telemetry Card
@@ -474,6 +554,9 @@ function App() {
   const warnedTurnRef = useRef<string | null>(null);
   const wasDisconnectedRef = useRef(false);
 
+  // Keep the phone awake for the whole live match; released on finish, hide or unmount.
+  useScreenWakeLock(snapshot?.status === 'playing');
+
   const canJoin = name.trim().length > 0 && name.trim().length <= 16;
 
   // Persist player name locally
@@ -547,23 +630,67 @@ function App() {
     return () => window.clearTimeout(timeout);
   }, [restoringSession]);
 
-  // Synchronized server-authoritative turn timer countdown
+  // Synchronized server-authoritative turn timer countdown. The deadline comes from
+  // the server and is paired with the snapshot's server clock, so device clock skew
+  // cannot shift the countdown. If the timer reaches zero while the page was
+  // suspended past the server's timeout, ask for the authoritative turn instead of
+  // sitting at 0s.
   useEffect(() => {
-    if (snapshot?.status === 'playing') {
-      const updateCountdown = () => {
-        if (!snapshot.turnExpiresAt) {
-          setTurnTimeLeft(15);
-          return;
-        }
-        const diffMs = snapshot.turnExpiresAt - Date.now();
-        const remSec = Math.max(0, Math.ceil(diffMs / 1000));
-        setTurnTimeLeft(remSec);
-      };
-      updateCountdown();
-      const interval = setInterval(updateCountdown, 250);
-      return () => clearInterval(interval);
+    if (snapshot?.status !== 'playing') {
+      setTurnTimeLeft(0);
+      return;
     }
-  }, [snapshot?.status, snapshot?.turnExpiresAt, snapshot?.currentPlayer, snapshot?.version]);
+
+    const clockSkewMs = typeof snapshot.serverNow === 'number' ? snapshot.serverNow - Date.now() : 0;
+    let lastResyncAt = 0;
+
+    const updateCountdown = () => {
+      if (typeof snapshot.turnExpiresAt !== 'number') {
+        setTurnTimeLeft(0);
+        return;
+      }
+      const remainingMs = snapshot.turnExpiresAt - (Date.now() + clockSkewMs);
+      setTurnTimeLeft(Math.max(0, Math.ceil(remainingMs / 1000)));
+      if (remainingMs <= 0 && socket.connected && Date.now() - lastResyncAt > 1500) {
+        lastResyncAt = Date.now();
+        socket.emit('request_game_state', snapshot.roomCode);
+      }
+    };
+
+    updateCountdown();
+    const interval = window.setInterval(updateCountdown, 250);
+    return () => window.clearInterval(interval);
+  }, [
+    snapshot?.status,
+    snapshot?.turnExpiresAt,
+    snapshot?.serverNow,
+    snapshot?.currentPlayer,
+    snapshot?.version,
+    snapshot?.roomCode,
+  ]);
+
+  // Locked phones suspend timers and sockets, so on return pull the authoritative
+  // snapshot: the countdown, current turn and dice state must never be stale.
+  useEffect(() => {
+    const resync = () => {
+      if (document.visibilityState !== 'visible') return;
+      const roomCode = snapshotRef.current?.roomCode;
+      if (!roomCode || !socket.connected) return;
+      socket.emit('request_game_state', roomCode, (res: any) => {
+        if (!res?.ok || !res.state) return;
+        setSnapshot((prev) => (prev && res.state.version < prev.version ? prev : res.state));
+      });
+    };
+
+    document.addEventListener('visibilitychange', resync);
+    window.addEventListener('online', resync);
+    window.addEventListener('pageshow', resync);
+    return () => {
+      document.removeEventListener('visibilitychange', resync);
+      window.removeEventListener('online', resync);
+      window.removeEventListener('pageshow', resync);
+    };
+  }, []);
 
   // Synchronize lastDice with snapshot whenever a dice roll occurs or is reported in state/notice
   useEffect(() => {
