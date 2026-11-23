@@ -86,6 +86,7 @@ export const LandingBoard2D: React.FC = () => {
           legal={[2]} // highlights active pawn with luxury beacon
           isMoving={false}
           reducedMotion={false}
+          compactPawns
           onTokenClick={() => {}}
         />
       </div>

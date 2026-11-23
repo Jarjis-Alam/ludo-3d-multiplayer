@@ -663,12 +663,6 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .animating-pawn-wrapper {
-    transition: none;
-  }
-
-  .pawn-hop-bounce-inner,
-  .captured-pawn-inner,
   .capture-shockwave-ring,
   .goal-landing-ring {
     animation: none;
@@ -707,6 +701,22 @@ body {
   box-shadow: 0 20px 48px rgba(0, 0, 0, 0.75), inset 0 2px 4px rgba(255, 255, 255, 0.1);
 }
 
+/* Match screen only: a wider frame and slimmer bezel give the 15x15 grid and the
+   pawns on it more of the screen. The landing-page showcase renders the same
+   board, so every size change stays scoped to the match containers. */
+.game-main-stage .board-column {
+  max-width: 580px;
+}
+
+.game-board-container .ludo-arena-container {
+  max-width: 560px;
+}
+
+.game-board-container .ludo-arena-frame,
+.game-board-container .board-v2-frame {
+  padding: 6px;
+}
+
 .ludo-grid {
   width: 100%;
   height: 100%;
@@ -715,7 +725,9 @@ body {
   grid-template-rows: repeat(15, 1fr);
   background-color: #272049;
   border-radius: 20px;
-  overflow: hidden;
+  /* Pawns are slightly taller than a cell; let them overhang the frame padding
+     instead of being clipped at the board edge. */
+  overflow: visible;
   box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.5);
 }
 
@@ -865,8 +877,16 @@ body {
   justify-content: center;
   box-sizing: border-box;
   background-color: var(--surface-cream);
-  overflow: hidden;
+  overflow: visible;
   border: none;
+}
+
+/* A pawn must never be able to stretch the grid track it sits in, otherwise the
+   equal 1fr cells/sockets fall out of alignment. */
+.cell,
+.base-socket {
+  min-width: 0;
+  min-height: 0;
 }
 
 .cell-track {
@@ -977,6 +997,13 @@ body {
   pointer-events: none;
 }
 
+.goal-occupants-cluster {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+}
+
 .goal-quadrant-red {
   left: 0;
   top: 0;
@@ -1054,6 +1081,13 @@ body {
   max-height: 90%;
 }
 
+/* Pawns stand taller than their tile on the match screen so they stay readable
+   on a phone; the landing showcase keeps its compact fit. */
+.game-board-container .cell .traditional-pawn-wrapper {
+  max-width: 100%;
+  max-height: 125%;
+}
+
 .traditional-pawn-svg {
   width: 100%;
   height: 100%;
@@ -1106,25 +1140,27 @@ body {
 
 .tokens-cluster.has-cluster .traditional-pawn-wrapper {
   position: absolute;
+  left: 50%;
+  top: 50%;
 }
 
 .tokens-cluster.has-cluster .traditional-pawn-wrapper:nth-child(1) {
-  transform: translate(-3px, -3px);
+  transform: translate(calc(-50% - 3px), calc(-50% - 3px));
   z-index: 21;
 }
 
 .tokens-cluster.has-cluster .traditional-pawn-wrapper:nth-child(2) {
-  transform: translate(2px, 2px);
+  transform: translate(calc(-50% + 2px), calc(-50% + 2px));
   z-index: 22;
 }
 
 .tokens-cluster.has-cluster .traditional-pawn-wrapper:nth-child(3) {
-  transform: translate(0, 0);
+  transform: translate(-50%, -50%);
   z-index: 23;
 }
 
 .tokens-cluster.has-cluster .traditional-pawn-wrapper:nth-child(4) {
-  transform: translate(3px, -2px);
+  transform: translate(calc(-50% + 3px), calc(-50% - 2px));
   z-index: 24;
 }
 
@@ -1159,11 +1195,11 @@ body {
 
 .animating-pawn-wrapper {
   position: absolute;
-  transform: translate(-50%, -50%);
+  transform: translate3d(0, 0, 0) translate(-50%, -50%);
   pointer-events: none;
   z-index: 45;
-  transition: left var(--step-ms, 150ms) linear, top var(--step-ms, 150ms) linear;
-  will-change: left, top;
+  will-change: transform;
+  backface-visibility: hidden;
   filter: drop-shadow(0 5px 5px rgba(0, 0, 0, 0.35));
 }
 
@@ -1182,59 +1218,35 @@ body {
   pointer-events: none;
 }
 
-.pawn-hop-bounce-inner {
-  animation: pawnStepHop var(--step-ms, 150ms) cubic-bezier(0.33, 0.66, 0.5, 1) both;
+/* Pawn body inside the flight wrapper: lift, squash and spin are written per frame */
+.pawn-flight-inner {
   transform-origin: 50% 88%;
+  will-change: transform;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-@keyframes pawnStepHop {
-  0% { transform: translateY(0) rotate(var(--pawn-lean, 0deg)) scale(1); }
-  38% { transform: translateY(-28%) rotate(var(--pawn-lean, 0deg)) scale(1.07, 0.95); }
-  72% { transform: translateY(-10%) rotate(var(--pawn-lean, 0deg)) scale(1.02, 1); }
-  100% { transform: translateY(0) rotate(var(--pawn-lean, 0deg)) scale(1); }
+/* Deployment from the yard: the taller launch arc is set in JS, this adds the glow */
+.deploying-pawn {
+  z-index: 46;
 }
 
-/* Deployment from the yard: a higher launch arc with a soft rise */
-.deploying-pawn .pawn-hop-bounce-inner {
-  animation-name: pawnDeployHop;
-}
-
-@keyframes pawnDeployHop {
-  0% { transform: translateY(0) scale(0.92); opacity: 0.65; }
-  45% { transform: translateY(-55%) rotate(var(--pawn-lean, 0deg)) scale(1.12); opacity: 1; }
-  100% { transform: translateY(0) rotate(var(--pawn-lean, 0deg)) scale(1); opacity: 1; }
-}
-
-/* Entry into the centre goal: a brighter, slower final hop */
+/* Entry into the centre goal: a brighter final hop */
 .goal-entry-pawn {
   z-index: 47;
-}
-
-.goal-entry-pawn .pawn-hop-bounce-inner {
-  animation-name: pawnGoalHop;
-  filter: drop-shadow(0 0 8px rgba(255, 200, 61, 0.85));
-}
-
-@keyframes pawnGoalHop {
-  0% { transform: translateY(0) scale(1); }
-  45% { transform: translateY(-42%) scale(1.18); }
-  100% { transform: translateY(0) scale(1); }
+  filter: drop-shadow(0 0 10px rgba(255, 200, 61, 0.85));
 }
 
 /* Captured pawn returning to its yard */
 .captured-return-arc {
-  z-index: 46;
+  z-index: 48;
+  filter: drop-shadow(0 0 10px rgba(255, 84, 96, 0.55));
 }
 
 .captured-return-arc .captured-pawn-inner {
-  animation: capturedSpin 0.42s linear infinite;
   transform-origin: 50% 50%;
-  opacity: 0.92;
-}
-
-@keyframes capturedSpin {
-  from { transform: rotate(0deg) scale(0.88); }
-  to { transform: rotate(-360deg) scale(0.88); }
+  opacity: 0.95;
 }
 
 /* Impact rings for captures and goal finishes */
@@ -3915,75 +3927,6 @@ body {
 }
 
 /* ==========================================================================
-   MOVE PREVIEW + THREAT HINTS
-   ========================================================================== */
-.move-preview-target {
-  position: absolute;
-  transform: translate(-50%, -50%);
-  border-radius: 24%;
-  border: 2px solid rgba(255, 200, 61, 0.95);
-  background: radial-gradient(circle, rgba(255, 200, 61, 0.26) 0%, rgba(255, 200, 61, 0.06) 70%);
-  box-shadow: 0 0 16px rgba(255, 200, 61, 0.45);
-  z-index: 38;
-  pointer-events: none;
-  animation: previewTargetPulse 1.3s infinite alternate ease-in-out;
-}
-
-.move-preview-target.preview-captures {
-  border-color: #ff6b6b;
-  background: radial-gradient(circle, rgba(255, 84, 96, 0.32) 0%, rgba(255, 84, 96, 0.06) 72%);
-  box-shadow: 0 0 18px rgba(255, 84, 96, 0.5);
-}
-
-@keyframes previewTargetPulse {
-  0% { opacity: 0.6; }
-  100% { opacity: 1; }
-}
-
-.move-preview-dot {
-  position: absolute;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: #ffc83d;
-  transform: translate(-50%, -50%);
-  box-shadow: 0 0 6px rgba(255, 200, 61, 0.85);
-  opacity: 0.9;
-  z-index: 38;
-  pointer-events: none;
-}
-
-.move-preview-ghost {
-  position: absolute;
-  transform: translate(-50%, -50%);
-  opacity: 0.55;
-  filter: drop-shadow(0 0 9px rgba(255, 200, 61, 0.85));
-  z-index: 39;
-  pointer-events: none;
-}
-
-.move-preview-hint {
-  position: absolute;
-  left: 50%;
-  bottom: 5px;
-  transform: translateX(-50%);
-  max-width: calc(100% - 16px);
-  padding: 4px 9px;
-  border-radius: 9999px;
-  background: rgba(16, 12, 32, 0.94);
-  border: 1px solid rgba(255, 200, 61, 0.55);
-  color: #ffe9ae;
-  font-family: var(--font-mono);
-  font-size: 9px;
-  letter-spacing: 0.03em;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  z-index: 55;
-  pointer-events: none;
-}
-
-/* ==========================================================================
    TURN BAR — PHASES
    ========================================================================== */
 .turn-seat-glyph {
@@ -4216,8 +4159,7 @@ body {
   .dice-corner-badge,
   .pawn-token.pawn-legal-pulse,
   .pawn-token.is-selectable::after,
-  .pawn-token.pawn-threatened::before,
-  .move-preview-target {
+  .pawn-token.pawn-threatened::before {
     animation: none;
   }
 }
@@ -4862,7 +4804,7 @@ body {
 
   .game-screen-main .ludo-arena-container {
     width: min(100cqw, 100cqh);
-    max-width: min(520px, 100cqw);
+    max-width: min(560px, 100cqw);
     flex: 0 0 auto;
   }
 

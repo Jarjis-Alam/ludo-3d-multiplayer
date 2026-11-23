@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { absoluteCell, SAFE_CELLS, START_OFFSETS, moveToken as advanceState } from '@ludo/game-engine';
-import type { GameState } from '@ludo/game-engine';
+import { absoluteCell, SAFE_CELLS, START_OFFSETS } from '@ludo/game-engine';
 import { AudioEngine } from './AudioEngine';
 import { PawnToken, PawnDefs } from './PawnToken';
 import { SeatGlyph } from './SeatGlyph';
@@ -18,11 +17,33 @@ export interface Board2DProps {
   isMoving?: boolean;
   reducedMotion?: boolean;
   showCaptureHints?: boolean;
+  /* The landing-page showcase keeps the original, smaller pawn scale. */
+  compactPawns?: boolean;
   onTokenClick: (tokenIdx: number) => void;
 }
 
 const SEAT_COLORS = ['red', 'green', 'yellow', 'blue'] as const;
-const CELL = 100 / 15;
+
+type PawnSizes = { track: number; cluster: number; base: number; goal: number };
+
+/* Pawn sizes in px. Track pawns are allowed to stand a little taller than a cell
+   so they stay readable on a phone; the base and goal pawns fill their sockets. */
+const MATCH_PAWN_SIZES: PawnSizes = { track: 38, cluster: 24, base: 52, goal: 26 };
+/* Unchanged scale for the landing-page showcase, which shares this board. */
+const SHOWCASE_PAWN_SIZES: PawnSizes = { track: 36, cluster: 24, base: 46, goal: 22 };
+
+type Point = { x: number; y: number };
+
+type PawnFlight = {
+  seat: number;
+  tokenIdx: number;
+  mode: 'deploy' | 'move' | 'home' | 'goal';
+  size: number;
+  stepMs: number;
+  waypoints: Point[];
+  captured: { seat: number; tokenIdx: number; waypoints: Point[] } | null;
+  landedOnSafe: boolean;
+};
 
 export const cellToPercent = (col: number, row: number) => ({
   x: ((col + 0.5) / 15) * 100,
@@ -331,105 +352,26 @@ export const Board2D: React.FC<Board2DProps> = ({
   isMoving = false,
   reducedMotion = false,
   showCaptureHints = false,
+  compactPawns = false,
   onTokenClick,
 }) => {
   const activeSeats = useMemo(() => new Set(players.map((p) => p.seat)), [players]);
+  const pawnSizes = compactPawns ? SHOWCASE_PAWN_SIZES : MATCH_PAWN_SIZES;
 
-  // Animation states
-  const [animatingPawn, setAnimatingPawn] = useState<{
-    seat: number;
-    tokenIdx: number;
-    x: number;
-    y: number;
-    hopIndex: number;
-    mode: 'deploy' | 'move' | 'home' | 'goal';
-    stepMs: number;
-    lean: number;
-    size: number;
-  } | null>(null);
-
-  const [capturedPawnAnim, setCapturedPawnAnim] = useState<{
-    seat: number;
-    tokenIdx: number;
-    x: number;
-    y: number;
-  } | null>(null);
-
+  // One pawn in flight at a time. Its position is written straight to the DOM by a
+  // requestAnimationFrame loop, so no React render happens while a pawn is moving.
+  const [flight, setFlight] = useState<PawnFlight | null>(null);
   const [captureEffect, setCaptureEffect] = useState<{ x: number; y: number } | null>(null);
   const [goalBurst, setGoalBurst] = useState<{ x: number; y: number } | null>(null);
   const [isAnimating, setIsAnimating] = useState<boolean>(false);
+  // The captured pawn only leaves its cell once the attacker lands on it.
+  const [captureLanded, setCaptureLanded] = useState<boolean>(false);
 
-  // Selection / hover preview (destination + travelled path)
-  const [previewTokenIdx, setPreviewTokenIdx] = useState<number | null>(null);
-  const [hoverTokenIdx, setHoverTokenIdx] = useState<number | null>(null);
-  const pointerTypeRef = useRef<'mouse' | 'touch' | 'pen'>('mouse');
-
-  const activePreviewIdx = previewTokenIdx ?? hoverTokenIdx;
-
-  useEffect(() => {
-    const onPointerDown = (e: PointerEvent) => {
-      pointerTypeRef.current = e.pointerType === 'touch' ? 'touch' : e.pointerType === 'pen' ? 'pen' : 'mouse';
-    };
-    window.addEventListener('pointerdown', onPointerDown, { passive: true });
-    return () => window.removeEventListener('pointerdown', onPointerDown);
-  }, []);
-
-  // Clear the preview whenever the actionable state changes
-  useEffect(() => {
-    setPreviewTokenIdx(null);
-    setHoverTokenIdx(null);
-  }, [tokens, diceDisplay, currentPlayer, localSeat, legal.join(',')]);
-
-  useEffect(() => {
-    if (previewTokenIdx === null && hoverTokenIdx === null) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setPreviewTokenIdx(null);
-        setHoverTokenIdx(null);
-      }
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [previewTokenIdx, hoverTokenIdx]);
-
-  // Destination comes from the same pure engine function the server uses — never a
-  // second movement implementation.
-  const movePreview = useMemo(() => {
-    if (activePreviewIdx === null || diceDisplay === null) return null;
-    if (localSeat < 0 || localSeat !== currentPlayer) return null;
-    if (!legal.includes(activePreviewIdx)) return null;
-    const currentPos = tokens[localSeat]?.[activePreviewIdx];
-    if (!currentPos) return null;
-    try {
-      const virtualState = {
-        players: players.map((p, i) => ({
-          id: p.id,
-          name: p.name,
-          color: p.color,
-          seat: (typeof p.seat === 'number' ? p.seat : i) as any,
-        })),
-        tokens: tokens as any,
-        currentPlayer: localSeat as any,
-        dice: diceDisplay,
-        consecutiveSixes: 0,
-        status: 'playing',
-        winner: null,
-        rankings: [],
-        version: 0,
-      } as GameState;
-      const result = advanceState(virtualState, localSeat as any, activePreviewIdx, diceDisplay);
-      const destination = result.state.tokens[localSeat][activePreviewIdx] as BoardToken;
-      const waypoints = computeWaypoints(currentPos, destination, localSeat, activePreviewIdx);
-      return {
-        destination,
-        destinationPoint: waypoints[waypoints.length - 1],
-        pathPoints: waypoints.slice(1, -1),
-        captured: result.captured,
-      };
-    } catch {
-      return null;
-    }
-  }, [activePreviewIdx, diceDisplay, legal, localSeat, currentPlayer, tokens, players]);
+  const boardRef = useRef<HTMLDivElement | null>(null);
+  const moverRef = useRef<HTMLDivElement | null>(null);
+  const moverInnerRef = useRef<HTMLDivElement | null>(null);
+  const capturedRef = useRef<HTMLDivElement | null>(null);
+  const capturedInnerRef = useRef<HTMLDivElement | null>(null);
 
   // Which of my pawns can be captured on the opponent's next roll (engine rules:
   // track cell, not a safe cell, reachable within 1–6 steps, opponent still on track).
@@ -459,16 +401,7 @@ export const Board2D: React.FC<Board2DProps> = ({
 
   const activatePawn = (tokenIdx: number) => {
     if (!legal.includes(tokenIdx) || isAnimating || isMoving) return;
-    const isTouch = pointerTypeRef.current !== 'mouse';
-    if (!isTouch || previewTokenIdx === tokenIdx) {
-      setPreviewTokenIdx(null);
-      setHoverTokenIdx(null);
-      onTokenClick(tokenIdx);
-      return;
-    }
-    AudioEngine.playHop();
-    setHoverTokenIdx(null);
-    setPreviewTokenIdx(tokenIdx);
+    onTokenClick(tokenIdx);
   };
 
   const lastCommittedTokensRef = useRef<BoardToken[][] | null>(null);
@@ -558,12 +491,10 @@ export const Board2D: React.FC<Board2DProps> = ({
       const waypoints = computeWaypoints(oldPos, newPos, movedSeat, movedTokenIdx);
       if (waypoints.length <= 1) return;
 
-      // Clear any running animation timers
       animTimeoutsRef.current.forEach(clearTimeout);
       animTimeoutsRef.current = [];
       setGoalBurst(null);
-
-      setIsAnimating(true);
+      setCaptureEffect(null);
 
       const mode: 'deploy' | 'move' | 'home' | 'goal' =
         oldPos.kind === 'base'
@@ -575,117 +506,261 @@ export const Board2D: React.FC<Board2DProps> = ({
           : 'move';
 
       // Pacing per cell: deployments launch slower, goal entry settles slower
-      const stepDuration = mode === 'deploy' ? 240 : mode === 'goal' ? 190 : 150;
-      const initialDelay = 60;
+      const stepMs = mode === 'deploy' ? 240 : mode === 'goal' ? 210 : 170;
 
-      // Match the pawn size to its destination so landing does not resize the token
-      const movingSize =
-        newPos.kind === 'base' ? 46 : newPos.kind === 'home' && newPos.progress >= 6 ? 20 : 28;
+      const landedOnSafe =
+        newPos.kind === 'path' && SAFE_CELLS.has((START_OFFSETS[movedSeat] + newPos.progress) % 52);
 
-      // Lean into horizontal travel so the pawn feels like it is running
-      const leanFor = (from: { x: number; y: number }, to: { x: number; y: number }) =>
-        Math.max(-12, Math.min(12, (to.x - from.x) * 2.2));
-
-      // Set initial position
-      setAnimatingPawn({
-        seat: movedSeat,
-        tokenIdx: movedTokenIdx,
-        x: waypoints[0].x,
-        y: waypoints[0].y,
-        hopIndex: 0,
-        mode,
-        stepMs: stepDuration,
-        lean: 0,
-        size: movingSize,
-      });
-
-      // Animate through subsequent waypoints; CSS interpolates left/top between them
-      waypoints.slice(1).forEach((wp, idx) => {
-        const stepNum = idx + 1;
-        const lean = leanFor(waypoints[stepNum - 1], wp);
-
-        const t = setTimeout(() => {
-          setAnimatingPawn({
-            seat: movedSeat!,
-            tokenIdx: movedTokenIdx!,
-            x: wp.x,
-            y: wp.y,
-            hopIndex: stepNum,
-            mode,
-            stepMs: stepDuration,
-            lean,
-            size: movingSize,
-          });
-          AudioEngine.playHop();
-
-          // Last hop of moving token
-          if (stepNum === waypoints.length - 1) {
-            // Check capture
-            if (capturedSeat !== null && capturedTokenIdx !== null && capturedOldPos) {
-              AudioEngine.playStrike();
-              setCaptureEffect({ x: wp.x, y: wp.y });
-              const effectTimer = setTimeout(() => setCaptureEffect(null), 700);
-              animTimeoutsRef.current.push(effectTimer);
-
-              const returnWaypoints = computeCaptureReturnWaypoints(
+      const captured =
+        capturedSeat !== null && capturedTokenIdx !== null && capturedOldPos
+          ? {
+              seat: capturedSeat,
+              tokenIdx: capturedTokenIdx,
+              waypoints: computeCaptureReturnWaypoints(
                 capturedOldPos,
                 capturedSeat,
                 capturedTokenIdx
-              );
-
-              // Animate captured pawn spinning back to its yard
-              const returnStepMs = 45;
-              returnWaypoints.forEach((rwp, rIdx) => {
-                const rt = setTimeout(() => {
-                  setCapturedPawnAnim({
-                    seat: capturedSeat!,
-                    tokenIdx: capturedTokenIdx!,
-                    x: rwp.x,
-                    y: rwp.y,
-                  });
-
-                  if (rIdx === returnWaypoints.length - 1) {
-                    AudioEngine.playExit();
-                    const settle = setTimeout(() => {
-                      setAnimatingPawn(null);
-                      setCapturedPawnAnim(null);
-                      setIsAnimating(false);
-                    }, 140);
-                    animTimeoutsRef.current.push(settle);
-                  }
-                }, rIdx * returnStepMs);
-                animTimeoutsRef.current.push(rt);
-              });
-            } else {
-              // Non-capture landing: play landing sound on safe cell
-              const landedAbsCell =
-                newPos!.kind === 'path'
-                  ? (START_OFFSETS[movedSeat!] + newPos!.progress) % 52
-                  : null;
-              if (landedAbsCell !== null && SAFE_CELLS.has(landedAbsCell)) {
-                AudioEngine.playLand();
-              }
-
-              if (mode === 'goal') {
-                setGoalBurst({ x: wp.x, y: wp.y });
-                const burstTimer = setTimeout(() => setGoalBurst(null), 800);
-                animTimeoutsRef.current.push(burstTimer);
-              }
-
-              // Let the final glide finish before removing the overlay pawn
-              const settle = setTimeout(() => {
-                setAnimatingPawn(null);
-                setIsAnimating(false);
-              }, stepDuration + 90);
-              animTimeoutsRef.current.push(settle);
+              ),
             }
-          }
-        }, initialDelay + stepNum * stepDuration);
+          : null;
 
-        animTimeoutsRef.current.push(t);
+      setIsAnimating(true);
+      setCaptureLanded(false);
+      setFlight({
+        seat: movedSeat,
+        tokenIdx: movedTokenIdx,
+        mode,
+        size: mode === 'goal' ? pawnSizes.goal : pawnSizes.track,
+        stepMs,
+        waypoints,
+        captured,
+        landedOnSafe,
       });
     }
   }, [tokens]);
+
+  // Flight driver. One requestAnimationFrame loop writes GPU transforms directly to
+  // the pawn, so the whole move is continuous (no per-hop timers, no layout work,
+  // no React renders) and runs at the display refresh rate.
+  useEffect(() => {
+    if (!flight) return;
+    const mover = moverRef.current;
+    const moverInner = moverInnerRef.current;
+
+    // Fail-safe bookkeeping. Whatever goes wrong inside a flight — a missing
+    // node, a throwing audio/DOM call, or a frame loop the browser pauses — the
+    // overlay pawn is always cleared and tapping is never left locked.
+    let raf = 0;
+    let safetyTimer: ReturnType<typeof setTimeout> | undefined;
+    let done = false;
+    const settle = () => {
+      if (done) return;
+      done = true;
+      cancelAnimationFrame(raf);
+      if (safetyTimer) clearTimeout(safetyTimer);
+      setFlight(null);
+      setIsAnimating(false);
+    };
+
+    if (!mover || !moverInner) {
+      settle();
+      return;
+    }
+
+    const rect = boardRef.current?.getBoundingClientRect();
+    const boardW = rect?.width || 360;
+    const boardH = rect?.height || 360;
+
+    const points = flight.waypoints;
+    const segCount = Math.max(1, points.length - 1);
+    const lengths: number[] = [];
+    let totalLen = 0;
+    for (let i = 0; i < segCount; i++) {
+      const len =
+        Math.hypot(
+          ((points[i + 1].x - points[i].x) / 100) * boardW,
+          ((points[i + 1].y - points[i].y) / 100) * boardH
+        ) || 1;
+      lengths.push(len);
+      totalLen += len;
+    }
+
+    const origin = points[0];
+    const delta = (p: Point) => ({
+      dx: ((p.x - origin.x) / 100) * boardW,
+      dy: ((p.y - origin.y) / 100) * boardH,
+    });
+
+    const placeMover = (dx: number, dy: number, lift: number, sx: number, sy: number) => {
+      mover.style.transform = `translate3d(${dx}px, ${dy}px, 0) translate(-50%, -50%)`;
+      moverInner.style.transform = `translate3d(0, ${-lift}px, 0) scale(${sx}, ${sy})`;
+    };
+    const start = delta(points[0]);
+    placeMover(start.dx, start.dy, 0, 1, 1);
+
+    const capturePoints = flight.captured?.waypoints ?? [];
+    const captureOrigin = capturePoints[0];
+    const captureSegCount = Math.max(0, capturePoints.length - 1);
+    const captureLengths: number[] = [];
+    let captureTotal = 0;
+    for (let i = 0; i < captureSegCount; i++) {
+      const len =
+        Math.hypot(
+          ((capturePoints[i + 1].x - captureOrigin.x) / 100) * boardW,
+          ((capturePoints[i + 1].y - captureOrigin.y) / 100) * boardH
+        ) || 1;
+      captureLengths.push(len);
+      captureTotal += len;
+    }
+
+    const capturedEl = capturedRef.current;
+    const capturedInner = capturedInnerRef.current;
+    const captureDelta = (p: Point) => ({
+      dx: ((p.x - captureOrigin.x) / 100) * boardW,
+      dy: ((p.y - captureOrigin.y) / 100) * boardH,
+    });
+    const placeCaptured = (dx: number, dy: number, rot: number, scale: number) => {
+      if (!capturedEl || !capturedInner) return;
+      capturedEl.style.transform = `translate3d(${dx}px, ${dy}px, 0) translate(-50%, -50%)`;
+      capturedInner.style.transform = `rotate(${rot}deg) scale(${scale})`;
+    };
+
+    const cellPx = Math.min(boardW, boardH) / 15;
+    const hopLift =
+      flight.mode === 'deploy' ? cellPx * 2 : flight.mode === 'goal' ? cellPx * 0.5 : cellPx * 0.72;
+
+    const moveDuration = segCount * flight.stepMs;
+    const settleMs = 80;
+    const captureDelay = 120;
+    const captureDuration = captureSegCount * 28;
+    const finishAt =
+      moveDuration + settleMs + (flight.captured ? captureDelay + captureDuration + 40 : 40);
+
+    let startedAt = 0;
+    let lastSeg = 0;
+    let landed = false;
+    let exitPlayed = false;
+
+    const step = (now: number) => {
+      if (!startedAt) startedAt = now;
+      const t = now - startedAt;
+
+      if (t < moveDuration) {
+        // Ease the whole journey rather than each cell, so the pawn never stops
+        // between cells — it accelerates once, flows, and settles on arrival.
+        const p = Math.min(1, t / moveDuration);
+        const eased = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+        let remaining = totalLen * eased;
+        let seg = 0;
+        while (seg < segCount - 1 && remaining > lengths[seg]) {
+          remaining -= lengths[seg];
+          seg += 1;
+        }
+        const u = Math.min(1, remaining / lengths[seg]);
+        const from = delta(points[seg]);
+        const to = delta(points[seg + 1]);
+        const arc = Math.sin(Math.PI * u);
+        const squash = u > 0.86 ? Math.sin(Math.PI * ((u - 0.86) / 0.14)) : 0;
+        placeMover(
+          from.dx + (to.dx - from.dx) * u,
+          from.dy + (to.dy - from.dy) * u,
+          arc * hopLift,
+          1 + 0.05 * squash + 0.02 * arc,
+          1 - 0.07 * squash + 0.03 * arc
+        );
+        if (seg > lastSeg) {
+          lastSeg = seg;
+          AudioEngine.playHop();
+        }
+        raf = requestAnimationFrame(frame);
+        return;
+      }
+
+      if (!landed) {
+        landed = true;
+        const dest = points[points.length - 1];
+        const destDelta = delta(dest);
+        placeMover(destDelta.dx, destDelta.dy, 0, 1, 1);
+
+        if (flight.captured) {
+          AudioEngine.playStrike();
+          setCaptureEffect({ x: dest.x, y: dest.y });
+          const ringTimer = setTimeout(() => setCaptureEffect(null), 650);
+          animTimeoutsRef.current.push(ringTimer);
+          setCaptureLanded(true);
+          if (capturedEl) capturedEl.style.opacity = '1';
+          placeCaptured(destDelta.dx, destDelta.dy, 0, 0.86);
+        } else {
+          if (flight.landedOnSafe) AudioEngine.playLand();
+          if (flight.mode === 'goal') {
+            setGoalBurst({ x: dest.x, y: dest.y });
+            const burstTimer = setTimeout(() => setGoalBurst(null), 760);
+            animTimeoutsRef.current.push(burstTimer);
+          }
+        }
+      }
+
+      if (flight.captured && captureSegCount > 0) {
+        const ct = t - moveDuration - settleMs - captureDelay;
+        if (ct >= 0) {
+          const cp = Math.min(1, ct / captureDuration);
+          const eased = 1 - Math.pow(1 - cp, 2);
+          let remaining = captureTotal * eased;
+          let seg = 0;
+          while (seg < captureSegCount - 1 && remaining > captureLengths[seg]) {
+            remaining -= captureLengths[seg];
+            seg += 1;
+          }
+          const u = Math.min(1, remaining / captureLengths[seg]);
+          const from = captureDelta(capturePoints[seg]);
+          const to = captureDelta(capturePoints[seg + 1]);
+          placeCaptured(
+            from.dx + (to.dx - from.dx) * u,
+            from.dy + (to.dy - from.dy) * u,
+            -540 * eased,
+            0.86 + 0.14 * eased
+          );
+          if (!exitPlayed && cp >= 1) {
+            exitPlayed = true;
+            AudioEngine.playExit();
+          }
+        }
+      }
+
+      if (t >= finishAt) {
+        settle();
+        return;
+      }
+      raf = requestAnimationFrame(frame);
+    };
+
+    const frame = (now: number) => {
+      if (done) return;
+      try {
+        step(now);
+      } catch (error) {
+        // Never strand the flight: snap the pawn to its destination, drop the
+        // overlay and unlock tapping so the board stays usable.
+        try {
+          const dest = delta(points[points.length - 1]);
+          placeMover(dest.dx, dest.dy, 0, 1, 1);
+        } catch {
+          /* the overlay is removed below regardless */
+        }
+        console.warn('[Board2D] pawn animation aborted, settling immediately', error);
+        settle();
+      }
+    };
+
+    raf = requestAnimationFrame(frame);
+    // Watchdog: even if the frame loop stops being called, release the board.
+    safetyTimer = setTimeout(settle, finishAt + 1500);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      if (safetyTimer) clearTimeout(safetyTimer);
+    };
+  }, [flight]);
 
   // Map tokens to their visual cells:
   // Key: "track-X", "home-SEAT-INDEX", "base-SEAT-TOKEN", "goal-SEAT"
@@ -731,17 +806,16 @@ export const Board2D: React.FC<Board2DProps> = ({
     return map;
   }, [tokens, activeSeats, localSeat, currentPlayer, legal, isAnimating, isMoving]);
 
-  const renderPawn = (seat: number, tokenIdx: number, isLegal: boolean, size = 36) => {
-    // If this token is currently in flight on the animation overlay, hide its static cell instance
+  const renderPawn = (seat: number, tokenIdx: number, isLegal: boolean, size = pawnSizes.track) => {
+    // While a pawn is in flight, its overlay copy is the visible one.
     if (
-      (animatingPawn && animatingPawn.seat === seat && animatingPawn.tokenIdx === tokenIdx) ||
-      (capturedPawnAnim && capturedPawnAnim.seat === seat && capturedPawnAnim.tokenIdx === tokenIdx)
+      (flight && flight.seat === seat && flight.tokenIdx === tokenIdx) ||
+      (flight?.captured && captureLanded && flight.captured.seat === seat && flight.captured.tokenIdx === tokenIdx)
     ) {
       return null;
     }
 
     const colorKey = SEAT_COLORS[seat] || 'red';
-    const isSelected = previewTokenIdx === tokenIdx && seat === localSeat;
 
     return (
       <PawnToken
@@ -749,7 +823,6 @@ export const Board2D: React.FC<Board2DProps> = ({
         color={colorKey}
         seat={seat}
         isLegal={isLegal}
-        isSelected={isSelected}
         isThreatened={seat === localSeat && threatenedTokens.has(`${seat}-${tokenIdx}`)}
         size={size}
         onClick={(e) => {
@@ -759,20 +832,8 @@ export const Board2D: React.FC<Board2DProps> = ({
           }
         }}
         onActivate={() => activatePawn(tokenIdx)}
-        onPointerEnter={() => {
-          if (isLegal && pointerTypeRef.current === 'mouse') setHoverTokenIdx(tokenIdx);
-        }}
-        onPointerLeave={() => {
-          if (hoverTokenIdx === tokenIdx) setHoverTokenIdx(null);
-        }}
-        onFocus={() => {
-          if (isLegal) setHoverTokenIdx(tokenIdx);
-        }}
-        onBlur={() => {
-          if (hoverTokenIdx === tokenIdx) setHoverTokenIdx(null);
-        }}
         title={`Seat ${seat + 1} (${colorKey.toUpperCase()}) - Pawn ${tokenIdx + 1}${
-          isLegal ? ' (Press Enter or tap to preview the move)' : ''
+          isLegal ? ' (tap to move)' : ''
         }${
           seat === localSeat && threatenedTokens.has(`${seat}-${tokenIdx}`)
             ? ' — can be captured next roll'
@@ -787,13 +848,13 @@ export const Board2D: React.FC<Board2DProps> = ({
     if (occupants.length === 0) return null;
     const visibleOccupants = occupants.filter(
       (occ) =>
-        !(animatingPawn && animatingPawn.seat === occ.seat && animatingPawn.tokenIdx === occ.tokenIdx) &&
-        !(capturedPawnAnim && capturedPawnAnim.seat === occ.seat && capturedPawnAnim.tokenIdx === occ.tokenIdx)
+        !(flight && flight.seat === occ.seat && flight.tokenIdx === occ.tokenIdx) &&
+        !(flight?.captured && captureLanded && flight.captured.seat === occ.seat && flight.captured.tokenIdx === occ.tokenIdx)
     );
     if (visibleOccupants.length === 0) return null;
 
     const isClustered = visibleOccupants.length > 1;
-    const pawnSize = isClustered ? 20 : 28;
+    const pawnSize = isClustered ? pawnSizes.cluster : pawnSizes.track;
 
     return (
       <div className={`tokens-cluster ${isClustered ? 'has-cluster' : ''}`}>
@@ -807,13 +868,12 @@ export const Board2D: React.FC<Board2DProps> = ({
     const occupants = tokensOnBoard[`home-${seat}-${stepIndex}`] || [];
     if (occupants.length === 0) return null;
     const visibleOccupants = occupants.filter(
-      (occ) =>
-        !(animatingPawn && animatingPawn.seat === occ.seat && animatingPawn.tokenIdx === occ.tokenIdx)
+      (occ) => !(flight && flight.seat === occ.seat && flight.tokenIdx === occ.tokenIdx)
     );
     if (visibleOccupants.length === 0) return null;
 
     const isClustered = visibleOccupants.length > 1;
-    const pawnSize = isClustered ? 20 : 28;
+    const pawnSize = isClustered ? pawnSizes.cluster : pawnSizes.track;
 
     return (
       <div className={`tokens-cluster ${isClustered ? 'has-cluster' : ''}`}>
@@ -830,14 +890,13 @@ export const Board2D: React.FC<Board2DProps> = ({
     const occupants = tokensOnBoard[`goal-${seat}`] || [];
     if (occupants.length === 0) return null;
     const visibleOccupants = occupants.filter(
-      (occ) =>
-        !(animatingPawn && animatingPawn.seat === occ.seat && animatingPawn.tokenIdx === occ.tokenIdx)
+      (occ) => !(flight && flight.seat === occ.seat && flight.tokenIdx === occ.tokenIdx)
     );
     if (visibleOccupants.length === 0) return null;
 
     return (
       <div className="goal-occupants-cluster">
-        {visibleOccupants.map((occ) => renderPawn(occ.seat, occ.tokenIdx, occ.isLegal, 22))}
+        {visibleOccupants.map((occ) => renderPawn(occ.seat, occ.tokenIdx, occ.isLegal, pawnSizes.goal))}
       </div>
     );
   }
@@ -850,76 +909,27 @@ export const Board2D: React.FC<Board2DProps> = ({
           className="ludo-grid board-v2-grid"
           id="ludoBoard"
           style={{ position: 'relative' }}
-          onClick={() => {
-            setPreviewTokenIdx(null);
-            setHoverTokenIdx(null);
-          }}
+          ref={boardRef}
         >
           {/* ==================== DYNAMIC ANIMATION OVERLAY LAYER ==================== */}
           <div className="board-anim-layer" aria-hidden="true">
-            {/* Move preview: destination tile, travelled cells and a ghost pawn */}
-            {movePreview && activePreviewIdx !== null && (
-              <>
-                <div
-                  className={`move-preview-target ${movePreview.captured ? 'preview-captures' : ''}`}
-                  style={{
-                    left: `${movePreview.destinationPoint.x}%`,
-                    top: `${movePreview.destinationPoint.y}%`,
-                    width: `${CELL}%`,
-                    height: `${CELL}%`,
-                  }}
-                />
-                {movePreview.pathPoints.map((point, idx) => (
-                  <span
-                    key={`preview-dot-${idx}`}
-                    className="move-preview-dot"
-                    style={{ left: `${point.x}%`, top: `${point.y}%` }}
-                  />
-                ))}
-                <div
-                  className="move-preview-ghost"
-                  style={{
-                    left: `${movePreview.destinationPoint.x}%`,
-                    top: `${movePreview.destinationPoint.y}%`,
-                  }}
-                >
-                  <PawnToken
-                    color={SEAT_COLORS[localSeat] || 'red'}
-                    seat={localSeat}
-                    size={
-                      movePreview.destination.kind === 'base'
-                        ? 46
-                        : movePreview.destination.kind === 'home' &&
-                          movePreview.destination.progress >= 6
-                        ? 20
-                        : 28
-                    }
-                  />
-                </div>
-              </>
-            )}
-
-            {animatingPawn && (
+            {flight && (
               <div
-                key={`pawn-anim-${animatingPawn.seat}-${animatingPawn.tokenIdx}`}
                 className={`animating-pawn-wrapper ${
-                  animatingPawn.mode === 'deploy'
+                  flight.mode === 'deploy'
                     ? 'deploying-pawn'
-                    : animatingPawn.mode === 'goal'
+                    : flight.mode === 'goal'
                     ? 'goal-entry-pawn'
                     : ''
                 }`}
-                style={
-                  {
-                    left: `${animatingPawn.x}%`,
-                    top: `${animatingPawn.y}%`,
-                    '--step-ms': `${animatingPawn.stepMs}ms`,
-                    '--pawn-lean': `${animatingPawn.lean}deg`,
-                  } as React.CSSProperties
-                }
+                style={{
+                  left: `${flight.waypoints[0].x}%`,
+                  top: `${flight.waypoints[0].y}%`,
+                }}
+                ref={moverRef}
               >
-                <div key={`hop-inner-${animatingPawn.hopIndex}`} className="pawn-hop-bounce-inner">
-                  <PawnToken color={SEAT_COLORS[animatingPawn.seat]} size={animatingPawn.size} />
+                <div className="pawn-flight-inner" ref={moverInnerRef}>
+                  <PawnToken color={SEAT_COLORS[flight.seat]} seat={flight.seat} size={flight.size} />
                 </div>
               </div>
             )}
@@ -944,30 +954,26 @@ export const Board2D: React.FC<Board2DProps> = ({
               />
             )}
 
-            {capturedPawnAnim && (
+            {flight?.captured && (
               <div
-                key={`captured-anim-${capturedPawnAnim.seat}-${capturedPawnAnim.tokenIdx}`}
                 className="animating-pawn-wrapper captured-return-arc"
-                style={
-                  {
-                    left: `${capturedPawnAnim.x}%`,
-                    top: `${capturedPawnAnim.y}%`,
-                    '--step-ms': '45ms',
-                  } as React.CSSProperties
-                }
+                style={{
+                  left: `${flight.captured.waypoints[0].x}%`,
+                  top: `${flight.captured.waypoints[0].y}%`,
+                  opacity: 0,
+                }}
+                ref={capturedRef}
               >
-                <div className="captured-pawn-inner">
-                  <PawnToken color={SEAT_COLORS[capturedPawnAnim.seat]} size={40} />
+                <div className="pawn-flight-inner captured-pawn-inner" ref={capturedInnerRef}>
+                  <PawnToken
+                    color={SEAT_COLORS[flight.captured.seat]}
+                    seat={flight.captured.seat}
+                    size={40}
+                  />
                 </div>
               </div>
             )}
           </div>
-
-          {previewTokenIdx !== null && (
-            <div className="move-preview-hint" role="status" aria-live="polite">
-              Tap again to move
-            </div>
-          )}
 
           {/* ==================== 1. RED HOME YARD (Cols 1-6, Rows 1-6) ==================== */}
           <div
@@ -1001,7 +1007,7 @@ export const Board2D: React.FC<Board2DProps> = ({
                     tabIndex={hasLegalMove ? 0 : -1}
                     aria-label={`Red Yard Socket ${slotIdx + 1}${hasLegalMove ? ' - Tap to Deploy' : ''}`}
                   >
-                    {occupants.map((occ) => renderPawn(occ.seat, occ.tokenIdx, occ.isLegal, 46))}
+                    {occupants.map((occ) => renderPawn(occ.seat, occ.tokenIdx, occ.isLegal, pawnSizes.base))}
                   </div>
                 );
               })}
@@ -1083,7 +1089,7 @@ export const Board2D: React.FC<Board2DProps> = ({
                     tabIndex={hasLegalMove ? 0 : -1}
                     aria-label={`Green Yard Socket ${slotIdx + 1}${hasLegalMove ? ' - Tap to Deploy' : ''}`}
                   >
-                    {occupants.map((occ) => renderPawn(occ.seat, occ.tokenIdx, occ.isLegal, 46))}
+                    {occupants.map((occ) => renderPawn(occ.seat, occ.tokenIdx, occ.isLegal, pawnSizes.base))}
                   </div>
                 );
               })}
@@ -1239,7 +1245,7 @@ export const Board2D: React.FC<Board2DProps> = ({
                     tabIndex={hasLegalMove ? 0 : -1}
                     aria-label={`Blue Yard Socket ${slotIdx + 1}${hasLegalMove ? ' - Tap to Deploy' : ''}`}
                   >
-                    {occupants.map((occ) => renderPawn(occ.seat, occ.tokenIdx, occ.isLegal, 46))}
+                    {occupants.map((occ) => renderPawn(occ.seat, occ.tokenIdx, occ.isLegal, pawnSizes.base))}
                   </div>
                 );
               })}
@@ -1321,7 +1327,7 @@ export const Board2D: React.FC<Board2DProps> = ({
                     tabIndex={hasLegalMove ? 0 : -1}
                     aria-label={`Yellow Yard Socket ${slotIdx + 1}${hasLegalMove ? ' - Tap to Deploy' : ''}`}
                   >
-                    {occupants.map((occ) => renderPawn(occ.seat, occ.tokenIdx, occ.isLegal, 46))}
+                    {occupants.map((occ) => renderPawn(occ.seat, occ.tokenIdx, occ.isLegal, pawnSizes.base))}
                   </div>
                 );
               })}
