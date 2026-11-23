@@ -10,6 +10,8 @@ import { ShareModal } from './ShareModal';
 import { SettingsModal } from './SettingsModal';
 import { ActivityFeed, ActivityItem } from './ActivityFeed';
 import { VictoryPodium } from './VictoryPodium';
+import { EliminationOverlay } from './EliminationOverlay';
+import type { EliminationEvent } from './EliminationOverlay';
 import { GameBackground } from './GameBackground';
 import { PlayerAvatar } from './PlayerAvatar';
 import { RoomInfoBar } from './RoomInfoBar';
@@ -527,6 +529,8 @@ function App() {
   const [copiedCode, setCopiedCode] = useState(false);
   const [copiedInvite, setCopiedInvite] = useState(false);
   const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [elimination, setElimination] = useState<EliminationEvent | null>(null);
+  const eliminationTimerRef = useRef<number | null>(null);
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
   const [activityFeedOpen, setActivityFeedOpen] = useState(false);
   const [hapticEnabled, setHapticEnabled] = useState(() => {
@@ -561,6 +565,14 @@ function App() {
 
   // Keep the phone awake for the whole live match; released on finish, hide or unmount.
   useScreenWakeLock(snapshot?.status === 'playing');
+
+  // Never let a queued elimination clear timer outlive the screen.
+  useEffect(
+    () => () => {
+      if (eliminationTimerRef.current) window.clearTimeout(eliminationTimerRef.current);
+    },
+    []
+  );
 
   const canJoin = name.trim().length > 0 && name.trim().length <= 16;
 
@@ -794,6 +806,7 @@ function App() {
       playerName: string;
       token: number;
       captured: boolean;
+      capturedSeat?: number;
       winner: boolean;
       finished: boolean;
       pawnReachedHome: boolean;
@@ -802,7 +815,20 @@ function App() {
       const pColor = snapshotRef.current?.players.find((p) => p.seat === data.seat)?.color;
       if (data.captured) {
         AudioEngine.playCapture();
-        triggerHaptic('medium');
+        triggerHaptic('heavy');
+        const victim =
+          typeof data.capturedSeat === 'number'
+            ? snapshotRef.current?.players.find((p) => p.seat === data.capturedSeat)
+            : undefined;
+        const fallbackVictim = snapshotRef.current?.players.find((p) => p.seat !== data.seat);
+        setElimination({
+          id: Date.now() + Math.random(),
+          attackerColor: pColor || 'red',
+          victimColor: victim?.color || fallbackVictim?.color || 'blue',
+          victimName: victim?.name,
+        });
+        if (eliminationTimerRef.current) window.clearTimeout(eliminationTimerRef.current);
+        eliminationTimerRef.current = window.setTimeout(() => setElimination(null), 2300);
         addActivityItem({
           type: 'capture',
           icon: '⚔️',
@@ -1936,6 +1962,14 @@ function App() {
             </aside>
           </div>
         </div>
+
+        {elimination && (
+          <EliminationOverlay
+            key={elimination.id}
+            event={elimination}
+            reducedMotion={reducedMotion}
+          />
+        )}
 
         {renderModals()}
       </main>

@@ -163,7 +163,7 @@ export function moveToken(
   token: number,
   dice: number,
   now = Date.now()
-): { state: GameState; captured: boolean; winner: boolean; finished: boolean; pawnReachedHome: boolean; rank?: number } {
+): { state: GameState; captured: boolean; capturedSeat?: PlayerIndex; winner: boolean; finished: boolean; pawnReachedHome: boolean; rank?: number } {
   if (state.status !== 'playing' || state.currentPlayer !== player) throw new Error('not your turn');
   if (state.rankings && state.rankings.includes(player)) throw new Error('player already finished');
   if (
@@ -192,6 +192,7 @@ export function moveToken(
   }
 
   let captured = false;
+  let capturedSeat: PlayerIndex | undefined;
   const landed = next[player][token];
   if (landed.kind === 'path' && !SAFE_CELLS.has(absoluteCell(player, landed.progress))) {
     for (const p of state.players) {
@@ -204,6 +205,7 @@ export function moveToken(
         if (tokenPos.kind === 'path' && absoluteCell(opponent, tokenPos.progress) === absoluteCell(player, landed.progress)) {
           oppTokens[i] = { kind: 'base' };
           captured = true;
+          if (capturedSeat === undefined) capturedSeat = opponent;
         }
       }
     }
@@ -335,6 +337,7 @@ export function moveToken(
       lastNotice: notice,
     },
     captured,
+    capturedSeat,
     winner: isMatchFinished,
     finished: justFinished,
     pawnReachedHome,

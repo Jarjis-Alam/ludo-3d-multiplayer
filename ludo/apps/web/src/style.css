@@ -5296,3 +5296,255 @@ body {
     gap: 8px;
   }
 }
+/* ==========================================================================
+   CAPTURE / ELIMINATION CELEBRATION
+   The attacking pawn slams into the victim, the victim cracks and is knocked
+   away, and a red ELIMINATED! ribbon lands over the dimmed board.
+   ========================================================================== */
+.elim-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 45%, rgba(28, 10, 40, 0.55), rgba(12, 5, 20, 0.86));
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  animation: elimFadeIn 0.22s ease-out both, elimFadeOut 0.4s 1.9s ease-in forwards;
+}
+
+.elim-vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 45%, transparent 24%, rgba(8, 3, 14, 0.55) 78%);
+}
+
+.elim-scene {
+  position: relative;
+  width: min(92vw, 470px);
+  aspect-ratio: 470 / 320;
+}
+
+/* Pawn discs reuse the victory-screen colour tokens (--rim / --face) */
+.elim-disc {
+  position: absolute;
+  width: var(--d, 140px);
+  aspect-ratio: 2.1 / 1;
+  border-radius: 50%;
+  background: var(--rim, #6f1016);
+  box-shadow: 0 20px 28px rgba(0, 0, 0, 0.55);
+}
+
+.elim-disc::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 22% 0;
+  border-radius: 50%;
+  background: var(--face, #ef3d3d);
+  box-shadow: inset 0 6px 10px rgba(255, 255, 255, 0.32), inset 0 -8px 12px rgba(0, 0, 0, 0.25);
+}
+
+.elim-disc::after {
+  content: '';
+  position: absolute;
+  left: 20%;
+  top: 10%;
+  width: 32%;
+  height: 24%;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.5);
+  filter: blur(2px);
+  transform: rotate(-10deg);
+}
+
+.elim-attacker {
+  --d: clamp(118px, 34vw, 172px);
+  left: 10%;
+  top: 14%;
+  z-index: 3;
+  animation: elimSlam 0.52s cubic-bezier(0.22, 0.9, 0.24, 1.15) both;
+}
+
+.elim-victim {
+  --d: clamp(84px, 25vw, 122px);
+  left: 48%;
+  top: 28%;
+  z-index: 7;
+  animation: elimKnock 0.72s 0.34s cubic-bezier(0.3, 0.1, 0.3, 1) both;
+}
+
+.elim-cracks {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  fill: none;
+  stroke: #f6f1ff;
+  stroke-width: 3.4;
+  stroke-linecap: round;
+  opacity: 0;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.4));
+  animation: elimCracks 0.18s 0.38s ease-out both;
+}
+
+.elim-burst {
+  position: absolute;
+  left: 34%;
+  top: 6%;
+  width: clamp(120px, 36vw, 190px);
+  z-index: 4;
+  animation: elimBurst 0.5s 0.3s cubic-bezier(0.2, 1.3, 0.4, 1) both;
+}
+
+.elim-burst svg {
+  width: 100%;
+  height: auto;
+  filter: drop-shadow(0 0 18px rgba(255, 180, 60, 0.85));
+}
+
+.elim-dash {
+  position: absolute;
+  width: clamp(30px, 9vw, 52px);
+  height: clamp(8px, 2.4vw, 13px);
+  border-radius: 4px;
+  background: #ffc61a;
+  box-shadow: 0 0 14px rgba(255, 198, 26, 0.6);
+  opacity: 0;
+  z-index: 5;
+}
+
+.elim-dash-left {
+  --rot: -12deg;
+  left: 1%;
+  top: 76%;
+  transform: rotate(-12deg);
+  animation: elimDash 0.35s 0.52s ease-out both;
+}
+
+.elim-dash-right {
+  --rot: 14deg;
+  right: 1%;
+  top: 24%;
+  transform: rotate(14deg);
+  animation: elimDash 0.35s 0.58s ease-out both;
+}
+
+.elim-banner {
+  position: absolute;
+  left: -8%;
+  right: -8%;
+  top: 56%;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(6px, 2vw, 10px) clamp(16px, 5vw, 30px);
+  background: linear-gradient(180deg, #ff5147 0%, #d3141c 52%, #8d040a 100%);
+  border-top: 3px solid #ffd9c9;
+  border-bottom: 4px solid #66010a;
+  box-shadow: 0 20px 36px rgba(0, 0, 0, 0.6), inset 0 0 46px rgba(255, 140, 100, 0.35);
+  transform: skewX(-9deg);
+  clip-path: polygon(3% 0, 100% 0, 97% 100%, 0 100%);
+  animation: elimBanner 0.5s 0.44s cubic-bezier(0.16, 1.5, 0.4, 1) both;
+}
+
+.elim-banner::after {
+  content: '';
+  position: absolute;
+  left: 6%;
+  right: 4%;
+  bottom: 7px;
+  height: 2px;
+  background: rgba(255, 214, 190, 0.55);
+}
+
+.elim-banner-text {
+  transform: skewX(9deg);
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: clamp(2rem, 9.5vw, 3.4rem);
+  font-weight: 900;
+  letter-spacing: 0.01em;
+  color: #fff2d8;
+  text-shadow: 0 4px 0 #7c070d, 0 10px 20px rgba(0, 0, 0, 0.5);
+  white-space: nowrap;
+}
+
+.elim-sub {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(56% + clamp(58px, 15vw, 80px));
+  margin: 0;
+  text-align: center;
+  font-family: var(--font-heading);
+  font-style: italic;
+  font-size: clamp(0.78rem, 3.4vw, 0.98rem);
+  font-weight: 700;
+  color: #ffe9d2;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+  z-index: 6;
+  animation: elimSub 0.35s 0.64s ease-out both;
+}
+
+@keyframes elimFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes elimFadeOut {
+  to { opacity: 0; }
+}
+
+@keyframes elimSlam {
+  0% { opacity: 0; transform: translate(-150px, -110px) rotate(-55deg) scale(0.82); }
+  70% { opacity: 1; transform: translate(6px, 4px) rotate(-14deg) scale(1.02); }
+  100% { opacity: 1; transform: translate(0, 0) rotate(-18deg) scale(1); }
+}
+
+@keyframes elimKnock {
+  0% { opacity: 1; transform: translate(0, 0) rotate(-26deg); }
+  22% { opacity: 1; transform: translate(-12px, -8px) rotate(-10deg); }
+  100% { opacity: 0; transform: translate(96px, -78px) rotate(150deg) scale(0.9); }
+}
+
+@keyframes elimCracks {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes elimBurst {
+  0% { opacity: 0; transform: scale(0.2) rotate(-24deg); }
+  62% { opacity: 1; transform: scale(1.16) rotate(4deg); }
+  100% { opacity: 0.95; transform: scale(1) rotate(0deg); }
+}
+
+@keyframes elimDash {
+  0% { opacity: 0; transform: translateY(10px) scaleX(0.4) rotate(var(--rot, -12deg)); }
+  100% { opacity: 1; transform: translateY(0) scaleX(1) rotate(var(--rot, -12deg)); }
+}
+
+@keyframes elimBanner {
+  0% { opacity: 0; transform: skewX(-9deg) scaleX(0.4) translateY(12px); }
+  62% { opacity: 1; transform: skewX(-9deg) scaleX(1.06); }
+  100% { opacity: 1; transform: skewX(-9deg) scaleX(1); }
+}
+
+@keyframes elimSub {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Reduced motion: land everything at once and fade gently */
+.elim-reduced,
+.elim-reduced * {
+  animation-duration: 0.01s !important;
+  animation-delay: 0s !important;
+}
+
+.elim-reduced {
+  animation: elimFadeIn 0.01s both, elimFadeOut 0.3s 1.05s ease-in forwards !important;
+}
