@@ -273,7 +273,7 @@ const MobilePlayerRibbon: React.FC<MobilePlayerRibbonProps> = ({
             <PlayerAvatar
               seat={p.seat}
               name={p.name}
-              size={32}
+              size={28}
               isHost={p.seat === 0}
             />
 
@@ -535,9 +535,9 @@ function App() {
   const [captureHints, setCaptureHints] = useState(
     () => localStorage.getItem('ludo_capture_hints') === 'true'
   );
-  const [ribbonExpanded, setRibbonExpanded] = useState(
-    () => typeof window === 'undefined' || window.innerWidth > 520
-  );
+  // Names are always shown by default; phones hide the collapse control because
+  // the ribbon already stacks into two rows there.
+  const [ribbonExpanded, setRibbonExpanded] = useState(true);
   const [reconnectToast, setReconnectToast] = useState(false);
   const [restoringSession, setRestoringSession] = useState(
     () => typeof window !== 'undefined' && !!localStorage.getItem('ludo-room')

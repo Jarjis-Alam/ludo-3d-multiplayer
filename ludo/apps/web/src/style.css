@@ -4626,6 +4626,92 @@ body {
   opacity: 1;
 }
 
+/* The turn chip sits in the card corner instead of taking a column, so the
+   player's name and home count keep the width they need. */
+.mobile-player-ribbon:not(.ribbon-compact) .master-turn-badge-yellow {
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  padding: 0 4px;
+  font-size: 0.55rem;
+  line-height: 1.45;
+  border-radius: 6px;
+  z-index: 3;
+}
+
+.mobile-player-ribbon:not(.ribbon-compact) .badge-clock-icon {
+  display: none;
+}
+
+.mobile-player-ribbon:not(.ribbon-compact) .master-card-progress {
+  padding-right: 34px;
+}
+
+/* Phones lay the ribbon out two players per row, so every name has real width
+   instead of being squeezed into a quarter of the screen. With three players the
+   odd one out centres on the second row rather than hugging the left edge. */
+@media (max-width: 600px) {
+  .mobile-player-ribbon:not(.ribbon-compact) {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    justify-content: stretch;
+    gap: 4px;
+    padding: 0 2px 2px;
+  }
+
+  .mobile-player-ribbon:not(.ribbon-compact) .master-player-card {
+    max-width: none;
+    height: 32px;
+    padding: 2px 8px;
+    gap: 6px;
+  }
+
+  /* Two rows of cards cost board height, so the avatar shrinks with the card. */
+  .mobile-player-ribbon:not(.ribbon-compact) .master-player-card .player-avatar-wrapper {
+    width: 24px !important;
+    height: 24px !important;
+    flex: 0 0 auto;
+  }
+
+  .mobile-player-ribbon:not(.ribbon-compact) .master-player-card .player-avatar-wrapper svg {
+    width: 100%;
+    height: 100%;
+  }
+
+  .mobile-player-ribbon:not(.ribbon-compact) .master-card-name {
+    font-size: 0.66rem;
+  }
+
+  .mobile-player-ribbon:not(.ribbon-compact) .master-home-text {
+    font-size: 0.58rem;
+  }
+
+  .mobile-player-ribbon:not(.ribbon-compact) .master-token-dots {
+    display: none;
+  }
+
+  /* Third of three players: same width as the others, centred underneath. */
+  .mobile-player-ribbon:not(.ribbon-compact) .master-player-card:nth-child(3):nth-last-child(2) {
+    grid-column: 1 / -1;
+    justify-self: center;
+    width: calc(50% - 3px);
+  }
+
+  .mobile-player-ribbon:not(.ribbon-compact) .ribbon-expand-btn {
+    display: none;
+  }
+
+  .mobile-player-ribbon:not(.ribbon-compact) .master-card-progress {
+    padding-right: 26px;
+  }
+
+  .mobile-player-ribbon:not(.ribbon-compact) .master-turn-badge-yellow {
+    bottom: 2px;
+    font-size: 0.52rem;
+    padding: 0 4px;
+  }
+}
+
 /* Compact ribbon: timer is a tiny corner chip so the home count stays visible */
 .mobile-player-ribbon.ribbon-compact .master-turn-badge-yellow {
   position: absolute;
@@ -4815,6 +4901,11 @@ body {
 
   .game-screen-main .board-under-rail {
     flex: 0 0 auto;
+    gap: 6px;
+  }
+
+  .game-screen-main .turn-indicator-bar-container {
+    margin: 4px auto 6px;
   }
 
   .game-screen-main .reconnect-floating-banner {
