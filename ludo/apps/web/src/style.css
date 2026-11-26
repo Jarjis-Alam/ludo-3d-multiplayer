@@ -5565,3 +5565,45 @@ body {
 .elim-reduced {
   animation: elimFadeIn 0.01s both, elimFadeOut 0.3s 1.05s ease-in forwards !important;
 }
+
+/* ==========================================================================
+   LOBBY ACTIONS — ALWAYS REACHABLE ON A PHONE
+   Four stacked seat cards push the Start button below the fold, so the host
+   had to scroll before a match could begin. On phone-sized screens the action
+   bar is pinned to the bottom edge instead, with the page padded so the last
+   seat card can still be scrolled clear of it.
+   ========================================================================== */
+@media (max-width: 900px) {
+  .lobby-container {
+    padding-bottom: calc(176px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .lobby-message {
+    margin-bottom: 4px;
+  }
+
+  .lobby-footer-bar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 70;
+    margin: 0;
+    border-radius: 16px 16px 0 0;
+    border-bottom: 0;
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+    background: #1b1533;
+    box-shadow: 0 -12px 28px rgba(6, 4, 16, 0.55);
+  }
+}
+
+@media (min-width: 641px) and (max-width: 900px) {
+  .lobby-container {
+    padding-bottom: calc(112px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .lobby-footer-bar {
+    flex-direction: row;
+    align-items: center;
+  }
+}

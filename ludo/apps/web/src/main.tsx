@@ -1707,6 +1707,8 @@ function App() {
               })}
             </div>
 
+            {message && <p className="lobby-message text-amber-400 text-xs text-center">{message}</p>}
+
             <div className="lobby-footer-bar">
               <span className="lobby-seats-count font-mono text-sm text-amber-200">
                 {snapshot.players.length}/4 Players · {snapshot.players.filter((p) => p.connected).length} Connected
@@ -1737,7 +1739,6 @@ function App() {
                 </button>
               </div>
             </div>
-            {message && <p className="text-amber-400 text-xs text-center">{message}</p>}
           </div>
           {renderModals()}
         </main>
