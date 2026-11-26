@@ -1428,28 +1428,6 @@ body {
   transform: translateY(0);
 }
 
-.dock-activity-pill-btn {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: #272049;
-  border: 1px solid rgba(118, 80, 245, 0.35);
-  border-radius: 14px;
-  padding: 10px 14px;
-  color: #ffffff;
-  font-family: var(--font-heading);
-  font-size: 0.82rem;
-  font-weight: 700;
-  cursor: pointer;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-  transition: all 0.18s ease;
-}
-
-.dock-activity-pill-btn:hover {
-  background: #352B63;
-  transform: translateY(-2px);
-}
-
 .activity-unread-badge {
   background: #7650F5;
   color: #ffffff;
@@ -3743,11 +3721,6 @@ body {
     gap: 6px;
   }
 
-  .dock-activity-pill-btn {
-    padding: 8px 10px;
-    font-size: 0.76rem;
-  }
-
   .master-tap-roll-btn {
     font-size: 0.92rem;
     padding: 11px 18px;
@@ -3847,11 +3820,6 @@ body {
   .master-badge-multiplayer {
     display: none;
   }
-
-  /* Icon-only activity trigger keeps the dock inside its own bounds on phones */
-  .activity-label {
-    display: none;
-  }
 }
 
 @media (max-width: 380px) {
@@ -3911,14 +3879,6 @@ body {
     display: none;
   }
 
-  .activity-label {
-    display: none;
-  }
-
-  .dock-activity-pill-btn {
-    padding: 8px 10px;
-  }
-
   .master-bottom-dock {
     gap: 4px;
     padding-left: var(--space-1);
@@ -3941,11 +3901,6 @@ body {
     width: 38px;
     height: 38px;
     font-size: 16px;
-  }
-
-  .dock-activity-pill-btn {
-    padding: 6px 8px;
-    font-size: 0.7rem;
   }
 
   .master-tap-roll-btn {
@@ -4392,17 +4347,6 @@ body {
   font-size: 18px;
 }
 
-.dock-controls-row .dock-activity-pill-btn {
-  min-height: 46px;
-  border-radius: 14px;
-  padding: 0 16px;
-}
-
-.dock-controls-row .activity-unread-badge {
-  position: static;
-  margin-left: 2px;
-}
-
 .mobile-bottom-dock .dock-center-stage {
   width: 100%;
   align-items: center;
@@ -4755,13 +4699,6 @@ body {
     width: 44px;
     height: 44px;
   }
-
-  .dock-controls-row .dock-activity-pill-btn {
-    min-height: 44px;
-    flex: 1;
-    justify-content: center;
-    max-width: 190px;
-  }
 }
 
 /* Landscape phones: board keeps the stage, controls become a side rail */
@@ -4840,8 +4777,7 @@ body {
     gap: 6px;
   }
 
-  .dock-controls-row .dock-icon-btn,
-  .dock-controls-row .dock-activity-pill-btn {
+  .dock-controls-row .dock-icon-btn {
     height: 38px;
     min-height: 38px;
   }
