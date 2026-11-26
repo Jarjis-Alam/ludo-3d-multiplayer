@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { absoluteCell, SAFE_CELLS, START_OFFSETS } from '@ludo/game-engine';
 import { AudioEngine } from './AudioEngine';
 import { PawnToken, PawnDefs } from './PawnToken';
@@ -366,8 +366,6 @@ export const Board2D: React.FC<Board2DProps> = ({
   const [captureEffect, setCaptureEffect] = useState<{ x: number; y: number } | null>(null);
   const [goalBurst, setGoalBurst] = useState<{ x: number; y: number } | null>(null);
   const [isAnimating, setIsAnimating] = useState<boolean>(false);
-  // The captured pawn only leaves its cell once the attacker lands on it.
-  const [captureLanded, setCaptureLanded] = useState<boolean>(false);
 
   const boardRef = useRef<HTMLDivElement | null>(null);
   const moverRef = useRef<HTMLDivElement | null>(null);
@@ -417,8 +415,10 @@ export const Board2D: React.FC<Board2DProps> = ({
     };
   }, []);
 
-  // Detect state transitions and trigger cell-by-cell pawn movement & capture return
-  useEffect(() => {
+  // Detect state transitions and trigger cell-by-cell pawn movement & capture return.
+  // A layout effect runs before the browser paints the committed snapshot, so the
+  // pawn never flashes at its destination before the flight starts from its origin.
+  useLayoutEffect(() => {
     const prevTokens = lastCommittedTokensRef.current;
     if (!prevTokens || prevTokens.length === 0) {
       lastCommittedTokensRef.current = tokens;
@@ -527,7 +527,6 @@ export const Board2D: React.FC<Board2DProps> = ({
           : null;
 
       setIsAnimating(true);
-      setCaptureLanded(false);
       setFlight({
         seat: movedSeat,
         tokenIdx: movedTokenIdx,
@@ -689,8 +688,6 @@ export const Board2D: React.FC<Board2DProps> = ({
           setCaptureEffect({ x: dest.x, y: dest.y });
           const ringTimer = setTimeout(() => setCaptureEffect(null), 650);
           animTimeoutsRef.current.push(ringTimer);
-          setCaptureLanded(true);
-          if (capturedEl) capturedEl.style.opacity = '1';
           placeCaptured(destDelta.dx, destDelta.dy, 0, 0.86);
         } else {
           if (flight.landedOnSafe) AudioEngine.playLand();
@@ -812,7 +809,7 @@ export const Board2D: React.FC<Board2DProps> = ({
     // While a pawn is in flight, its overlay copy is the visible one.
     if (
       (flight && flight.seat === seat && flight.tokenIdx === tokenIdx) ||
-      (flight?.captured && captureLanded && flight.captured.seat === seat && flight.captured.tokenIdx === tokenIdx)
+      (flight?.captured && flight.captured.seat === seat && flight.captured.tokenIdx === tokenIdx)
     ) {
       return null;
     }
@@ -849,7 +846,7 @@ export const Board2D: React.FC<Board2DProps> = ({
     const visibleOccupants = occupants.filter(
       (occ) =>
         !(flight && flight.seat === occ.seat && flight.tokenIdx === occ.tokenIdx) &&
-        !(flight?.captured && captureLanded && flight.captured.seat === occ.seat && flight.captured.tokenIdx === occ.tokenIdx)
+        !(flight?.captured && flight.captured.seat === occ.seat && flight.captured.tokenIdx === occ.tokenIdx)
     );
     if (visibleOccupants.length === 0) return null;
 
@@ -960,7 +957,6 @@ export const Board2D: React.FC<Board2DProps> = ({
                 style={{
                   left: `${flight.captured.waypoints[0].x}%`,
                   top: `${flight.captured.waypoints[0].y}%`,
-                  opacity: 0,
                 }}
                 ref={capturedRef}
               >

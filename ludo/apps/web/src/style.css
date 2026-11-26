@@ -1200,7 +1200,10 @@ body {
   z-index: 45;
   will-change: transform;
   backface-visibility: hidden;
-  filter: drop-shadow(0 5px 5px rgba(0, 0, 0, 0.35));
+  /* No filter here on purpose. A drop-shadow on the moving layer forces the
+     browser to re-rasterise the pawn every frame, which drops the whole board
+     to ~20 fps on a phone. Depth comes from the pawn's own SVG shadow and the
+     contact-shadow pseudo-element below, both of which are cached. */
 }
 
 /* Grounded contact shadow that separates the pawn from the board while it hops */
@@ -1232,16 +1235,15 @@ body {
   z-index: 46;
 }
 
-/* Entry into the centre goal: a brighter final hop */
+/* Entry into the centre goal: a brighter final hop. The goal burst ring carries
+   the glow, so the moving layer stays filter-free and composited. */
 .goal-entry-pawn {
   z-index: 47;
-  filter: drop-shadow(0 0 10px rgba(255, 200, 61, 0.85));
 }
 
 /* Captured pawn returning to its yard */
 .captured-return-arc {
   z-index: 48;
-  filter: drop-shadow(0 0 10px rgba(255, 84, 96, 0.55));
 }
 
 .captured-return-arc .captured-pawn-inner {
