@@ -535,6 +535,36 @@ const Board2DComponent: React.FC<Board2DProps> = ({
           ? Math.round(movedRect.height * 100) / 100
           : flight?.pawnH ?? pawnSizes.track;
 
+      // A track or home-lane cell that already holds another pawn switches to the
+      // cluster layout, which renders the smaller square pawn. The committed
+      // snapshot is measured before the overlay hides the mover, so it still shows
+      // a lone pawn; count the pawns already at the destination and fly at the
+      // cluster box instead, otherwise the pawn shrinks a pixel after landing.
+      const destSeat = movedSeat;
+      const destTokenIdx = movedTokenIdx;
+      const destPos = newPos;
+      const destCell =
+        destPos.kind === 'path' ? (START_OFFSETS[destSeat] + destPos.progress) % 52 : null;
+      let sharesDestination = false;
+      if (destCell !== null || (destPos.kind === 'home' && destPos.progress < 6)) {
+        tokens.forEach((seatTokens, s) => {
+          seatTokens.forEach((p, ti) => {
+            if (s === destSeat && ti === destTokenIdx) return;
+            if (destCell !== null) {
+              if (p.kind === 'path' && (START_OFFSETS[s] + p.progress) % 52 === destCell) {
+                sharesDestination = true;
+              }
+            } else if (s === destSeat && p.kind === 'home' && p.progress === destPos.progress) {
+              sharesDestination = true;
+            }
+          });
+        });
+      }
+      // Cluster pawns use the same cell clamp, so scaling the measured box down to
+      // the cluster size lands on exactly the box the board will render next.
+      const flightW = sharesDestination ? Math.min(pawnSizes.cluster, pawnW) : pawnW;
+      const flightH = sharesDestination ? Math.min(pawnSizes.cluster, pawnH) : pawnH;
+
       const captured =
         capturedSeat !== null && capturedTokenIdx !== null && capturedOldPos
           ? {
@@ -554,8 +584,8 @@ const Board2DComponent: React.FC<Board2DProps> = ({
         tokenIdx: movedTokenIdx,
         mode,
         size: mode === 'goal' ? pawnSizes.goal : pawnSizes.track,
-        pawnW,
-        pawnH,
+        pawnW: flightW,
+        pawnH: flightH,
         stepMs,
         waypoints,
         captured,
