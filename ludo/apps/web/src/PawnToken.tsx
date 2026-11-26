@@ -6,6 +6,8 @@ export interface PawnTokenProps {
   color: PawnColor;
   /** Optional explicit seat. Defaults from colour so every call site stays identity-correct. */
   seat?: number;
+  /** Identifies the pawn on the board so the flight overlay can measure its cell-sized box. */
+  tokenIndex?: number;
   isLegal?: boolean;
   isSelected?: boolean;
   isThreatened?: boolean;
@@ -18,6 +20,9 @@ export interface PawnTokenProps {
   onBlur?: () => void;
   title?: string;
   size?: number;
+  /** Explicit box, used by the flight overlay to match the pawn's rendered size exactly. */
+  width?: number;
+  height?: number;
   className?: string;
 }
 
@@ -165,6 +170,8 @@ const COLOR_MAP: Record<
  */
 export const PawnToken: React.FC<PawnTokenProps> = ({
   color,
+  seat,
+  tokenIndex,
   isLegal = false,
   isSelected = false,
   isThreatened = false,
@@ -177,6 +184,8 @@ export const PawnToken: React.FC<PawnTokenProps> = ({
   onBlur,
   title,
   size = 36,
+  width,
+  height,
   className = '',
 }) => {
   const g = COLOR_MAP[color] || COLOR_MAP.red;
@@ -219,9 +228,10 @@ export const PawnToken: React.FC<PawnTokenProps> = ({
       tabIndex={isLegal ? 0 : undefined}
       aria-label={title}
       title={title}
+      data-pawn={tokenIndex !== undefined && seat !== undefined ? `${seat}-${tokenIndex}` : undefined}
       style={{
-        width: `${size}px`,
-        height: `${size}px`,
+        width: `${width ?? size}px`,
+        height: `${height ?? size}px`,
       }}
     >
       <svg

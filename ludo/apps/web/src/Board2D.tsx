@@ -39,6 +39,9 @@ type PawnFlight = {
   tokenIdx: number;
   mode: 'deploy' | 'move' | 'home' | 'goal';
   size: number;
+  /** The landed pawn's measured box, so the overlay swaps without a size snap. */
+  pawnW: number;
+  pawnH: number;
   stepMs: number;
   waypoints: Point[];
   captured: { seat: number; tokenIdx: number; waypoints: Point[] } | null;
@@ -342,7 +345,7 @@ export const StartChevron: React.FC<{ direction: 'right' | 'down' | 'left' | 'up
   );
 };
 
-export const Board2D: React.FC<Board2DProps> = ({
+const Board2DComponent: React.FC<Board2DProps> = ({
   players,
   tokens,
   currentPlayer,
@@ -513,6 +516,25 @@ export const Board2D: React.FC<Board2DProps> = ({
       const landedOnSafe =
         newPos.kind === 'path' && SAFE_CELLS.has((START_OFFSETS[movedSeat] + newPos.progress) % 52);
 
+      // The committed snapshot already renders the pawn in its new cell. Measure
+      // that box so the overlay flies at exactly the size the pawn will land at;
+      // otherwise the 38px flight pawn snaps down to the cell-sized pawn on
+      // arrival, which reads as a hitch even at a steady frame rate.
+      const movedEl =
+        document.querySelector<HTMLElement>(`[data-pawn="${movedSeat}-${movedTokenIdx}"]`) ??
+        // If that pawn is still in flight from the previous move it is not in the
+        // DOM; any pawn resting in a track cell is the same size.
+        document.querySelector<HTMLElement>('#ludoBoard .cell .traditional-pawn-wrapper[data-pawn]');
+      const movedRect = movedEl?.getBoundingClientRect();
+      const pawnW =
+        movedRect && movedRect.width > 0
+          ? Math.round(movedRect.width * 100) / 100
+          : flight?.pawnW ?? pawnSizes.track;
+      const pawnH =
+        movedRect && movedRect.height > 0
+          ? Math.round(movedRect.height * 100) / 100
+          : flight?.pawnH ?? pawnSizes.track;
+
       const captured =
         capturedSeat !== null && capturedTokenIdx !== null && capturedOldPos
           ? {
@@ -532,6 +554,8 @@ export const Board2D: React.FC<Board2DProps> = ({
         tokenIdx: movedTokenIdx,
         mode,
         size: mode === 'goal' ? pawnSizes.goal : pawnSizes.track,
+        pawnW,
+        pawnH,
         stepMs,
         waypoints,
         captured,
@@ -596,8 +620,13 @@ export const Board2D: React.FC<Board2DProps> = ({
       mover.style.transform = `translate3d(${dx}px, ${dy}px, 0) translate(-50%, -50%)`;
       moverInner.style.transform = `translate3d(0, ${-lift}px, 0) scale(${sx}, ${sy})`;
     };
+    // A deployment starts on a full-size yard pawn and lands on a cell-sized one.
+    // Scale the flight pawn down across the journey so both ends match the board.
+    const launchScale = flight.mode === 'deploy' ? pawnSizes.base / Math.max(flight.pawnW, flight.pawnH) : 1;
     const start = delta(points[0]);
-    placeMover(start.dx, start.dy, 0, 1, 1);
+    // First painted frame already matches the pawn's size at the origin, so a
+    // deployment does not pop from the yard size down to the cell size.
+    placeMover(start.dx, start.dy, 0, launchScale, launchScale);
 
     const capturePoints = flight.captured?.waypoints ?? [];
     const captureOrigin = capturePoints[0];
@@ -651,6 +680,7 @@ export const Board2D: React.FC<Board2DProps> = ({
         // between cells — it accelerates once, flows, and settles on arrival.
         const p = Math.min(1, t / moveDuration);
         const eased = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+        const sizeScale = launchScale === 1 ? 1 : launchScale + (1 - launchScale) * eased;
         let remaining = totalLen * eased;
         let seg = 0;
         while (seg < segCount - 1 && remaining > lengths[seg]) {
@@ -666,8 +696,8 @@ export const Board2D: React.FC<Board2DProps> = ({
           from.dx + (to.dx - from.dx) * u,
           from.dy + (to.dy - from.dy) * u,
           arc * hopLift,
-          1 + 0.05 * squash + 0.02 * arc,
-          1 - 0.07 * squash + 0.03 * arc
+          (1 + 0.05 * squash + 0.02 * arc) * sizeScale,
+          (1 - 0.07 * squash + 0.03 * arc) * sizeScale
         );
         if (seg > lastSeg) {
           lastSeg = seg;
@@ -819,6 +849,7 @@ export const Board2D: React.FC<Board2DProps> = ({
         key={`pawn-${seat}-${tokenIdx}`}
         color={SEAT_COLORS[seat] || 'red'}
         seat={seat}
+        tokenIndex={tokenIdx}
         isLegal={isLegal}
         isThreatened={seat === localSeat && threatenedTokens.has(`${seat}-${tokenIdx}`)}
         size={size}
@@ -926,7 +957,13 @@ export const Board2D: React.FC<Board2DProps> = ({
                 ref={moverRef}
               >
                 <div className="pawn-flight-inner" ref={moverInnerRef}>
-                  <PawnToken color={SEAT_COLORS[flight.seat]} seat={flight.seat} size={flight.size} />
+                  <PawnToken
+                    color={SEAT_COLORS[flight.seat]}
+                    seat={flight.seat}
+                    size={flight.size}
+                    width={flight.pawnW}
+                    height={flight.pawnH}
+                  />
                 </div>
               </div>
             )}
@@ -965,6 +1002,8 @@ export const Board2D: React.FC<Board2DProps> = ({
                     color={SEAT_COLORS[flight.captured.seat]}
                     seat={flight.captured.seat}
                     size={40}
+                    width={flight.pawnW}
+                    height={flight.pawnH}
                   />
                 </div>
               </div>
@@ -1338,4 +1377,9 @@ export const Board2D: React.FC<Board2DProps> = ({
     </div>
   );
 };
+
+/* The board is a large, mostly static tree. Memoising it keeps the turn
+   countdown and other HUD state from re-rendering 52 cells and 16 pawn SVGs
+   every second, including while a pawn is in flight. */
+export const Board2D = React.memo(Board2DComponent);
 

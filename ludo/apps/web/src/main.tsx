@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { io, Socket } from 'socket.io-client';
 import { legalTokens } from '@ludo/game-engine';
@@ -1168,6 +1168,12 @@ function App() {
     );
   };
 
+  // A stable click handler keeps the memoised board from re-rendering whenever
+  // the parent updates (countdown, toasts, dice state).
+  const moveTokenRef = useRef(moveToken);
+  moveTokenRef.current = moveToken;
+  const handleTokenClick = useCallback((token: number) => moveTokenRef.current(token), []);
+
   const copyCode = () => {
     if (!snapshot) return;
     navigator.clipboard?.writeText(snapshot.roomCode);
@@ -1847,7 +1853,7 @@ function App() {
                   diceDisplay={displayDiceValue}
                   legal={legal}
                   isMoving={isMoving}
-                  onTokenClick={moveToken}
+                  onTokenClick={handleTokenClick}
                   reducedMotion={reducedMotion}
                   showCaptureHints={captureHints}
                 />
