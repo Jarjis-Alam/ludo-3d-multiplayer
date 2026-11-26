@@ -78,7 +78,7 @@ export const TurnIndicatorBar: React.FC<TurnIndicatorBarProps> = ({
           <div className="turn-progress-track">
             <div
               className={`turn-progress-fill ${isUrgent ? 'progress-urgent' : ''}`}
-              style={{ width: `${percent}%` }}
+              style={{ transform: `scaleX(${percent / 100})` }}
             />
           </div>
         </div>
