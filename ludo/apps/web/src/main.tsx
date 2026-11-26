@@ -357,7 +357,6 @@ interface MobileBottomDockProps {
   activePlayer?: ClientPlayer;
   activityNotice?: string | null;
   lastNotice?: LastNotice | null;
-  unreadCount?: number;
   onRoll: () => void;
   onMoveToken: (tokenIdx: number) => void;
   onOpenShare: () => void;
@@ -374,7 +373,6 @@ const MobileBottomDock: React.FC<MobileBottomDockProps> = ({
   legal = [],
   activePlayer,
   lastNotice,
-  unreadCount = 5,
   onRoll,
   onOpenShare,
   onOpenActivity,
@@ -489,17 +487,6 @@ const MobileBottomDock: React.FC<MobileBottomDockProps> = ({
           aria-label="Players"
         >
           <span>👥</span>
-        </button>
-        <button
-          type="button"
-          className="dock-activity-pill-btn btn-feed"
-          onClick={onOpenActivity}
-          title="Match Activity Feed"
-          aria-label="Activity Feed"
-        >
-          <span className="activity-icon">≜</span>
-          <span className="activity-label">Timeline</span>
-          {unreadCount > 0 && <span className="activity-unread-badge">{unreadCount}</span>}
         </button>
       </div>
     </div>
@@ -1909,7 +1896,6 @@ function App() {
                 activePlayer={activePlayer}
                 activityNotice={activityNotice}
                 lastNotice={snapshot.lastNotice}
-                unreadCount={activityLog.length || 5}
                 onRoll={rollDice}
                 onMoveToken={moveToken}
                 onOpenShare={() => setShareModalOpen(true)}
