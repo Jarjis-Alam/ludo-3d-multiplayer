@@ -26,9 +26,10 @@ const SEAT_COLORS = ['red', 'green', 'yellow', 'blue'] as const;
 
 type PawnSizes = { track: number; cluster: number; base: number; goal: number };
 
-/* Pawn sizes in px. Track pawns are allowed to stand a little taller than a cell
-   so they stay readable on a phone; the base and goal pawns fill their sockets. */
-const MATCH_PAWN_SIZES: PawnSizes = { track: 38, cluster: 24, base: 52, goal: 26 };
+/* Reference pawn sizes for a 540px board (36px cells). The live board scales
+   these by cellPx/36, so every pawn keeps the same proportion to its cell at
+   any viewport instead of overflowing a phone-sized grid. */
+const MATCH_PAWN_SIZES: PawnSizes = { track: 38, cluster: 24, base: 52, goal: 22 };
 /* Unchanged scale for the landing-page showcase, which shares this board. */
 const SHOWCASE_PAWN_SIZES: PawnSizes = { track: 36, cluster: 24, base: 46, goal: 22 };
 
@@ -156,37 +157,49 @@ export const HOME_LANE_COORDS: Record<number, Array<{ col: number; row: number }
   ],
 };
 
+/* The goal quadrants are laid out by CSS as 44%-wide/tall strips of the 3x3
+   centre, so their centres sit 22% into that box — i.e. 44.4%/55.6% of the
+   board. Expressing them as cell coordinates keeps the flight overlay and the
+   resting goal pawns on the same point at every board size. */
 export const GOAL_COORDS: Record<number, { col: number; row: number }> = {
-  0: { col: 6.5, row: 7 },
-  1: { col: 7, row: 6.5 },
-  2: { col: 7.5, row: 7 },
-  3: { col: 7, row: 7.5 },
+  0: { col: 6.16, row: 7 },
+  1: { col: 7, row: 6.16 },
+  2: { col: 7.84, row: 7 },
+  3: { col: 7, row: 7.84 },
 };
+
+/* Socket centres in board percentages. The yard CSS sizes its padding and grid
+   gap in percentages, so these fractions hold at every board size (they used
+   to drift as the fixed 10px/8px paddings shrank on a phone). */
+const YARD_SOCKET_X = [12.52, 27.47];
+const YARD_SOCKET_Y = [12.52, 27.47];
+const GREEN_YARD_OFFSET = 60;
+const BLUE_YARD_OFFSET = 60;
 
 export const BASE_SOCKET_PERCENTS: Record<number, Array<{ x: number; y: number }>> = {
   0: [
-    { x: 15.5, y: 15.5 },
-    { x: 28.5, y: 15.5 },
-    { x: 15.5, y: 28.5 },
-    { x: 28.5, y: 28.5 },
+    { x: YARD_SOCKET_X[0], y: YARD_SOCKET_Y[0] },
+    { x: YARD_SOCKET_X[1], y: YARD_SOCKET_Y[0] },
+    { x: YARD_SOCKET_X[0], y: YARD_SOCKET_Y[1] },
+    { x: YARD_SOCKET_X[1], y: YARD_SOCKET_Y[1] },
   ],
   1: [
-    { x: 71.5, y: 15.5 },
-    { x: 84.5, y: 15.5 },
-    { x: 71.5, y: 28.5 },
-    { x: 84.5, y: 28.5 },
+    { x: YARD_SOCKET_X[0] + GREEN_YARD_OFFSET, y: YARD_SOCKET_Y[0] },
+    { x: YARD_SOCKET_X[1] + GREEN_YARD_OFFSET, y: YARD_SOCKET_Y[0] },
+    { x: YARD_SOCKET_X[0] + GREEN_YARD_OFFSET, y: YARD_SOCKET_Y[1] },
+    { x: YARD_SOCKET_X[1] + GREEN_YARD_OFFSET, y: YARD_SOCKET_Y[1] },
   ],
   2: [
-    { x: 71.5, y: 71.5 },
-    { x: 84.5, y: 71.5 },
-    { x: 71.5, y: 84.5 },
-    { x: 84.5, y: 84.5 },
+    { x: YARD_SOCKET_X[0] + GREEN_YARD_OFFSET, y: YARD_SOCKET_Y[0] + BLUE_YARD_OFFSET },
+    { x: YARD_SOCKET_X[1] + GREEN_YARD_OFFSET, y: YARD_SOCKET_Y[0] + BLUE_YARD_OFFSET },
+    { x: YARD_SOCKET_X[0] + GREEN_YARD_OFFSET, y: YARD_SOCKET_Y[1] + BLUE_YARD_OFFSET },
+    { x: YARD_SOCKET_X[1] + GREEN_YARD_OFFSET, y: YARD_SOCKET_Y[1] + BLUE_YARD_OFFSET },
   ],
   3: [
-    { x: 15.5, y: 71.5 },
-    { x: 28.5, y: 71.5 },
-    { x: 15.5, y: 84.5 },
-    { x: 28.5, y: 84.5 },
+    { x: YARD_SOCKET_X[0], y: YARD_SOCKET_Y[0] + BLUE_YARD_OFFSET },
+    { x: YARD_SOCKET_X[1], y: YARD_SOCKET_Y[0] + BLUE_YARD_OFFSET },
+    { x: YARD_SOCKET_X[0], y: YARD_SOCKET_Y[1] + BLUE_YARD_OFFSET },
+    { x: YARD_SOCKET_X[1], y: YARD_SOCKET_Y[1] + BLUE_YARD_OFFSET },
   ],
 };
 
@@ -359,7 +372,6 @@ const Board2DComponent: React.FC<Board2DProps> = ({
   onTokenClick,
 }) => {
   const activeSeats = useMemo(() => new Set(players.map((p) => p.seat)), [players]);
-  const pawnSizes = compactPawns ? SHOWCASE_PAWN_SIZES : MATCH_PAWN_SIZES;
   /* Seats are labelled by player name instead of colour so the board reads as people. */
   const nameForSeat = (seat: number) => players.find((p) => p.seat === seat)?.name || `Seat ${seat + 1}`;
 
@@ -375,6 +387,37 @@ const Board2DComponent: React.FC<Board2DProps> = ({
   const moverInnerRef = useRef<HTMLDivElement | null>(null);
   const capturedRef = useRef<HTMLDivElement | null>(null);
   const capturedInnerRef = useRef<HTMLDivElement | null>(null);
+
+  // Sizing is derived from one measured grid cell, never from the screen width:
+  // the reference design is a 540px board (36px cells), so a phone with 300px of
+  // board renders the same proportions instead of a 52px pawn in a 35px socket.
+  const [boardPx, setBoardPx] = useState(0);
+  useLayoutEffect(() => {
+    const el = boardRef.current;
+    if (!el) return;
+    const measure = () => {
+      const next = el.clientWidth;
+      setBoardPx((prev) => (Math.abs(next - prev) > 0.5 ? next : prev));
+    };
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  const pawnSizes = useMemo<PawnSizes>(() => {
+    if (compactPawns) return SHOWCASE_PAWN_SIZES;
+    const cellPx = (boardPx > 0 ? boardPx : 540) / 15;
+    const scale = cellPx / 36;
+    const round = (size: number) => Math.round(size * scale * 100) / 100;
+    return {
+      track: round(MATCH_PAWN_SIZES.track),
+      cluster: round(MATCH_PAWN_SIZES.cluster),
+      base: round(MATCH_PAWN_SIZES.base),
+      goal: round(MATCH_PAWN_SIZES.goal),
+    };
+  }, [compactPawns, boardPx]);
 
   // Which of my pawns can be captured on the opponent's next roll (engine rules:
   // track cell, not a safe cell, reachable within 1–6 steps, opponent still on track).
@@ -592,7 +635,7 @@ const Board2DComponent: React.FC<Board2DProps> = ({
         landedOnSafe,
       });
     }
-  }, [tokens]);
+  }, [tokens, pawnSizes]);
 
   // Flight driver. One requestAnimationFrame loop writes GPU transforms directly to
   // the pawn, so the whole move is continuous (no per-hop timers, no layout work,
@@ -993,6 +1036,7 @@ const Board2DComponent: React.FC<Board2DProps> = ({
                     size={flight.size}
                     width={flight.pawnW}
                     height={flight.pawnH}
+                    flat
                   />
                 </div>
               </div>
@@ -1034,6 +1078,7 @@ const Board2DComponent: React.FC<Board2DProps> = ({
                     size={40}
                     width={flight.pawnW}
                     height={flight.pawnH}
+                    flat
                   />
                 </div>
               </div>

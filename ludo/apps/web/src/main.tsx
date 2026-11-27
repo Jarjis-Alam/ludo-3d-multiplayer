@@ -20,7 +20,6 @@ import {
   BellIcon,
   BookIcon,
   BoltIcon,
-  ChatIcon,
   ChevronDownIcon,
   CloseIcon,
   FeedIcon,
@@ -382,8 +381,6 @@ interface MobileBottomDockProps {
   lastNotice?: LastNotice | null;
   onRoll: () => void;
   onMoveToken: (tokenIdx: number) => void;
-  onOpenShare: () => void;
-  onOpenActivity: () => void;
 }
 
 const MobileBottomDock: React.FC<MobileBottomDockProps> = ({
@@ -397,8 +394,6 @@ const MobileBottomDock: React.FC<MobileBottomDockProps> = ({
   activePlayer,
   lastNotice,
   onRoll,
-  onOpenShare,
-  onOpenActivity,
 }) => {
   const isUrgent = turnTimeLeft <= 5 && turnTimeLeft > 0;
   const canRoll = isMyTurn && dice === null && !rolling && !isMoving;
@@ -488,28 +483,6 @@ const MobileBottomDock: React.FC<MobileBottomDockProps> = ({
           ) : (
             <span>⏳ WAITING FOR {activePlayer?.name?.toUpperCase() || 'PLAYER'}</span>
           )}
-        </button>
-      </div>
-
-      {/* One consolidated control row: large targets, even spacing, safe-area aware */}
-      <div className="dock-controls-row">
-        <button
-          type="button"
-          className="dock-icon-btn btn-chat"
-          onClick={onOpenActivity}
-          title="Chat & Activity"
-          aria-label="Chat"
-        >
-          <ChatIcon size={20} />
-        </button>
-        <button
-          type="button"
-          className="dock-icon-btn btn-players"
-          onClick={onOpenShare}
-          title="Players & Share"
-          aria-label="Players"
-        >
-          <PlayersIcon size={20} />
         </button>
       </div>
     </div>
@@ -2131,8 +2104,6 @@ function App() {
                 lastNotice={snapshot.lastNotice}
                 onRoll={rollDice}
                 onMoveToken={moveToken}
-                onOpenShare={() => setShareModalOpen(true)}
-                onOpenActivity={() => setActivityFeedOpen((prev) => !prev)}
               />
               </div>
             </div>

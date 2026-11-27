@@ -76,7 +76,11 @@ export const TurnIndicatorBar: React.FC<TurnIndicatorBarProps> = ({
             )}
             {headline}
           </span>
-          {subline && <span className="turn-subline-text">{subline}</span>}
+          {/* Rendered even when empty: the reserved line keeps the bar (and the
+              board it sits under) the same height as messages come and go. */}
+          <span className="turn-subline-text" aria-hidden={!subline}>
+            {subline || '\u00A0'}
+          </span>
           {/* Smooth Golden Progress Bar directly under the headline */}
           <div className="turn-progress-track">
             <div

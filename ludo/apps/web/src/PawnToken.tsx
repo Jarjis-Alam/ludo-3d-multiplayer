@@ -24,6 +24,12 @@ export interface PawnTokenProps {
   width?: number;
   height?: number;
   className?: string;
+  /**
+   * Skip the SVG drop-shadow filter. Animated copies set this: Safari re-rasterises
+   * a filtered SVG subtree whenever the layer is transformed, which is what made
+   * the flight stutter. The illustration's own contact shadow is kept.
+   */
+  flat?: boolean;
 }
 
 export const PawnDefs: React.FC = () => (
@@ -187,6 +193,7 @@ export const PawnToken: React.FC<PawnTokenProps> = ({
   width,
   height,
   className = '',
+  flat = false,
 }) => {
   const g = COLOR_MAP[color] || COLOR_MAP.red;
 
@@ -242,7 +249,7 @@ export const PawnToken: React.FC<PawnTokenProps> = ({
         style={{ pointerEvents: 'none', overflow: 'visible' }}
         aria-hidden="true"
       >
-        <g filter="url(#pawnV2Shadow)">
+        <g filter={flat ? undefined : 'url(#pawnV2Shadow)'}>
           {/* Soft contact shadow on the tile */}
           <ellipse cx="20" cy="49.4" rx="13.6" ry="3.1" fill="rgba(6, 3, 16, 0.22)" />
 

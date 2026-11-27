@@ -71,11 +71,14 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+/* No overflow on <html>/<body>: the root propagates its overflow to the
+   viewport, and Safari treats a clipped root as a non-scrolling document
+   (the page then only pans a few pixels at a time). Horizontal bleeding is
+   clipped by the page wrappers instead. */
 html {
   width: 100%;
   min-height: 100%;
   background-color: var(--bg-midnight);
-  overflow-x: clip;
 }
 
 body {
@@ -86,7 +89,6 @@ body {
   background-color: var(--bg-midnight);
   color: var(--text-primary);
   font-family: var(--font-body);
-  overflow-x: clip;
   user-select: none;
 }
 
@@ -545,8 +547,8 @@ body {
    ========================================================================== */
 .mobile-player-ribbon {
   display: flex;
-  gap: 6px;
-  padding: 0 4px 8px;
+  gap: 8px;
+  padding: 0 6px 8px;
   width: 100%;
   max-width: 540px;
   margin: 0 auto;
@@ -765,7 +767,10 @@ body {
 /* Home Yards */
 .yard-box {
   border-radius: 16px;
-  padding: 10px;
+  /* Percentage padding keeps the socket centres at a fixed fraction of the
+     board. Fixed pixels made them drift as the board scaled down on a phone,
+     which is what knocked deployment flights off the socket. */
+  padding: 8%;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -809,8 +814,8 @@ body {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   grid-template-rows: repeat(2, 1fr);
-  padding: 8px;
-  gap: 8px;
+  padding: 8%;
+  gap: 5%;
   box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.15);
 }
 
@@ -896,15 +901,18 @@ body {
   right: 4px;
 }
 
-/* Track Arms - 1px uniform seam grid */
+/* Track Arms
+   No grid gap: every cell is then exactly 1/15 of the board, so the pawn
+   coordinate model (col/row -> percent) matches the rendered grid on every
+   screen size. The old 1px gaps shrank each arm's cells and shifted their
+   centres by up to a couple of pixels toward the far edge.
+   The seam is drawn inside the cell instead (see .cell). */
 .track-top {
   grid-column: 7 / 10;
   grid-row: 1 / 7;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   grid-template-rows: repeat(6, 1fr);
-  gap: 1px;
-  background-color: var(--surface-tile-border);
 }
 
 .track-left {
@@ -913,8 +921,6 @@ body {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
   grid-template-rows: repeat(3, 1fr);
-  gap: 1px;
-  background-color: var(--surface-tile-border);
 }
 
 .track-right {
@@ -923,8 +929,6 @@ body {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
   grid-template-rows: repeat(3, 1fr);
-  gap: 1px;
-  background-color: var(--surface-tile-border);
 }
 
 .track-bottom {
@@ -933,8 +937,6 @@ body {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   grid-template-rows: repeat(6, 1fr);
-  gap: 1px;
-  background-color: var(--surface-tile-border);
 }
 
 /* Individual Cell */
@@ -947,6 +949,9 @@ body {
   background-color: var(--surface-cream);
   overflow: visible;
   border: none;
+  /* Seam that used to be the arm grid's 1px gap; drawn inside the cell so the
+     cell keeps its exact 1/15 size. */
+  box-shadow: inset 0 0 0 0.5px var(--surface-tile-border);
 }
 
 /* A pawn must never be able to stretch the grid track it sits in, otherwise the
@@ -1056,7 +1061,9 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: hidden;
+  /* Goal pawns stand in the four quadrants and their plinths reach past the
+     centre square; clipping here cut finished pawns in half. */
+  overflow: visible;
 }
 
 .goal-svg {
@@ -1067,8 +1074,13 @@ body {
   display: block;
 }
 
+/* Each quadrant is a compact 44%x44% box centred on its triangle's centroid, so
+   a finished pawn sits inside its own colour and a 2x2 cluster of four stays
+   in the triangle instead of running the full height of the centre. */
 .goal-quadrant {
   position: absolute;
+  width: 44%;
+  height: 44%;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1078,41 +1090,31 @@ body {
 
 .goal-occupants-cluster {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: center;
   gap: 1px;
+  max-width: 100%;
 }
 
 .goal-quadrant-red {
   left: 0;
-  top: 0;
-  bottom: 0;
-  width: 44%;
-  padding-left: 2%;
+  top: 28%;
 }
 
 .goal-quadrant-green {
   top: 0;
-  left: 0;
-  right: 0;
-  height: 44%;
-  padding-top: 2%;
+  left: 28%;
 }
 
 .goal-quadrant-yellow {
   right: 0;
-  top: 0;
-  bottom: 0;
-  width: 44%;
-  padding-right: 2%;
+  top: 28%;
 }
 
 .goal-quadrant-blue {
   bottom: 0;
-  left: 0;
-  right: 0;
-  height: 44%;
-  padding-bottom: 2%;
+  left: 28%;
 }
 
 .goal-crown-rosette {
@@ -1465,6 +1467,10 @@ body {
   font-weight: 800;
   color: #FFC83D;
   padding-left: 8px;
+  /* Tabular figures keep the countdown from jittering the badge width. */
+  font-variant-numeric: tabular-nums;
+  min-width: 4.2ch;
+  justify-content: flex-end;
 }
 
 .timer-urgent-pulse {
@@ -1736,6 +1742,10 @@ body {
   width: 100%;
   max-width: 250px;
   min-height: 44px;
+  /* "WAITING FOR <name>" must truncate, not wrap the dock taller. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   background: linear-gradient(135deg, #FFC83D 0%, #FFAA13 100%);
   color: #111329;
   font-family: var(--font-heading);
@@ -4287,9 +4297,11 @@ body {
   color: #fff6dd;
 }
 
-/* Home quadrants: deep enamel panels with a gilded inner lip */
+/* Home quadrants: deep enamel panels with a gilded inner lip.
+   Same percentage padding as .yard-box so the socket centres stay at the
+   documented board fractions (BASE_SOCKET_PERCENTS) on every screen. */
 .board-v2-grid .yard-box {
-  padding: 10px;
+  padding: 8%;
   border-radius: 20px;
   box-shadow:
     inset 0 0 0 1.5px rgba(255, 236, 196, 0.32),
@@ -4512,6 +4524,12 @@ body {
   letter-spacing: 0.03em;
   color: rgba(255, 240, 214, 0.62);
   margin-top: 1px;
+  /* One reserved line, truncated: a long timeout notice can never wrap the bar
+     taller and shrink the board below it. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.35;
 }
 
 .turn-extra-calm {
@@ -4601,21 +4619,6 @@ body {
   align-items: stretch;
   gap: 10px;
   padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
-}
-
-.dock-controls-row {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  width: 100%;
-}
-
-.dock-controls-row .dock-icon-btn {
-  width: 46px;
-  height: 46px;
-  border-radius: 14px;
-  font-size: 18px;
 }
 
 .mobile-bottom-dock .dock-center-stage {
@@ -5059,14 +5062,6 @@ body {
     gap: 8px;
   }
 
-  .dock-controls-row {
-    gap: 8px;
-  }
-
-  .dock-controls-row .dock-icon-btn {
-    width: 44px;
-    height: 44px;
-  }
 }
 
 /* Landscape phones: board keeps the stage, controls become a side rail */
@@ -5139,15 +5134,6 @@ body {
   .mobile-bottom-dock .mobile-prominent-roll-btn {
     min-height: 40px;
     font-size: 0.76rem;
-  }
-
-  .dock-controls-row {
-    gap: 6px;
-  }
-
-  .dock-controls-row .dock-icon-btn {
-    height: 38px;
-    min-height: 38px;
   }
 
   .gameplay-dimmed .bg-floating-dice {
@@ -5310,12 +5296,17 @@ body {
    instead of being squeezed into a quarter of the screen. With three players the
    odd one out centres on the second row rather than hugging the left edge. */
 @media (max-width: 600px) {
+  /* One deliberate gap for both axes, and equal row heights: the four cards read
+     as separate tiles instead of one slab, and nothing reflows when a timer
+     appears or a name changes length. */
   .mobile-player-ribbon:not(.ribbon-compact) {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-rows: 32px;
     justify-content: stretch;
-    gap: 4px;
-    padding: 0 2px 2px;
+    column-gap: 10px;
+    row-gap: 8px;
+    padding: 2px 10px 10px;
   }
 
   .mobile-player-ribbon:not(.ribbon-compact) .master-player-card {
@@ -5353,7 +5344,7 @@ body {
   .mobile-player-ribbon:not(.ribbon-compact) .master-player-card:nth-child(3):nth-last-child(2) {
     grid-column: 1 / -1;
     justify-self: center;
-    width: calc(50% - 3px);
+    width: calc(50% - 5px);
   }
 
   .mobile-player-ribbon:not(.ribbon-compact) .ribbon-expand-btn {
@@ -5540,7 +5531,6 @@ body {
   .game-screen-main {
     height: 100vh;
     height: 100dvh;
-    overflow-x: clip;
   }
 
   .game-screen-wrapper {
@@ -5563,9 +5553,14 @@ body {
     width: 100%;
   }
 
+  /* The board stage owns exactly the height the fixed chrome rows leave behind.
+     Basis 0 (not auto) means its own content can never prop it open, and every
+     row below it is locked, so turn text, timers and notices only reflow inside
+     their own boxes instead of resizing the board. */
   .game-screen-main .game-board-container {
-    flex: 1 1 auto;
+    flex: 1 1 0;
     min-height: 0;
+    min-width: 0;
     width: 100%;
     container-type: size;
   }
@@ -5574,11 +5569,16 @@ body {
     width: min(100cqw, 100cqh);
     max-width: min(560px, 100cqw);
     flex: 0 0 auto;
+    min-width: 0;
   }
 
   .game-screen-main .board-under-rail {
     flex: 0 0 auto;
-    gap: 6px;
+    gap: 8px;
+  }
+
+  .game-screen-main .mobile-bottom-dock {
+    flex: 0 0 auto;
   }
 
   .game-screen-main .turn-indicator-bar-container {
