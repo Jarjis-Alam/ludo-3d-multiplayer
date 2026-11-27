@@ -16,6 +16,15 @@ import { GameBackground } from './GameBackground';
 import { PlayerAvatar } from './PlayerAvatar';
 import { RoomInfoBar } from './RoomInfoBar';
 import { TurnIndicatorBar } from './TurnIndicatorBar';
+import {
+  ChatIcon,
+  CloseIcon,
+  FeedIcon,
+  GearIcon,
+  LinkIcon,
+  PlayersIcon,
+  SpeakerIcon,
+} from './AppIcons';
 import type { TurnPhase } from './TurnIndicatorBar';
 import './style.css';
 
@@ -477,7 +486,7 @@ const MobileBottomDock: React.FC<MobileBottomDockProps> = ({
           title="Chat & Activity"
           aria-label="Chat"
         >
-          <span>💬</span>
+          <ChatIcon size={20} />
         </button>
         <button
           type="button"
@@ -486,7 +495,7 @@ const MobileBottomDock: React.FC<MobileBottomDockProps> = ({
           title="Players & Share"
           aria-label="Players"
         >
-          <span>👥</span>
+          <PlayersIcon size={20} />
         </button>
       </div>
     </div>
@@ -1301,7 +1310,7 @@ function App() {
             title={isMuted ? 'Unmute Sound' : 'Mute Sound'}
             aria-label={isMuted ? 'Unmute' : 'Mute'}
           >
-            <span>{isMuted ? '🔇' : '🔊'}</span>
+            <SpeakerIcon muted={isMuted} />
           </button>
 
           <button
@@ -1314,7 +1323,7 @@ function App() {
             title="Game Settings"
             aria-label="Settings"
           >
-            <span>⚙️</span>
+            <GearIcon />
           </button>
 
           {snapshot && (
@@ -1328,7 +1337,7 @@ function App() {
               title="Share Room / QR"
               aria-label="Share Room"
             >
-              <span>🔗</span>
+              <LinkIcon />
             </button>
           )}
 
@@ -1343,7 +1352,7 @@ function App() {
               title="Match Activity Feed"
               aria-label="Activity Feed"
             >
-              <span>📜</span>
+              <FeedIcon />
               {activityLog.length > 0 && (
                 <span className="activity-unread-badge">{activityLog.length}</span>
               )}
@@ -1358,7 +1367,7 @@ function App() {
               title="Exit Match"
               aria-label="Exit Table"
             >
-              <span className="exit-icon" aria-hidden="true">✕</span>
+              <CloseIcon className="exit-icon" size={16} />
               <span className="exit-label">Exit Table</span>
             </button>
           )}

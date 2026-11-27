@@ -5624,3 +5624,16 @@ body {
     justify-content: flex-end;
   }
 }
+
+/* ==========================================================================
+   INLINE CHROME ICONS
+   The header and dock draw their glyphs as SVG instead of emoji, so they take
+   the button colour and keep the same weight on every platform.
+   ========================================================================== */
+.master-circle-btn > svg,
+.master-exit-btn > svg,
+.dock-icon-btn > svg {
+  display: block;
+  pointer-events: none;
+}
+
