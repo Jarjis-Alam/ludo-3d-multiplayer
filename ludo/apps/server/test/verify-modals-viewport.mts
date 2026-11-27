@@ -14,7 +14,11 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const distPath = path.resolve(__dirname, '../../web/dist');
-const brainArtifactDir = '/Users/munshijarjisalam/.gemini/antigravity/brain/2ceb4a3f-d798-4612-8298-8cc9b9e896a4';
+/** Capture output directory. Override with LUDO_ARTIFACT_DIR; defaults to docs/artifacts. */
+const artifactDir = process.env.LUDO_ARTIFACT_DIR
+  ? path.resolve(process.env.LUDO_ARTIFACT_DIR)
+  : path.resolve(__dirname, '../../../../docs/artifacts');
+fs.mkdirSync(artifactDir, { recursive: true });
 
 const WEB_PORT = 5173;
 const SERVER_PORT = 3001;
@@ -102,7 +106,7 @@ async function runModalsViewportAudit() {
 
       // Capture screenshot for key viewports
       if (['desktop_1440x900', 'mobile_390x844', 'mobile_320x568'].includes(vp.name)) {
-        const shotPath = path.join(brainArtifactDir, `${vp.name}_${modalName}.png`);
+        const shotPath = path.join(artifactDir, `${vp.name}_${modalName}.png`);
         await page.screenshot({ path: shotPath });
         console.log(`    📸 Saved screenshot: ${shotPath}`);
       }
@@ -138,7 +142,7 @@ async function runModalsViewportAudit() {
       assert.ok(await page.locator('.leave-confirm-actions button:has-text("Cancel")').isVisible());
 
       if (['desktop_1440x900', 'mobile_390x844', 'mobile_320x568'].includes(vp.name)) {
-        const leaveShot = path.join(brainArtifactDir, `${vp.name}_leave_confirmation.png`);
+        const leaveShot = path.join(artifactDir, `${vp.name}_leave_confirmation.png`);
         await page.screenshot({ path: leaveShot });
         console.log(`    📸 Saved screenshot: ${leaveShot}`);
       }
@@ -179,7 +183,7 @@ async function runModalsViewportAudit() {
         console.log('  5. Capturing Lobby Layout...');
         const lobbyBox = await page.locator('.lobby-container').boundingBox();
         assert.ok(lobbyBox && lobbyBox.width <= 760, 'Lobby container max-width constrained properly');
-        const lobbyShot = path.join(brainArtifactDir, `${vp.name}_lobby.png`);
+        const lobbyShot = path.join(artifactDir, `${vp.name}_lobby.png`);
         await page.screenshot({ path: lobbyShot });
         console.log(`    📸 Saved screenshot: ${lobbyShot}`);
       }

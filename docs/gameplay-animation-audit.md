@@ -269,33 +269,9 @@ To provide definitive proof under real multiplayer conditions without mocked sna
 ================================================================
 ```
 
-### 5.3 Real Multiplayer Screenshots Captured
+### 5.3 Reproducing the captures
 
-The following screenshots were captured during actual live gameplay with real Socket.IO connections and are saved in `docs/screenshots/`:
-
-1. `docs/screenshots/real_multiplayer_red_at_cell_50.png` — Red pawn at the home-entry junction (Cell 50) after completing the full 50-step outer track circuit.
-2. `docs/screenshots/real_multiplayer_red_entering_home_lane.png` — Red pawn successfully entering Red Home Lane Cell 0 (`home`, progress 1) on a legal server-authoritative roll of 1.
-3. `docs/screenshots/real_multiplayer_red_in_home_lane.png` — Red pawn advancing step-by-step through the home runway.
-4. `docs/screenshots/real_multiplayer_red_center_goal.png` — Red pawn achieving exact finish into the Center Victory Goal (`home`, progress 6).
-5. `docs/screenshots/real_multiplayer_green_entering_home_lane.png` — Green pawn entering Green Home Lane Cell 0 after 50-step circuit to junction Cell 11.
-6. `docs/screenshots/real_multiplayer_yellow_entering_home_lane.png` — Yellow pawn entering Yellow Home Lane Cell 0 after 50-step circuit to junction Cell 24.
-7. `docs/screenshots/real_multiplayer_blue_entering_home_lane.png` — Blue pawn entering Blue Home Lane Cell 0 after 50-step circuit to junction Cell 37.
-8. `docs/screenshots/real_multiplayer_all_four_colors_home_lanes.png` — Full arena overview with all 4 colors simultaneously positioned in their authentic home lanes.
-
-
-**Captured Verification Artifacts:**
-- `docs/screenshots/red_1_before_home_entry.png`
-- `docs/screenshots/red_2_entering_home_lane.png`
-- `docs/screenshots/red_3_home_progress_2.png`
-- `docs/screenshots/red_4_home_progress_3.png`
-- `docs/screenshots/red_5_home_progress_4.png`
-- `docs/screenshots/red_6_home_progress_5.png`
-- `docs/screenshots/red_7_center_goal.png`
-- `docs/screenshots/green_home_lane.png`
-- `docs/screenshots/yellow_home_lane.png`
-- `docs/screenshots/blue_home_lane.png`
-- `docs/screenshots/all_colors_home_lane_overview.png`
-- `docs/mobile_screenshots/verified_mobile_home_lane_journey.png`
+Every position asserted above was read from the authoritative snapshot on both clients; the images taken during the run were per-cell captures that are not committed. The scripts that produce them live in `ludo/apps/server/test/` (`e2e-real-multiplayer-home-lane.mts`, `e2e-quality-of-life.mts`) and write to `docs/mobile_screenshots/` at runtime. The five representative screens kept in [`docs/screenshots/`](screenshots/) show the same boards in their normal state.
 
 ---
 

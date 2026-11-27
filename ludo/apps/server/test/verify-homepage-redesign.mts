@@ -14,7 +14,11 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const distPath = path.resolve(__dirname, '../../web/dist');
-const brainArtifactDir = '/Users/munshijarjisalam/.gemini/antigravity/brain/2ceb4a3f-d798-4612-8298-8cc9b9e896a4';
+/** Capture output directory. Override with LUDO_ARTIFACT_DIR; defaults to docs/artifacts. */
+const artifactDir = process.env.LUDO_ARTIFACT_DIR
+  ? path.resolve(process.env.LUDO_ARTIFACT_DIR)
+  : path.resolve(__dirname, '../../../../docs/artifacts');
+fs.mkdirSync(artifactDir, { recursive: true });
 
 const WEB_PORT = 5173;
 const SERVER_PORT = 3001;
@@ -86,7 +90,7 @@ async function runHomepageVerification() {
     assert.equal(ludoGridCount, 1, 'Authentic 15x15 Ludo grid rendered in showcase');
     console.log('  - Genuine 15x15 Ludo board rendering verified ✅');
 
-    await page.screenshot({ path: path.join(brainArtifactDir, 'homepage_desktop_1280.png'), fullPage: true });
+    await page.screenshot({ path: path.join(artifactDir, 'homepage_desktop_1280.png'), fullPage: true });
     console.log('  - Captured homepage_desktop_1280.png ✅');
 
     // 2. Mobile Viewports Audit: 320px, 360px, 375px, 390px, 430px
@@ -117,13 +121,13 @@ async function runHomepageVerification() {
       const cardVisible = await page.locator('.table-entry-card').isVisible();
       assert.ok(cardVisible, `Room entry card visible on ${dev.name}`);
 
-      await page.screenshot({ path: path.join(brainArtifactDir, `homepage_${dev.name}.png`), fullPage: false });
+      await page.screenshot({ path: path.join(artifactDir, `homepage_${dev.name}.png`), fullPage: false });
       console.log(`  - Verified ${dev.name} (${dev.w}px): 1-col layout, 0 overflow, clean layout ✅`);
     }
 
     // Capture full-page mobile view on iPhone 390
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.screenshot({ path: path.join(brainArtifactDir, `homepage_iphone_390_fullpage.png`), fullPage: true });
+    await page.screenshot({ path: path.join(artifactDir, `homepage_iphone_390_fullpage.png`), fullPage: true });
 
     // 3. Test Room Creation from Redesigned Interface
     await page.setViewportSize({ width: 390, height: 844 });

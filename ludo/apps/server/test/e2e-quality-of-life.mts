@@ -15,7 +15,11 @@ const __dirname = path.dirname(__filename);
 
 const distPath = path.resolve(__dirname, '../../web/dist');
 const mobileOutDir = path.resolve(__dirname, '../../../../docs/mobile_screenshots');
-const brainArtifactDir = '/Users/munshijarjisalam/.gemini/antigravity/brain/2ceb4a3f-d798-4612-8298-8cc9b9e896a4';
+/** Capture output directory. Override with LUDO_ARTIFACT_DIR; defaults to docs/artifacts. */
+const artifactDir = process.env.LUDO_ARTIFACT_DIR
+  ? path.resolve(process.env.LUDO_ARTIFACT_DIR)
+  : path.resolve(__dirname, '../../../../docs/artifacts');
+fs.mkdirSync(artifactDir, { recursive: true });
 
 if (!fs.existsSync(mobileOutDir)) {
   fs.mkdirSync(mobileOutDir, { recursive: true });
@@ -51,8 +55,8 @@ async function sleep(ms: number) {
 
 function copyToBrain(filename: string) {
   const src = path.join(mobileOutDir, filename);
-  const dest = path.join(brainArtifactDir, filename);
-  if (fs.existsSync(src)) {
+  const dest = path.join(artifactDir, filename);
+  if (src !== dest && fs.existsSync(src)) {
     fs.copyFileSync(src, dest);
   }
 }

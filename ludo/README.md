@@ -23,8 +23,8 @@ pnpm build
 
 # Tests
 pnpm test           # Game engine rules (48 tests)
-pnpm test:server    # Server integration, netcode, turn clock and persistence (29 tests)
-pnpm test:all       # Complete workspace suite (77 tests)
+pnpm test:server    # Server integration, netcode, turn clock and persistence (37 tests)
+pnpm test:all       # Complete workspace suite (85 tests)
 
 # Mobile scrolling & modal lock audit (Playwright, 8 viewports)
 pnpm --filter @ludo/server exec tsx test/verify-mobile-scroll.mts
@@ -46,6 +46,6 @@ The visual audit requires the Chromium browser once:
 pnpm exec playwright install chromium
 ```
 
-Its screenshots are written to `../docs/layout-qa/after/`.
+Its screenshots are written to `../docs/layout-qa/after/` at runtime (that folder is generated and git-ignored). Browser audit scripts write to `LUDO_ARTIFACT_DIR`, which defaults to `../docs/artifacts/`.
 
-For the project overview, architecture, deployment guide and visual showcase, see the root [README.md](../README.md).
+For the project overview, architecture, deployment guide and visual showcase, see the root [README.md](../README.md); for verification history and open limitations, see [STATUS.md](../STATUS.md).

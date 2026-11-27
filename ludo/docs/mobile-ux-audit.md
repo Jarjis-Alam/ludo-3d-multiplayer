@@ -111,17 +111,4 @@ Automated verification was conducted using Playwright across 9 target viewports,
 
 ## 6. Generated Visual Artifacts
 
-High-resolution screenshots captured during the audit are available in `ludo/docs/mobile_screenshots/`:
-1. `01_small_phone_360x800_gameplay.png`
-2. `01_small_phone_360x800_rolled_six.png`
-3. `02_compact_phone_375x812_gameplay.png`
-4. `03_standard_phone_390x844_gameplay.png`
-5. `03_standard_phone_390x844_rolled_six.png`
-6. `03_phone_landing_page.png`
-7. `03_phone_lobby_screen.png`
-8. `03_phone_victory_screen.png`
-9. `05_large_phone_430x932_gameplay.png`
-10. `06_landscape_phone_844x390_gameplay.png`
-11. `07_tablet_portrait_768x1024_gameplay.png`
-12. `08_tablet_landscape_1024x768_gameplay.png`
-13. `09_desktop_1440x900_gameplay.png`
+The audit captured one screenshot per viewport listed above. Those per-viewport captures are not committed; they are written to `docs/mobile_screenshots/` whenever the Playwright audit scripts run. Five representative captures are kept in [`docs/screenshots/`](../docs/screenshots/).

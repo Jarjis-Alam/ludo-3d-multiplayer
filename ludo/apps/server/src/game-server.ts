@@ -24,7 +24,53 @@ const MAX_PLAYERS = 4;
 const SESSION_GRACE_MS = 60_000;
 const MAX_PROCESSED_ACTIONS = 2_000;
 const MAX_HISTORY_SNAPSHOTS = 100;
-const SESSION_SECRET = process.env.SESSION_SECRET || 'ludo-secret-session-key-development';
+const SESSION_SECRET_MIN_LENGTH = 32;
+
+/** Placeholders that must never reach production, even if they are long enough. */
+const INSECURE_SESSION_SECRETS = new Set([
+  'ludo-secret-session-key-development',
+  'replace-for-local-development',
+  'change-me',
+  'changeme',
+  'secret',
+]);
+
+/**
+ * Resolves the HMAC key used to hash session tokens.
+ *
+ * Production must supply a strong secret: a missing, short or placeholder value
+ * aborts startup instead of silently signing tokens with a published key.
+ * Outside production an ephemeral random key is generated when none is usable,
+ * so local runs never depend on a constant baked into the repository. Sessions
+ * signed with the ephemeral key end with the process, which matches the
+ * in-memory session store used in development.
+ */
+function resolveSessionSecret(): string {
+  const raw = process.env.SESSION_SECRET?.trim();
+  const isProduction = process.env.NODE_ENV === 'production';
+  const usable = !!raw && raw.length >= SESSION_SECRET_MIN_LENGTH && !INSECURE_SESSION_SECRETS.has(raw);
+
+  if (usable) return raw!;
+
+  if (isProduction) {
+    throw new Error(
+      'SESSION_SECRET is missing or too weak for production. ' +
+        `Set SESSION_SECRET to at least ${SESSION_SECRET_MIN_LENGTH} random characters ` +
+        '(for example: openssl rand -hex 32). Refusing to start.'
+    );
+  }
+
+  if (process.env.NODE_ENV !== 'test') {
+    console.warn(
+      raw
+        ? '[ludo] SESSION_SECRET is a placeholder or shorter than 32 characters; using an ephemeral development key instead.'
+        : '[ludo] SESSION_SECRET is not set; using an ephemeral development key (sessions end when the process restarts).'
+    );
+  }
+  return randomBytes(32).toString('hex');
+}
+
+const SESSION_SECRET = resolveSessionSecret();
 
 export type RoomPlayer = Player & { connected: boolean; socketId?: string; lastSeenAt: number };
 

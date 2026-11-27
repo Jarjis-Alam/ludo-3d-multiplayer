@@ -16,7 +16,7 @@ This guide details the complete procedure for deploying **LUDO** (Real-Time Mult
                  ▼                                                                         ▼
 ┌────────────────────────────────┐                                        ┌─────────────────────────────────┐
 │         Vercel Edge CDN        │                                        │       Supabase PostgreSQL       │
-│      (React + Three.js SPA)    │                                        │  (game_rooms + player_sessions) │
+│      (React + Vite SPA)        │                                        │  (game_rooms + player_sessions) │
 └────────────────────────────────┘                                        └─────────────────────────────────┘
 ```
 
@@ -64,7 +64,7 @@ Supabase hosts the persistent PostgreSQL database storing active room snapshots 
 ### Step 3: Run Database Migration
 1. In the Supabase Dashboard, click **SQL Editor** (terminal icon in left sidebar).
 2. Click **New query**.
-3. Copy and paste the contents of [`ludo/apps/server/migrations/001_ludo.sql`](file:///Users/munshijarjisalam/Documents/Projects/Build%20a%20Real-Time%20Multiplayer%203D%20Ludo%20Game/ludo/apps/server/migrations/001_ludo.sql):
+3. Copy and paste the contents of [`ludo/apps/server/migrations/001_ludo.sql`](ludo/apps/server/migrations/001_ludo.sql):
 
 ```sql
 CREATE TABLE IF NOT EXISTS player_sessions (
@@ -134,7 +134,10 @@ In the Render dashboard under **Environment**:
 | `PORT` | `10000` | Port automatically routed by Render |
 | `DATABASE_URL` | `postgresql://postgres.[ref]:[pwd]@aws-0-[reg].pooler.supabase.com:5432/postgres?sslmode=require` | Supabase IPv4 **Session Pooler** URI |
 | `CLIENT_ORIGIN` | `https://your-ludo.vercel.app` | **Exact production frontend origin** (see CORS section below) |
-| `SESSION_SECRET` | *(click "Generate" or use `openssl rand -hex 32`)* | Secure secret for hashing player tokens |
+| `SESSION_SECRET` | *(click "Generate", or use `openssl rand -hex 32`)* | HMAC key for hashing player tokens. **At least 32 characters**; the server refuses to start in production without it |
+
+> [!IMPORTANT]
+> `SESSION_SECRET` is mandatory in production. The server aborts startup when the value is missing, shorter than 32 characters, or a published placeholder, so a forgotten secret cannot silently sign session tokens with a known key. Local development may omit it: the server then generates an ephemeral key and logs a single warning. Sessions signed with that key end when the process restarts.
 
 ### Step 4: Strict CORS Configuration
 > [!IMPORTANT]
@@ -171,7 +174,7 @@ Under **Advanced**:
 
 ## Phase 3 — Vercel Frontend Deployment
 
-Vercel hosts the static React + Three.js single-page application.
+Vercel hosts the static React single-page application.
 
 ### Step 1: Import Project to Vercel
 1. Sign in to [Vercel](https://vercel.com).
@@ -213,6 +216,17 @@ Under **Environment Variables**:
 
 ---
 
+### Deployment configuration files in this repository
+
+| File | Use when |
+| :--- | :--- |
+| `vercel.json` (repository root) | **Canonical.** Vercel project root = repository root, which is what the instructions above assume. |
+| `ludo/vercel.json` | Only when the Vercel project root is the `ludo/` workspace folder. Build and output paths are relative to it. |
+| `ludo/apps/web/vercel.json` | Only when the Vercel project root is `ludo/apps/web`. The engine package is still installed from the workspace above it, so the root layout above remains the safer choice. |
+| `render.yaml` (repository root) | **Canonical** Render blueprint for the API. |
+| `package.json` / `pnpm-lock.yaml` at the root | Root proxy scripts and dev tooling; the application workspace is `ludo/`. |
+| `ludo/package.json` / `ludo/pnpm-lock.yaml` | The workspace itself — both hosting providers install from here (`pnpm --dir ludo install --frozen-lockfile`). |
+
 ## Phase 4 — Post-Deployment Verification Test Plan
 
 Execute these 9 tests to verify complete end-to-end functionality in production:
@@ -220,7 +234,7 @@ Execute these 9 tests to verify complete end-to-end functionality in production:
 | # | Test | Procedure | Expected Result |
 | :--- | :--- | :--- | :--- |
 | **1** | **Health Check** | Run `curl -s https://[render-backend]/health` | HTTP 200 with `{"ok":true,"service":"ludo-server","persistence":"postgres"}` |
-| **2** | **Frontend Loading** | Open `https://[vercel-frontend]` in desktop browser | Landing page loads with 3D board background preview, room code input, and player name input. No 404s in DevTools Console. |
+| **2** | **Frontend Loading** | Open `https://[vercel-frontend]` in desktop browser | Landing page loads with the board preview, create-table and join-with-code entry points. No 404s in DevTools Console. |
 | **3** | **WebSocket Connection** | Inspect DevTools Network tab -> Filter `WS` | Single active WebSocket connection to `wss://[render-backend]/socket.io/...` with status `101 Switching Protocols`. |
 | **4** | **4-Player Room Creation** | Player 1 clicks "Create Room"; Players 2, 3, 4 open the invite link or enter room code in separate browsers/incognito windows | All 4 seats fill in real-time (`Red`, `Green`, `Yellow`, `Blue`). All players see player names. Start button is enabled for host. |
 | **5** | **Match Play & Rule Engine** | Host clicks "Start Match". Players take turns rolling dice and selecting legal tokens | Dice animations synchronize across all 4 screens. Legal tokens highlight; invalid tokens cannot be moved. Turns rotate clockwise. Captures and safe cells execute correctly. |

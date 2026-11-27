@@ -14,7 +14,11 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const distPath = path.resolve(__dirname, '../../web/dist');
-const brainArtifactDir = '/Users/munshijarjisalam/.gemini/antigravity/brain/2ceb4a3f-d798-4612-8298-8cc9b9e896a4';
+/** Capture output directory. Override with LUDO_ARTIFACT_DIR; defaults to docs/artifacts. */
+const artifactDir = process.env.LUDO_ARTIFACT_DIR
+  ? path.resolve(process.env.LUDO_ARTIFACT_DIR)
+  : path.resolve(__dirname, '../../../../docs/artifacts');
+fs.mkdirSync(artifactDir, { recursive: true });
 
 const WEB_PORT = 5173;
 const SERVER_PORT = 3001;
@@ -97,7 +101,7 @@ async function runMobilePolishE2E() {
     assert.equal(shareCodeText?.trim(), `#${roomCode}`);
     console.log(`  - Share modal displayed correct room code #${roomCode} ✅`);
 
-    await pageAlice.screenshot({ path: path.join(brainArtifactDir, 'mobile_share_modal_qr.png') });
+    await pageAlice.screenshot({ path: path.join(artifactDir, 'mobile_share_modal_qr.png') });
     console.log('  - Captured mobile_share_modal_qr.png ✅');
 
     // Close share modal
@@ -128,7 +132,7 @@ async function runMobilePolishE2E() {
     assert.equal(reducedMotionStored, 'true', 'Reduced motion persisted in localStorage');
     console.log('  - Settings toggles (sound, haptics, reduced-motion) verified & persisted ✅');
 
-    await pageAlice.screenshot({ path: path.join(brainArtifactDir, 'mobile_settings_modal.png') });
+    await pageAlice.screenshot({ path: path.join(artifactDir, 'mobile_settings_modal.png') });
     console.log('  - Captured mobile_settings_modal.png ✅');
 
     // Close settings modal
@@ -190,7 +194,7 @@ async function runMobilePolishE2E() {
     assert.ok(feedItemsCount >= 2, `Activity feed recorded ${feedItemsCount} authoritative game events`);
     console.log(`  - Activity feed recorded ${feedItemsCount} events (dice roll, deploy) ✅`);
 
-    await pageAlice.screenshot({ path: path.join(brainArtifactDir, 'mobile_activity_feed_drawer.png') });
+    await pageAlice.screenshot({ path: path.join(artifactDir, 'mobile_activity_feed_drawer.png') });
     console.log('  - Captured mobile_activity_feed_drawer.png ✅');
 
     // Close activity feed drawer
@@ -215,7 +219,7 @@ async function runMobilePolishE2E() {
     assert.ok(offlineChipCount >= 1, 'Alice client displays (OFFLINE) badge on Bob chip');
     console.log('  - Bob offline badge rendered on player ribbon ✅');
 
-    await pageBob.screenshot({ path: path.join(brainArtifactDir, 'mobile_reconnect_banner.png') });
+    await pageBob.screenshot({ path: path.join(artifactDir, 'mobile_reconnect_banner.png') });
     console.log('  - Captured mobile_reconnect_banner.png ✅');
 
     // Reconnect Bob
@@ -233,12 +237,12 @@ async function runMobilePolishE2E() {
     // 8. Capture Compact Mobile Viewports (360x780 Android & 430x932 iPhone 15 Pro Max)
     await pageAlice.setViewportSize({ width: 360, height: 780 });
     await sleep(200);
-    await pageAlice.screenshot({ path: path.join(brainArtifactDir, 'mobile_android_360px_gameplay.png') });
+    await pageAlice.screenshot({ path: path.join(artifactDir, 'mobile_android_360px_gameplay.png') });
     console.log('  - Captured mobile_android_360px_gameplay.png (360px) ✅');
 
     await pageAlice.setViewportSize({ width: 430, height: 932 });
     await sleep(200);
-    await pageAlice.screenshot({ path: path.join(brainArtifactDir, 'mobile_iphone_430px_gameplay.png') });
+    await pageAlice.screenshot({ path: path.join(artifactDir, 'mobile_iphone_430px_gameplay.png') });
     console.log('  - Captured mobile_iphone_430px_gameplay.png (430px) ✅');
 
     console.log('\n================================================================');

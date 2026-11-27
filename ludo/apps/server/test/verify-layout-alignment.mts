@@ -14,7 +14,11 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const distPath = path.resolve(__dirname, '../../web/dist');
-const brainArtifactDir = '/Users/munshijarjisalam/.gemini/antigravity/brain/2ceb4a3f-d798-4612-8298-8cc9b9e896a4';
+/** Capture output directory. Override with LUDO_ARTIFACT_DIR; defaults to docs/artifacts. */
+const artifactDir = process.env.LUDO_ARTIFACT_DIR
+  ? path.resolve(process.env.LUDO_ARTIFACT_DIR)
+  : path.resolve(__dirname, '../../../../docs/artifacts');
+fs.mkdirSync(artifactDir, { recursive: true });
 
 const WEB_PORT = 5173;
 const SERVER_PORT = 3001;
@@ -85,7 +89,7 @@ async function runLayoutVerification() {
       assert.equal(hasHorizScroll, false, `Viewport ${vp.width} has horizontal overflow!`);
 
       if (vp.width === 390) {
-        const shotPath = path.join(brainArtifactDir, 'homepage_mobile_390.png');
+        const shotPath = path.join(artifactDir, 'homepage_mobile_390.png');
         await page.screenshot({ path: shotPath, fullPage: false });
         console.log(`  📸 Saved Homepage screenshot: ${shotPath}`);
       }
@@ -133,7 +137,7 @@ async function runLayoutVerification() {
     console.log(`  - Rendered player cards: ${cards2p.length} (expected 2)`);
     assert.equal(cards2p.length, 2);
 
-    const shot2p = path.join(brainArtifactDir, 'match_2_players.png');
+    const shot2p = path.join(artifactDir, 'match_2_players.png');
     await p1.screenshot({ path: shot2p });
     console.log(`  📸 Saved 2-Player Match screenshot: ${shot2p}`);
 
@@ -173,7 +177,7 @@ async function runLayoutVerification() {
     console.log(`  - Rendered player cards: ${cards3p.length} (expected 3)`);
     assert.equal(cards3p.length, 3);
 
-    const shot3p = path.join(brainArtifactDir, 'match_3_players.png');
+    const shot3p = path.join(artifactDir, 'match_3_players.png');
     await host3.screenshot({ path: shot3p });
     console.log(`  📸 Saved 3-Player Match screenshot: ${shot3p}`);
 
@@ -213,7 +217,7 @@ async function runLayoutVerification() {
     console.log(`  - Rendered player cards: ${cards4p.length} (expected 4)`);
     assert.equal(cards4p.length, 4);
 
-    const shot4p = path.join(brainArtifactDir, 'match_4_players.png');
+    const shot4p = path.join(artifactDir, 'match_4_players.png');
     await host4.screenshot({ path: shot4p });
     console.log(`  📸 Saved 4-Player Match screenshot: ${shot4p}`);
 
@@ -226,7 +230,7 @@ async function runLayoutVerification() {
       await sleep(1000); // wait for roll animation and result
     }
 
-    const shotDice = path.join(brainArtifactDir, 'match_active_turn_dice_rolled.png');
+    const shotDice = path.join(artifactDir, 'match_active_turn_dice_rolled.png');
     await host4.screenshot({ path: shotDice });
     console.log(`  📸 Saved Active Turn with Dice Rolled screenshot: ${shotDice}`);
 

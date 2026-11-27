@@ -56,3 +56,6 @@ Thumbs.db
 .vscode/*
 !.vscode/settings.json
 !.vscode/extensions.json
+
+# Runtime capture output from the Playwright audits
+docs/artifacts/
