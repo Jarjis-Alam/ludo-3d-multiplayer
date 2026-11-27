@@ -60,15 +60,16 @@ Ludo Royal Arena is a pnpm monorepo with a deterministic rules engine, an author
 - **Exact movement mathematics** — progress advances by the rolled value across the 52-cell circuit and six home-lane steps.
 - **Home lane and exact finish** — pawns enter their colour’s runway after a full circuit and need the exact roll to reach the centre goal.
 - **Bonus turns** — capturing an opponent pawn or bringing a pawn home grants an extra turn.
-- **Configurable turn timer** — expired turns are forfeited server-side, skipping disconnected or vacant seats.
+- **Configurable turn timer** — defaults to 30 seconds with a host-only 15s / 30s / 60s lobby selector that persists across joins, leaves and rematches; expired turns are forfeited server-side.
 - **Ranked multi-winner lifecycle** — finished players are removed from turn rotation and placed on the podium.
 
 ### Interface
 
-- **Neo Arcade design system** — midnight navy, electric violet and gold tokens with consistent spacing and breakpoints.
-- **Responsive by construction** — purpose-built layouts for 320 px phones through 1440 px desktops, including landscape.
-- **Tactile controls** — elevated dice tray, prominent roll action, animated pawn interpolation and capture effects.
-- **Accessibility-minded** — reduced-motion mode, sound and haptic toggles, live-region status announcements and labelled controls.
+- **Neo Arcade design system** — midnight navy, electric violet and gold tokens with a shared spacing scale, inline SVG chrome and mobile safe-area handling.
+- **Streamlined entry flow** — animated 15×15 tabletop board preview, Quick Play launch card, modal create/join entry sheets (`Play Now` / `Play with Friends`), and `How to Play` / `Leaderboard` info sheets.
+- **Responsive by construction** — tuned from 320 px phones through 1440 px desktops (including landscape), with a `+N open` invite trigger on the room bar and frame-aligned yard name plates clear of token sockets.
+- **Predictable mobile scrolling** — single document-root scroll context (`overflow-x: clip`), clipped background decorations (`.bg-decor-layer`), and reference-counted scroll locking (`scrollLock.ts`) for modals and drawers.
+- **Tactile controls and accessibility** — elevated dice tray, prominent roll action, animated pawn interpolation, reduced-motion mode, sound/haptic toggles and live-region status announcements.
 - **Share and activity tools** — room code copy, QR invites, and a match activity drawer.
 
 ### Engineering
@@ -169,11 +170,14 @@ pnpm --dir ludo exec playwright install chromium
 # Rules engine — 48 unit tests
 pnpm test:engine
 
-# Server integration, netcode and persistence — 26 tests
+# Server integration, netcode, turn clock and persistence — 29 tests
 pnpm test:server
 
-# Everything — 74 tests across the workspace
+# Everything — 77 tests across the workspace
 pnpm test:all
+
+# Mobile scrolling & modal lock audit (Playwright, 8 viewports)
+pnpm --dir ludo --filter @ludo/server exec tsx test/verify-mobile-scroll.mts
 
 # Responsive visual layout audit (Playwright, 8 viewports)
 pnpm --dir ludo --filter @ludo/server test:visual
@@ -205,9 +209,10 @@ Capture examples are committed in [`docs/layout-qa/`](docs/layout-qa/).
 | Suite | Scope |
 | :--- | :--- |
 | Engine unit tests | Deployment, legal moves, captures, safe cells, home lanes, exact finish, rankings |
-| Server integration | Room lifecycle, turn rotation, timeout forfeiture, reconnect resync, persistence |
+| Server integration | Room lifecycle, turn rotation, configurable turn timer, timeout forfeiture, reconnect resync, persistence |
 | Simulations | Long-running seeded matches for rule and state-integrity regressions |
 | Playwright E2E | Real browsers and Socket.IO clients playing complete matches |
+| Mobile scroll audit | Document-root scroll (`verify-mobile-scroll.mts`), zero horizontal overflow, overlay scroll lock/restore across 8 viewports (`320×568` to `1280×720`) |
 | Visual audit | Rendered layout, containment, decoration collisions and responsive screenshots |
 
 ---
@@ -298,9 +303,9 @@ The interface uses the Neo Arcade token set in [`ludo/apps/web/src/style.css`](l
 - **Accents:** electric violet `#7650F5`, purple `#965BFF`, gold `#FFC83D`, coral `#FF765F`
 - **Player colours:** red `#ED3945`, green `#08A66A`, yellow `#FFAA13`, blue `#3978F6`
 - **Spacing:** 4 px base scale (`--space-1` … `--space-8`) with a shared page gutter
-- **Breakpoints:** 960 px (single-column landing), 640 px (compact layout), 430 px (phone header), 380 px (small phone)
+- **Breakpoints:** 960 px (single-column landing), 640 px (compact layout), 430 px (compact room bar), 360 px (tight header controls)
 
-Decorative shapes and dice are positioned behind the content layer, use `pointer-events: none`, and are scaled and edge-anchored per breakpoint rather than removed.
+Decorative shapes and dice render inside `.bg-decor-layer` (`overflow: hidden; pointer-events: none`), while `html`, `body`, `.game-master-backdrop`, and `.victory-screen` use `overflow-x: clip` so mobile scrolling stays on the document root without nested scroll containers. Modals and the activity drawer share [`scrollLock.ts`](ludo/apps/web/src/scrollLock.ts) (`acquireScrollLock`) and restore page scroll cleanly across closures and screen transitions.
 
 ---
 

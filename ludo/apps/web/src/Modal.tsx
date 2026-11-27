@@ -1,5 +1,6 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { acquireScrollLock } from './scrollLock';
 
 export interface ModalProps {
   isOpen: boolean;
@@ -22,26 +23,30 @@ export const Modal: React.FC<ModalProps> = ({
   className = '',
   children,
 }) => {
-  // Prevent background scrolling while modal is open & restore cleanly when closed
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  // Prevent background scrolling while modal is open & restore cleanly when closed.
+  // onClose lives in a ref so parent re-renders (e.g. turn countdown ticks) never
+  // cycle the scroll lock mid-modal.
   useEffect(() => {
     if (!isOpen) return;
 
-    const originalOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    const releaseLock = acquireScrollLock();
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onClose();
+        onCloseRef.current();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
 
     return () => {
-      document.body.style.overflow = originalOverflow;
+      releaseLock();
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isOpen, onClose]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 

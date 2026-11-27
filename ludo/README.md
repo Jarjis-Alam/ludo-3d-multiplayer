@@ -23,8 +23,11 @@ pnpm build
 
 # Tests
 pnpm test           # Game engine rules (48 tests)
-pnpm test:server    # Server integration, netcode and persistence (26 tests)
-pnpm test:all       # Complete workspace suite (74 tests)
+pnpm test:server    # Server integration, netcode, turn clock and persistence (29 tests)
+pnpm test:all       # Complete workspace suite (77 tests)
+
+# Mobile scrolling & modal lock audit (Playwright, 8 viewports)
+pnpm --filter @ludo/server exec tsx test/verify-mobile-scroll.mts
 
 # Responsive visual layout audit (Playwright, 8 viewports, screenshots)
 pnpm --filter @ludo/server test:visual

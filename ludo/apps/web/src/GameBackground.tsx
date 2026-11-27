@@ -93,33 +93,36 @@ export const GameBackground: React.FC<{ children?: React.ReactNode; dimmed?: boo
 }) => {
   return (
     <div className={`game-master-backdrop ${dimmed ? 'gameplay-dimmed' : ''}`}>
-      {/* Ambient Lighting Cones */}
-      <div className="ambient-glow ambient-glow-top" aria-hidden="true" />
-      <div className="ambient-glow ambient-glow-center" aria-hidden="true" />
-      <div className="ambient-glow ambient-glow-bottom" aria-hidden="true" />
+      {/* Clipped atmospheric backdrop layer so edge-bleeding glows and dice never create an inner scrollport */}
+      <div className="bg-decor-layer" aria-hidden="true">
+        {/* Ambient Lighting Cones */}
+        <div className="ambient-glow ambient-glow-top" />
+        <div className="ambient-glow ambient-glow-center" />
+        <div className="ambient-glow ambient-glow-bottom" />
 
-      {/* Atmospheric Cropped Geometric Shapes */}
-      {/* Top-Right Curved Coral/Orange Shape */}
-      <div className="bg-geom-shape shape-coral-tr" aria-hidden="true" />
+        {/* Atmospheric Cropped Geometric Shapes */}
+        {/* Top-Right Curved Coral/Orange Shape */}
+        <div className="bg-geom-shape shape-coral-tr" />
 
-      {/* Mid-Left Electric Violet Floating Shape */}
-      <div className="bg-geom-shape shape-violet-ml" aria-hidden="true" />
+        {/* Mid-Left Electric Violet Floating Shape */}
+        <div className="bg-geom-shape shape-violet-ml" />
 
-      {/* Mid-Right Electric Purple Shape */}
-      <div className="bg-geom-shape shape-purple-mr" aria-hidden="true" />
+        {/* Mid-Right Electric Purple Shape */}
+        <div className="bg-geom-shape shape-purple-mr" />
 
-      {/* Bottom-Left Warm Orange Shape */}
-      <div className="bg-geom-shape shape-amber-bl" aria-hidden="true" />
+        {/* Bottom-Left Warm Orange Shape */}
+        <div className="bg-geom-shape shape-amber-bl" />
 
-      {/* Edge-Cropped Floating 3D Ivory Dice */}
-      {/* Mid-Left Floating Dice (isometric tilted) */}
-      <div className="bg-floating-dice dice-edge-left" aria-hidden="true">
-        <FloatingDiceSVG size={78} rotation={-22} />
-      </div>
+        {/* Edge-Cropped Floating 3D Ivory Dice */}
+        {/* Mid-Left Floating Dice (isometric tilted) */}
+        <div className="bg-floating-dice dice-edge-left">
+          <FloatingDiceSVG size={78} rotation={-22} />
+        </div>
 
-      {/* Bottom-Right Floating Dice */}
-      <div className="bg-floating-dice dice-edge-right" aria-hidden="true">
-        <FloatingDiceSVG size={88} rotation={28} />
+        {/* Bottom-Right Floating Dice */}
+        <div className="bg-floating-dice dice-edge-right">
+          <FloatingDiceSVG size={88} rotation={28} />
+        </div>
       </div>
 
       {/* Content Injection */}

@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { SeatGlyph } from './SeatGlyph';
+import { acquireScrollLock } from './scrollLock';
 
 export interface ActivityItem {
   id: string;
@@ -69,6 +70,8 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({
   onClose,
 }) => {
   const [, setTick] = useState(0);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   // Update relative timestamps every 4 seconds when open
   useEffect(() => {
@@ -77,23 +80,23 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({
     return () => clearInterval(interval);
   }, [isOpen]);
 
-  // Prevent background scrolling while open on mobile & listen to Escape
+  // Prevent background scrolling while open & listen to Escape via ref so
+  // parent re-renders never churn the shared scroll lock.
   useEffect(() => {
     if (!isOpen) return;
 
-    const originalOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    const releaseLock = acquireScrollLock();
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') onCloseRef.current();
     };
     window.addEventListener('keydown', handleKeyDown);
 
     return () => {
-      document.body.style.overflow = originalOverflow;
+      releaseLock();
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isOpen, onClose]);
+  }, [isOpen]);
 
   const timeline = groupTimeline([...items].slice(-30).reverse());
 

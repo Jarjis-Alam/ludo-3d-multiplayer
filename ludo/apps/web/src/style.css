@@ -71,7 +71,13 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-html,
+html {
+  width: 100%;
+  min-height: 100%;
+  background-color: var(--bg-midnight);
+  overflow-x: clip;
+}
+
 body {
   width: 100%;
   max-width: 100%;
@@ -80,8 +86,16 @@ body {
   background-color: var(--bg-midnight);
   color: var(--text-primary);
   font-family: var(--font-body);
-  overflow-x: hidden;
+  overflow-x: clip;
   user-select: none;
+}
+
+#root {
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
 }
 
 /* Accessibility screen-reader only utility */
@@ -109,15 +123,28 @@ body {
   background: radial-gradient(circle at 50% 12%, rgba(118, 80, 245, 0.22) 0%, transparent 65%),
               radial-gradient(circle at 85% 82%, rgba(150, 91, 255, 0.16) 0%, transparent 55%),
               linear-gradient(180deg, #111329 0%, #1d1838 50%, #151228 100%);
-  overflow-x: hidden;
+  /* Never use overflow-x: hidden here: CSS turns overflow-y into auto and makes
+     this wrapper a nested scroll container that traps mobile touch panning. */
+  overflow-x: clip;
   display: flex;
   flex-direction: column;
+  flex: 1 1 auto;
+}
+
+/* Clipped decoration canvas so off-edge glows/dice never expand layout bounds */
+.bg-decor-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 1;
 }
 
 .game-master-content {
   position: relative;
   z-index: 10;
   width: 100%;
+  min-width: 0;
   min-height: 100vh;
   min-height: 100dvh;
   display: flex;
@@ -2266,7 +2293,7 @@ body {
   min-height: calc(100dvh - var(--header-height, 56px));
   padding: clamp(18px, 4vw, 40px) 16px clamp(22px, 5vw, 44px);
   background: #f7ecd7;
-  overflow: hidden;
+  overflow-x: clip;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3014,6 +3041,7 @@ body {
   z-index: 1000;
   padding: max(16px, env(safe-area-inset-top, 16px)) max(16px, env(safe-area-inset-right, 16px)) max(16px, env(safe-area-inset-bottom, 16px)) max(16px, env(safe-area-inset-left, 16px));
   box-sizing: border-box;
+  overscroll-behavior: contain;
   animation: fadeIn 0.18s ease-out;
 }
 
@@ -3097,8 +3125,11 @@ body {
 
 .modal-body {
   flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
   padding: 16px 20px 20px;
   display: flex;
   flex-direction: column;
@@ -3427,6 +3458,7 @@ body {
   align-items: flex-end;
   justify-content: center;
   box-sizing: border-box;
+  overscroll-behavior: contain;
 }
 
 @media (min-width: 768px) {
@@ -3497,8 +3529,11 @@ body {
 
 .feed-list-scroll {
   flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
   padding: 14px 18px 20px;
   display: flex;
   flex-direction: column;
@@ -5164,15 +5199,22 @@ body {
    PORTRAIT MATCH VIEWPORT FIT
    The match chrome (header, room bar, ribbon, status bar, dock) keeps its
    fixed sizes; the square board is sized from whatever height remains, so the
-   page never scrolls past a phone viewport.
+   page never scrolls past a phone viewport. Below 520px height the layout
+   reverts to natural page flow so the board and controls stay reachable.
    ========================================================================== */
-@media (orientation: portrait) and (max-width: 1023px) {
+.game-screen-main {
+  min-height: 100vh;
+  min-height: 100dvh;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+@media (orientation: portrait) and (max-width: 1023px) and (min-height: 520px) {
   .game-screen-main {
     height: 100vh;
     height: 100dvh;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
+    overflow-x: clip;
   }
 
   .game-screen-wrapper {
@@ -5225,6 +5267,17 @@ body {
     transform: translateX(-50%);
     margin: 0;
     z-index: 9800;
+  }
+}
+
+@media (orientation: portrait) and (max-width: 1023px) and (max-height: 519px) {
+  .game-screen-main .reconnect-floating-banner {
+    position: sticky;
+    top: calc(var(--header-height) + max(4px, var(--safe-top)));
+  }
+
+  .game-screen-wrapper {
+    padding-bottom: max(16px, env(safe-area-inset-bottom, 16px));
   }
 }
 
@@ -5539,7 +5592,8 @@ body {
    ========================================================================== */
 @media (max-width: 900px) {
   .lobby-container {
-    padding-bottom: calc(176px + env(safe-area-inset-bottom, 0px));
+    margin: 0 auto;
+    padding-bottom: calc(192px + env(safe-area-inset-bottom, 0px));
   }
 
   .lobby-message {

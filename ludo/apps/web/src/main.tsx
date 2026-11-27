@@ -739,6 +739,8 @@ function App() {
     };
     const onState = (data: Snapshot) => {
       setRestoringSession(false);
+      setEntryMode(null);
+      setInfoSheet(null);
       setSnapshot((prev) => {
         if (prev && data.version < prev.version) return prev;
         if (prev && data.version > prev.version + 1 && prev.roomCode) {
@@ -1039,6 +1041,8 @@ function App() {
         return;
       }
       localStorage.setItem('ludo-room', result.roomCode);
+      setEntryMode(null);
+      setInfoSheet(null);
       setSnapshot(result.state);
       setMessage('Room created. Invite friends to join.');
     });
@@ -1071,6 +1075,8 @@ function App() {
         return;
       }
       localStorage.setItem('ludo-room', result.roomCode);
+      setEntryMode(null);
+      setInfoSheet(null);
       setSnapshot(result.state);
       setMessage('Joined the royal salon.');
     });
@@ -1080,6 +1086,11 @@ function App() {
     if (snapshot)
       socket.emit('leave_room', snapshot.roomCode, () => {
         localStorage.removeItem('ludo-room');
+        setEntryMode(null);
+        setInfoSheet(null);
+        setShareModalOpen(false);
+        setSettingsModalOpen(false);
+        setActivityFeedOpen(false);
         setSnapshot(null);
         setMessage('');
       });
