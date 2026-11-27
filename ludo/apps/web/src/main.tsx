@@ -1807,6 +1807,10 @@ function App() {
     turnNoticeMessage = recentNotice.message;
   }
 
+  // Empty seats are surfaced once on the room bar, and that pill opens the
+  // invite sheet that fills them.
+  const seatsLeft = Math.max(0, 4 - snapshot.players.length);
+
   return (
     <GameBackground dimmed>
       <main className={`game-screen-main ${reducedMotion ? 'reduced-motion' : ''}`}>
@@ -1821,6 +1825,8 @@ function App() {
             latency={42}
             copied={copiedCode}
             onCopy={copyCode}
+            openSeats={seatsLeft}
+            onInvite={() => setShareModalOpen(true)}
           />
 
           {/* Recreated Mobile Horizontal Player Ribbon */}

@@ -5637,6 +5637,55 @@ body {
   pointer-events: none;
 }
 
+/* Empty seats are stated once, on the room bar that already carries the player
+   count, and that pill is what opens the invite sheet. */
+.open-seats-chip {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 9999px;
+  border: 1px dashed rgba(255, 226, 160, 0.55);
+  color: #ffe2a0;
+  font-family: var(--font-heading);
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.player-count-section.has-open-seats {
+  cursor: pointer;
+}
+
+.player-count-section.has-open-seats:hover .open-seats-chip {
+  border-color: rgba(255, 226, 160, 0.9);
+  color: #fff6dc;
+}
+
+/* The invite chip shares the room bar with the player count, so on phones the
+   latency readout steps aside before the count is forced to wrap. */
+@media (max-width: 430px) {
+  .room-info-bar-container .latency-section {
+    display: none;
+  }
+
+  .player-count-text {
+    white-space: nowrap;
+  }
+}
+
+/* 320px: the count plus a worded chip no longer fit next to the room code. */
+@media (max-width: 360px) {
+  .open-seats-chip {
+    margin-left: 4px;
+    padding: 1px 5px;
+    font-size: 0.52rem;
+  }
+
+  .open-seats-word {
+    display: none;
+  }
+}
+
 /* ==========================================================================
    320-360px HEADER
    Five controls plus the brand only just fit here, so tighten the row instead
