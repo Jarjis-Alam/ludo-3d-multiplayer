@@ -13,6 +13,7 @@ import {
   legalTokens,
   absoluteCell,
   SAFE_CELLS,
+  TURN_DURATION_OPTIONS,
 } from '@ludo/game-engine';
 import type { Persistence, PersistedRoom } from './persistence.js';
 
@@ -330,7 +331,7 @@ export class LudoService {
     const expectedVersion = room.state.version;
     room.turnTimerVersion = expectedVersion;
     const now = Date.now();
-    const duration = room.state.turnDurationMs || (Number(process.env.TURN_TIMEOUT_SECONDS || 15) * 1000);
+    const duration = room.state.turnDurationMs || (Number(process.env.TURN_TIMEOUT_SECONDS || 30) * 1000);
     const deadline = room.state.turnExpiresAt ?? (now + duration);
     const delayMs = Math.max(0, deadline - now);
 
@@ -553,7 +554,8 @@ export class LudoService {
         }
         const player: RoomPlayer = { id: session.id, name, color: COLORS[seat], seat, connected: true, socketId: socket.id, lastSeenAt: Date.now() };
         room.players.set(session.id, player);
-        room.state = initialState([...room.players.values()], room.state.version);
+        // Rebuilding the lobby state must keep the host's chosen turn clock.
+        room.state = initialState([...room.players.values()], room.state.version, room.state.turnDurationMs);
         this.attach(socket, session, room);
         this.recordSnapshot(room);
         await this.save(room);
@@ -583,7 +585,8 @@ export class LudoService {
           } else {
             if (room.host === session.id) room.host = [...room.players.keys()][0];
             if (room.state.status === 'lobby') {
-              room.state = initialState([...room.players.values()], room.state.version);
+              // Rebuilding the lobby state must keep the host's chosen turn clock.
+        room.state = initialState([...room.players.values()], room.state.version, room.state.turnDurationMs);
             }
             this.recordSnapshot(room);
             await this.save(room);
@@ -593,6 +596,35 @@ export class LudoService {
           return { ok: true };
         });
       });
+
+      // Host picks how long each turn runs; it lives on the room state so joins,
+      // leaves, rematches and reconnects all reuse the same clock.
+      socket.on(
+        'set_turn_duration',
+        async (payload: { roomCode?: string; seconds?: number }, ack?: (value: ActionResult) => void) => {
+          if (!this.checkRateLimit(socket.id)) return this.sendError(ack, 'Rate limit exceeded');
+          const session = await sessionPromise;
+          const code = String(payload?.roomCode || '').trim().toUpperCase();
+          const room = this.rooms.get(code);
+          if (!room) return this.sendError(ack, 'Room not found');
+
+          const seconds = Number(payload?.seconds);
+          if (!TURN_DURATION_OPTIONS.includes(seconds as (typeof TURN_DURATION_OPTIONS)[number])) {
+            return this.sendError(ack, 'Turn clock must be 15, 30 or 60 seconds');
+          }
+
+          const result = await this.queueAction(room, undefined, async () => {
+            if (room.host !== session.id) return { ok: false, error: 'Host only' };
+            if (room.state.status !== 'lobby') return { ok: false, error: 'Match already started' };
+            room.state.turnDurationMs = seconds * 1000;
+            await this.save(room);
+            this.emitRoom(io, room, 'lobby_updated');
+            return { ok: true, version: room.state.version, state: this.snapshot(room) };
+          });
+
+          ack?.(result);
+        }
+      );
 
       socket.on('start_game', async (payload: string | ActionEnvelope, ack?: (value: ActionResult) => void) => {
         if (!this.checkRateLimit(socket.id)) return this.sendError(ack, 'Rate limit exceeded');
@@ -620,7 +652,7 @@ export class LudoService {
           }
           const currentVer = room.state.version;
           room.state = startGame({
-            ...initialState([...room.players.values()], currentVer),
+            ...initialState([...room.players.values()], currentVer, room.state.turnDurationMs),
             players: [...room.players.values()],
             version: currentVer,
           });
@@ -661,7 +693,7 @@ export class LudoService {
           // MONOTONIC VERSION PRESERVATION: Keep current room version so rematch continues sequence
           const currentVer = room.state.version;
           room.state = startGame({
-            ...initialState([...room.players.values()], currentVer),
+            ...initialState([...room.players.values()], currentVer, room.state.turnDurationMs),
             players: [...room.players.values()],
             version: currentVer,
           });
@@ -865,7 +897,8 @@ export class LudoService {
           if (currentPlayer && !currentPlayer.connected) {
             room.players.delete(current.id);
             if (room.state.status === 'lobby') {
-              room.state = initialState([...room.players.values()], room.state.version);
+              // Rebuilding the lobby state must keep the host's chosen turn clock.
+        room.state = initialState([...room.players.values()], room.state.version, room.state.turnDurationMs);
             }
             if (room.players.size === 0) {
               if (room.turnTimer) {

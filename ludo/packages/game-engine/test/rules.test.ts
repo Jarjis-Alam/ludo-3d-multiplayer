@@ -1,5 +1,7 @@
 import {describe,it,expect} from 'vitest';
-import {absoluteCell,forfeitTurn,getNextPlayer,initialState,legalTokens,moveToken,roll,SAFE_CELLS,startGame,type Player} from '../src/index';
+import {absoluteCell,DEFAULT_TURN_DURATION_MS,forfeitTurn,getNextPlayer,initialState,legalTokens,moveToken,roll,SAFE_CELLS,startGame,type Player} from '../src/index';
+// Timer tests derive from the default clock so changing it cannot silently break them.
+const T=DEFAULT_TURN_DURATION_MS;
 const players:Player[]=[0,1,2,3].map((seat)=>({id:`p${seat}`,name:`P${seat}`,color:['red','green','yellow','blue'][seat],seat:seat as 0|1|2|3}));
 const playing=()=>startGame(initialState(players));
 describe('ludo engine',()=>{
@@ -119,7 +121,7 @@ describe('ludo engine',()=>{
      const startT = 1700000000000;
      const s = startGame(initialState(players), startT);
      expect(s.status).toBe('playing');
-     expect(s.turnExpiresAt).toBe(startT + 15000);
+     expect(s.turnExpiresAt).toBe(startT + T);
      expect(s.currentPlayer).toBe(0);
    });
 
@@ -129,10 +131,10 @@ describe('ludo engine',()=>{
      expect(s.currentPlayer).toBe(0);
      expect(s.dice).toBeNull();
 
-     s = forfeitTurn(s, [0, 1, 2, 3], startT + 15000);
+     s = forfeitTurn(s, [0, 1, 2, 3], startT + T);
      expect(s.currentPlayer).toBe(1);
      expect(s.dice).toBeNull();
-     expect(s.turnExpiresAt).toBe(startT + 30000);
+     expect(s.turnExpiresAt).toBe(startT + 2 * T);
      expect(s.lastNotice?.type).toBe('timeout');
      expect(s.lastNotice?.seat).toBe(0);
    });
@@ -145,11 +147,11 @@ describe('ludo engine',()=>{
      expect(s.currentPlayer).toBe(0);
      expect(s.consecutiveSixes).toBe(1);
 
-     s = forfeitTurn(s, [0, 1, 2, 3], startT + 17000);
+     s = forfeitTurn(s, [0, 1, 2, 3], startT + 2000 + T);
      expect(s.currentPlayer).toBe(1);
      expect(s.dice).toBeNull();
      expect(s.consecutiveSixes).toBe(0);
-     expect(s.turnExpiresAt).toBe(startT + 32000);
+     expect(s.turnExpiresAt).toBe(startT + 2000 + 2 * T);
      expect(s.lastNotice?.type).toBe('timeout');
      expect(s.lastNotice?.seat).toBe(0);
    });
@@ -162,13 +164,13 @@ describe('ludo engine',()=>{
      let s = startGame(initialState(twoPlayers), 1000);
      expect(s.currentPlayer).toBe(0);
 
-     s = forfeitTurn(s, [0, 2], 16000);
+     s = forfeitTurn(s, [0, 2], 1000 + T);
      expect(s.currentPlayer).toBe(2);
-     expect(s.turnExpiresAt).toBe(31000);
+     expect(s.turnExpiresAt).toBe(1000 + 2 * T);
 
-     s = forfeitTurn(s, [0, 2], 31000);
+     s = forfeitTurn(s, [0, 2], 1000 + 2 * T);
      expect(s.currentPlayer).toBe(0);
-     expect(s.turnExpiresAt).toBe(46000);
+     expect(s.turnExpiresAt).toBe(1000 + 3 * T);
    });
 
    it('cancels turnExpiresAt when match finishes', () => {

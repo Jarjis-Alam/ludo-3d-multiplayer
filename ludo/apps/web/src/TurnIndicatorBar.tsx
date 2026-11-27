@@ -21,7 +21,7 @@ export const TurnIndicatorBar: React.FC<TurnIndicatorBarProps> = ({
   seat,
   isMyTurn,
   timeLeft,
-  maxTime = 15,
+  maxTime = 30,
   diceValue = null,
   hasLegalMoves = true,
   phase,

@@ -35,7 +35,9 @@ export const MAX_PATH_PROGRESS = 50;
 export const HOME_LENGTH = 6;
 export const START_OFFSETS = [0, 13, 26, 39] as const;
 export const SAFE_CELLS = new Set([0, 8, 13, 21, 26, 34, 39, 47]);
-export const DEFAULT_TURN_DURATION_MS = 15_000;
+export const DEFAULT_TURN_DURATION_MS = 30_000;
+/** Turn clocks the lobby offers, in seconds. */
+export const TURN_DURATION_OPTIONS = [15, 30, 60] as const;
 
 export function isPlayerFinished(tokens: TokenPosition[]): boolean {
   return tokens.length === 4 && tokens.every((p) => p.kind === 'home' && p.progress === HOME_LENGTH);

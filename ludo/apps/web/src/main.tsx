@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { io, Socket } from 'socket.io-client';
-import { legalTokens } from '@ludo/game-engine';
+import { DEFAULT_TURN_DURATION_MS, legalTokens, TURN_DURATION_OPTIONS } from '@ludo/game-engine';
 import { AudioEngine } from './AudioEngine';
 import { Board2D } from './Board2D';
 import { LandingBoard2D } from './LandingBoard2D';
@@ -54,6 +54,8 @@ type Snapshot = {
   turnExpiresAt: number | null;
   /** Server clock at snapshot time; absent on legacy/mock snapshots. */
   serverNow?: number;
+  /** Turn clock the host picked in the lobby, in ms; absent on legacy/mock snapshots. */
+  turnDurationMs?: number;
   /** Per-match counters for the victory screen; absent on legacy/mock snapshots. */
   matchStats?: {
     startedAt: number;
@@ -1198,6 +1200,8 @@ function App() {
   const localPlayer = snapshot?.players.find((p) => p.id === sessionId);
   const localSeat = localPlayer?.seat ?? -1;
   const isMyTurn = snapshot ? snapshot.status === 'playing' && snapshot.currentPlayer === localSeat : false;
+  /** Turn clock length in seconds, shared by the lobby picker and the turn bar. */
+  const turnSeconds = Math.round((snapshot?.turnDurationMs ?? DEFAULT_TURN_DURATION_MS) / 1000);
   const activePlayer = snapshot?.players.find((p) => p.seat === snapshot.currentPlayer);
 
   const legal = useMemo(
@@ -1705,6 +1709,44 @@ function App() {
 
             {message && <p className="lobby-message text-amber-400 text-xs text-center">{message}</p>}
 
+            {/* Turn clock — the host picks it here so a table can play relaxed. */}
+            <div className="lobby-turn-clock master-card">
+              <span className="lobby-turn-clock-label">TURN CLOCK</span>
+              <div className="lobby-turn-clock-options" role="group" aria-label="Turn time limit">
+                {TURN_DURATION_OPTIONS.map((seconds) => {
+                  const isActive = turnSeconds === seconds;
+                  return (
+                    <button
+                      key={seconds}
+                      type="button"
+                      className={`lobby-turn-option ${isActive ? 'is-active' : ''}`}
+                      aria-pressed={isActive}
+                      disabled={snapshot.host !== sessionId}
+                      onClick={() => {
+                        socket.emit(
+                          'set_turn_duration',
+                          { roomCode: snapshot.roomCode, seconds },
+                          (result: any) => {
+                            if (result?.state) setSnapshot(result.state);
+                            if (!result?.ok) {
+                              setMessage(result?.error || 'Could not change the turn clock');
+                            }
+                          }
+                        );
+                      }}
+                    >
+                      {seconds}s
+                    </button>
+                  );
+                })}
+              </div>
+              <span className="lobby-turn-clock-hint">
+                {snapshot.host === sessionId
+                  ? 'Seconds per turn before it auto-passes'
+                  : 'The host sets the turn clock'}
+              </span>
+            </div>
+
             <div className="lobby-footer-bar">
               <span className="lobby-seats-count font-mono text-sm text-amber-200">
                 {snapshot.players.length}/4 Players · {snapshot.players.filter((p) => p.connected).length} Connected
@@ -1890,7 +1932,7 @@ function App() {
                 seat={snapshot.currentPlayer}
                 isMyTurn={isMyTurn}
                 timeLeft={turnTimeLeft}
-                maxTime={15}
+                maxTime={turnSeconds}
                 diceValue={snapshot.dice}
                 hasLegalMoves={legal.length > 0}
                 phase={turnPhase}
@@ -1934,7 +1976,7 @@ function App() {
                   playerColor={activePlayer?.color}
                   playerName={activePlayer?.name}
                   timeLeft={turnTimeLeft}
-                  maxTime={15}
+                  maxTime={turnSeconds}
                 />
               </div>
 
