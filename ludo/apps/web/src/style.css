@@ -5820,7 +5820,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: clamp(18px, 2.4vw, 36px);
-  padding: 0 clamp(18px, 4vw, 64px) clamp(26px, 3vw, 44px);
+  padding: 0 clamp(18px, 4vw, 64px) max(clamp(26px, 3vw, 44px), env(safe-area-inset-bottom, 0px));
   background:
     radial-gradient(900px 620px at 84% 20%, rgba(124, 77, 255, 0.34), transparent 65%),
     radial-gradient(760px 520px at 4% 96%, rgba(255, 200, 61, 0.07), transparent 62%),
@@ -5834,9 +5834,15 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: clamp(10px, 2vw, 28px);
-  padding-top: clamp(12px, 2vw, 22px);
+  padding-top: calc(clamp(12px, 2vw, 22px) + env(safe-area-inset-top, 0px));
   position: relative;
   z-index: 3;
+}
+
+/* The header avatar is a profile chip here, not a seat marker, so the seat
+   colour badge that the game draws would only read as a smudge. */
+.rv-avatar-btn .avatar-seat-badge {
+  display: none;
 }
 
 .rv-brand {
@@ -6315,6 +6321,32 @@ body {
 .rv-entry-submit {
   width: 100%;
   margin-top: 4px;
+}
+
+/* The sheet's fields are the only place a name or code is typed on this page,
+   so they get a full touch target and 16px text (which also stops iOS zooming). */
+.rv-entry .royal-input {
+  width: 100%;
+  height: 48px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(150, 100, 255, 0.45);
+  background: rgba(12, 6, 24, 0.6);
+  color: #ffffff;
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.2;
+  box-sizing: border-box;
+}
+
+.rv-entry .royal-input::placeholder {
+  color: rgba(233, 222, 246, 0.45);
+}
+
+.rv-entry .royal-input:focus {
+  outline: 2px solid rgba(255, 200, 61, 0.55);
+  outline-offset: 1px;
+  border-color: rgba(255, 200, 61, 0.6);
 }
 
 .rv-info-text {
