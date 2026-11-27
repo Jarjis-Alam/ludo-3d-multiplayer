@@ -66,7 +66,7 @@ Ludo Royal Arena is a pnpm monorepo with a deterministic rules engine, an author
 ### Interface
 
 - **Neo Arcade design system** — midnight navy, electric violet and gold tokens with a shared spacing scale, inline SVG chrome and mobile safe-area handling.
-- **Streamlined entry flow** — animated 15×15 tabletop board preview, Quick Play launch card, modal create/join entry sheets (`Play Now` / `Play with Friends`), and `How to Play` / `Leaderboard` info sheets.
+- **Streamlined entry flow** — animated 15×15 tabletop board preview, modal create/join entry sheets (`Play Now` / `Play with Friends`), and `How to Play` / `Leaderboard` info sheets.
 - **Responsive by construction** — tuned from 320 px phones through 1440 px desktops (including landscape), with a `+N open` invite trigger on the room bar and frame-aligned yard name plates clear of token sockets.
 - **Predictable mobile scrolling** — single document-root scroll context (`overflow-x: clip`), clipped background decorations (`.bg-decor-layer`), and reference-counted scroll locking (`scrollLock.ts`) for modals and drawers.
 - **Tactile controls and accessibility** — elevated dice tray, prominent roll action, animated pawn interpolation, reduced-motion mode, sound/haptic toggles and live-region status announcements.

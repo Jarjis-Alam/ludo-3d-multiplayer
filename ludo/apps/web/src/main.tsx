@@ -26,13 +26,11 @@ import {
   FeedIcon,
   GamepadIcon,
   GearIcon,
-  GridIcon,
   HomeIcon,
   LayersIcon,
   LinkIcon,
   PlayersIcon,
   PlayTriangleIcon,
-  PlusIcon,
   ShieldIcon,
   SpeakerIcon,
   TrophyIcon,
@@ -1649,35 +1647,6 @@ function App() {
           </section>
 
           <section className="rv-bottom">
-            <div className="rv-quickplay">
-              <h2>Quick Play</h2>
-              <p>Start a new game or join an existing one.</p>
-              <div className="rv-quick-actions">
-                <button
-                  type="button"
-                  className="rv-quick-card is-primary"
-                  onClick={() => openEntry('create')}
-                >
-                  <span className="rv-quick-icon">
-                    <PlusIcon size={22} />
-                  </span>
-                  <span className="rv-quick-text">
-                    <strong>Create Private Table</strong>
-                    <small>Host a room and invite friends</small>
-                  </span>
-                </button>
-                <button type="button" className="rv-quick-card" onClick={() => openEntry('join')}>
-                  <span className="rv-quick-icon">
-                    <GridIcon size={22} />
-                  </span>
-                  <span className="rv-quick-text">
-                    <strong>Join with Code</strong>
-                    <small>Enter a room code to play</small>
-                  </span>
-                </button>
-              </div>
-            </div>
-
             <div className="rv-stats">
               <div className="rv-stat">
                 <PlayersIcon size={26} />

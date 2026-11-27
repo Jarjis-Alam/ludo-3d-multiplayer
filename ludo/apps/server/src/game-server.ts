@@ -380,9 +380,19 @@ export class LudoService {
    * Auto-play choice: advance the most advanced legal pawn. Ties keep the board
    * order, so a timeout is deterministic for the same state.
    */
-  private pickAutoToken(state: GameState, seat: PlayerIndex, dice: number): number | null {
+  private pickAutoToken(state: GameState, seat: PlayerIndex, dice: number, random = false): number | null {
     const legal = legalTokens(state, seat, dice);
     if (legal.length === 0) return null;
+    if (legal.length === 1) return legal[0];
+    if (random) {
+      // Fisher-Yates shuffle: pick a random index from the legal moves list
+      const shuffled = [...legal];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      return shuffled[0];
+    }
     const rank = (pos: TokenPosition) =>
       pos.kind === 'base' ? -1 : pos.kind === 'home' ? 1000 + pos.progress : pos.progress;
     return legal.reduce((best, idx) =>
