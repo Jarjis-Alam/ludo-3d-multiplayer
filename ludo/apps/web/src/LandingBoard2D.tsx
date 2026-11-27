@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { Board2D, type BoardPlayer, type BoardToken } from './Board2D';
-import { MiniDiceCube } from './DiceRoller';
 
 const SHOWCASE_PLAYERS: BoardPlayer[] = [
   { id: 'sc-0', name: 'Ruby', color: 'red', seat: 0, connected: true },
@@ -40,12 +39,15 @@ const INITIAL_SHOWCASE_TOKENS: BoardToken[][] = [
   ],
 ];
 
+/**
+ * The real 15x15 board, angled like a tabletop illustration for the homepage
+ * hero. It keeps the gentle turn animation so the artwork is never static.
+ */
 export const LandingBoard2D: React.FC = () => {
   const [tokens] = useState<BoardToken[][]>(INITIAL_SHOWCASE_TOKENS);
   const [activeTurn, setActiveTurn] = useState<number>(0);
   const [showcaseDice, setShowcaseDice] = useState<number>(6);
 
-  // Gentle cyclic turn animation so the board feels dynamically alive
   useEffect(() => {
     const diceSequence = [6, 4, 3, 5];
     let step = 0;
@@ -58,64 +60,19 @@ export const LandingBoard2D: React.FC = () => {
   }, []);
 
   return (
-    <div className="landing-board-showcase master-card">
-      {/* Header bar matching master design */}
-      <div className="board-showcase-header">
-        <div className="board-showcase-meta">
-          <span className="board-showcase-eyebrow">AUTHENTIC 15×15 TABLETOP ARENA</span>
-          <h2 className="board-showcase-title">THE GAME BOARD</h2>
-          <p className="board-showcase-subtitle">Classic four-colour Ludo · Real-time physics</p>
-        </div>
-        <div className="board-showcase-badge" title="Live Board Demonstration">
-          <span className="badge-dot" />
-          <span className="badge-text">LIVE DEMO</span>
-          <div className="showcase-mini-dice" title={`Turn dice: ${showcaseDice}`}>
-            <MiniDiceCube value={showcaseDice} />
-          </div>
-        </div>
-      </div>
-
-      {/* Real 15x15 Ludo Board component with master styling */}
-      <div className="board-showcase-frame">
-        <Board2D
-          players={SHOWCASE_PLAYERS}
-          tokens={tokens}
-          currentPlayer={activeTurn}
-          localSeat={0}
-          diceDisplay={showcaseDice}
-          legal={[2]} // highlights active pawn with luxury beacon
-          isMoving={false}
-          reducedMotion={false}
-          compactPawns
-          onTokenClick={() => {}}
-        />
-      </div>
-
-      {/* Tabletop footer with 4 seat colors & safe zone specs */}
-      <div className="board-showcase-footer">
-        <div className="board-legend-chips">
-          <span className="legend-chip chip-ruby">
-            <span className="chip-color-dot dot-red" />
-            <span className="chip-label">Ruby Red</span>
-          </span>
-          <span className="legend-chip chip-emerald">
-            <span className="chip-color-dot dot-green" />
-            <span className="chip-label">Emerald Green</span>
-          </span>
-          <span className="legend-chip chip-amber">
-            <span className="chip-color-dot dot-yellow" />
-            <span className="chip-label">Amber Yellow</span>
-          </span>
-          <span className="legend-chip chip-sapphire">
-            <span className="chip-color-dot dot-blue" />
-            <span className="chip-label">Sapphire Blue</span>
-          </span>
-        </div>
-        <div className="board-specs-strip">
-          <span className="spec-badge">★ 8 Safe Sanctuaries</span>
-          <span className="spec-badge">♔ Center Victory Crown</span>
-        </div>
-      </div>
+    <div className="rv-board-frame">
+      <Board2D
+        players={SHOWCASE_PLAYERS}
+        tokens={tokens}
+        currentPlayer={activeTurn}
+        localSeat={0}
+        diceDisplay={showcaseDice}
+        legal={[2]}
+        isMoving={false}
+        reducedMotion={false}
+        compactPawns
+        onTokenClick={() => {}}
+      />
     </div>
   );
 };

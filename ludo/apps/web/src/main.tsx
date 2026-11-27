@@ -17,14 +17,27 @@ import { PlayerAvatar } from './PlayerAvatar';
 import { RoomInfoBar } from './RoomInfoBar';
 import { TurnIndicatorBar } from './TurnIndicatorBar';
 import {
+  BellIcon,
+  BookIcon,
+  BoltIcon,
   ChatIcon,
+  ChevronDownIcon,
   CloseIcon,
   FeedIcon,
+  GamepadIcon,
   GearIcon,
+  GridIcon,
+  HomeIcon,
+  LayersIcon,
   LinkIcon,
   PlayersIcon,
+  PlayTriangleIcon,
+  PlusIcon,
+  ShieldIcon,
   SpeakerIcon,
+  TrophyIcon,
 } from './AppIcons';
+import { Modal } from './Modal';
 import type { TurnPhase } from './TurnIndicatorBar';
 import './style.css';
 
@@ -507,9 +520,12 @@ const MobileBottomDock: React.FC<MobileBottomDockProps> = ({
 function App() {
   const [name, setName] = useState(localStorage.getItem('ludo_player_name') || '');
   const [roomInput, setRoomInput] = useState(new URLSearchParams(location.search).get('room') || '');
-  const [landingTab, setLandingTab] = useState<'create' | 'join'>(() => {
-    return typeof location !== 'undefined' && new URLSearchParams(location.search).get('room') ? 'join' : 'create';
-  });
+  /** Which homepage entry sheet is open, if any. An invite link opens join. */
+  const [entryMode, setEntryMode] = useState<'create' | 'join' | null>(() =>
+    typeof location !== 'undefined' && new URLSearchParams(location.search).get('room') ? 'join' : null
+  );
+  /** Homepage info sheets: the rules recap and the leaderboard placeholder. */
+  const [infoSheet, setInfoSheet] = useState<'rules' | 'leaderboard' | null>(null);
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [sessionId, setSessionId] = useState('');
   const [message, setMessage] = useState('');
@@ -994,6 +1010,12 @@ function App() {
     if (!socket.connected) socket.connect();
   };
 
+  const openEntry = (mode: 'create' | 'join') => {
+    triggerHaptic('light');
+    setMessage('');
+    setEntryMode(mode);
+  };
+
   const create = () => {
     if (isCreating) return;
     if (!canJoin) {
@@ -1461,181 +1483,293 @@ function App() {
   }
 
   // =========================================================================
-  // VIEW 1: LANDING & MATCHMAKING
+  // VIEW 1: HOME (Rollverse landing)
   // =========================================================================
   if (!snapshot) {
+    const entryTitle = entryMode === 'join' ? 'Join a Table' : 'Create Private Table';
+    const entryBusy = entryMode === 'join' ? isJoining : isCreating;
+    const entryReady = entryMode === 'join' ? canJoin && roomInput.trim().length === 6 : canJoin;
+
     return (
       <GameBackground>
-        <main className={`landing-page-root ${reducedMotion ? 'reduced-motion' : ''}`}>
-          {renderHeader()}
-          <div className="landing-stage">
-            <section className="landing-content-grid">
-              {/* Left Column: Hero Storytelling & Table Console */}
-              <div className="hero-column">
-                <div className="hero-badge-eyebrow">
-                  <span className="eyebrow-insignia">🎲</span>
-                  <span>ONLINE MULTIPLAYER ARENA</span>
-                </div>
+        <main className={`rv-home ${reducedMotion ? 'reduced-motion' : ''}`}>
+          <header className="rv-header">
+            <button
+              type="button"
+              className="rv-brand"
+              onClick={() => window.scrollTo({ top: 0, behavior: reducedMotion ? 'auto' : 'smooth' })}
+              aria-label="Rollverse home"
+            >
+              <span className="rv-brand-mark" aria-hidden="true">
+                <DiceFaceSVG value={5} size={26} />
+              </span>
+              <span className="rv-brand-name">ROLLVERSE</span>
+            </button>
 
-                <h1 className="hero-headline">
-                  ROLL THE DICE.<br />
-                  <span className="hero-headline-accent">RULE THE BOARD.</span>
-                </h1>
+            <nav className="rv-nav" aria-label="Main">
+              <button
+                type="button"
+                className="rv-nav-item is-active"
+                aria-current="page"
+                onClick={() => window.scrollTo({ top: 0, behavior: reducedMotion ? 'auto' : 'smooth' })}
+              >
+                <HomeIcon size={18} />
+                Home
+              </button>
+              <button type="button" className="rv-nav-item" onClick={() => openEntry('create')}>
+                <GamepadIcon size={18} />
+                Play
+              </button>
+              <button
+                type="button"
+                className="rv-nav-item"
+                onClick={() => setInfoSheet('leaderboard')}
+              >
+                <TrophyIcon size={18} />
+                Leaderboard
+              </button>
+              <button type="button" className="rv-nav-item" onClick={() => setInfoSheet('rules')}>
+                <BookIcon size={18} />
+                How to Play
+              </button>
+            </nav>
 
-                <p className="hero-subtitle">
-                  Your friends, your private table. Classic 4-player Ludo online with server-authoritative rules and instant zero-install play.
-                </p>
+            <div className="rv-header-actions">
+              <button
+                type="button"
+                className="rv-icon-btn"
+                onClick={toggleSound}
+                aria-label={isMuted ? 'Unmute sound' : 'Mute sound'}
+                title={isMuted ? 'Unmute sound' : 'Mute sound'}
+              >
+                <BellIcon size={20} />
+                {!isMuted && <span className="rv-bell-dot" aria-hidden="true" />}
+              </button>
+              <button
+                type="button"
+                className="rv-avatar-btn"
+                onClick={() => setSettingsModalOpen(true)}
+                aria-label="Open settings"
+                title="Settings"
+              >
+                <PlayerAvatar seat={0} name={name || 'Player'} size={34} />
+                <ChevronDownIcon size={16} />
+              </button>
+            </div>
+          </header>
 
-                {/* Table Entry Console */}
-                <div className="table-entry-card master-card">
-                  <div className="table-entry-header">
-                    <div className="table-entry-tab-group" role="tablist">
-                      <button
-                        type="button"
-                        role="tab"
-                        aria-selected={landingTab === 'create'}
-                        className={`table-tab-pill ${landingTab === 'create' ? 'active' : ''}`}
-                        onClick={() => {
-                          triggerHaptic('light');
-                          setLandingTab('create');
-                          setMessage('');
-                        }}
-                      >
-                        <span className="pill-icon">👑</span>
-                        <span>Create Private Table</span>
-                      </button>
-                      <button
-                        type="button"
-                        role="tab"
-                        aria-selected={landingTab === 'join'}
-                        className={`table-tab-pill ${landingTab === 'join' ? 'active' : ''}`}
-                        onClick={() => {
-                          triggerHaptic('light');
-                          setLandingTab('join');
-                          setMessage('');
-                        }}
-                      >
-                        <span className="pill-icon">🔑</span>
-                        <span>Join With Code</span>
-                      </button>
-                    </div>
-                  </div>
+          <section className="rv-hero">
+            <div className="rv-hero-copy">
+              <h1 className="rv-title">
+                Classic Ludo.
+                <br />
+                <span>Multiplayer Fun.</span>
+              </h1>
+              <p className="rv-lede">
+                Play Ludo with your friends online. Create private rooms, join with a code, and enjoy a
+                smooth, real-time experience.
+              </p>
 
-                  <div className="table-entry-body">
-                    {/* Player Display Name */}
-                    <div className="table-input-block">
-                      <label className="table-input-label" htmlFor="player-name-input">
-                        <span>YOUR GUEST NAME</span>
-                        <span className="label-aux">1–16 characters</span>
-                      </label>
-                      <div className="table-input-row-with-avatar">
-                        <div className="table-avatar-preview" title="Your Character">
-                          <PlayerAvatar seat={0} name={name || 'Player'} size={44} />
-                        </div>
-                        <div className="table-input-container">
-                          <span className="input-prefix-icon">👤</span>
-                          <input
-                            id="player-name-input"
-                            className="royal-input table-name-input"
-                            value={name}
-                            onChange={(e) => {
-                              setName(e.target.value);
-                              if (message) setMessage('');
-                            }}
-                            maxLength={16}
-                            placeholder="Enter your name"
-                            autoFocus
-                            autoComplete="off"
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Room Code (Visible when in Join tab) */}
-                    {landingTab === 'join' && (
-                      <div className="table-input-block">
-                        <label className="table-input-label" htmlFor="room-code-input">
-                          <span>6-DIGIT ROOM CODE</span>
-                          <span className="label-aux">From room invitation</span>
-                        </label>
-                        <div className="table-input-container">
-                          <span className="input-prefix-icon">#</span>
-                          <input
-                            id="room-code-input"
-                            className="royal-input code-input table-code-input"
-                            value={roomInput}
-                            onChange={(e) => {
-                              setRoomInput(e.target.value.toUpperCase());
-                              if (message) setMessage('');
-                            }}
-                            maxLength={6}
-                            placeholder="ROOM CODE"
-                            autoComplete="off"
-                          />
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Primary Golden-Yellow Action Buttons */}
-                    {landingTab === 'create' ? (
-                      <button
-                        type="button"
-                        className="cta-button table-cta-btn primary-game-btn"
-                        disabled={!canJoin || isCreating}
-                        onClick={create}
-                      >
-                        {isCreating ? (
-                          <>
-                            <span className="animate-spin inline-block mr-2">◌</span>
-                            <span>Creating Table…</span>
-                          </>
-                        ) : (
-                          <>
-                            <span>Create Private Salon</span>
-                            <span className="cta-symbol">👑</span>
-                          </>
-                        )}
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        className="cta-button table-cta-btn primary-game-btn"
-                        disabled={!canJoin || roomInput.trim().length !== 6 || isJoining}
-                        onClick={join}
-                      >
-                        {isJoining ? (
-                          <>
-                            <span className="animate-spin inline-block mr-2">◌</span>
-                            <span>Entering Table…</span>
-                          </>
-                        ) : (
-                          <>
-                            <span>Enter Room Table</span>
-                            <span className="cta-symbol">⚔️</span>
-                          </>
-                        )}
-                      </button>
-                    )}
-
-                    {message && <div className="table-error-banner">{message}</div>}
-
-                    {/* Trust Badges */}
-                    <div className="table-specs-row">
-                      <span className="spec-item"><span className="spec-check">✓</span> 2 to 4 Players</span>
-                      <span className="spec-item"><span className="spec-check">✓</span> Private Invitations</span>
-                      <span className="spec-item"><span className="spec-check">✓</span> Zero Downloads</span>
-                    </div>
-                  </div>
-                </div>
+              <div className="rv-cta-row">
+                <button type="button" className="rv-btn rv-btn-primary" onClick={() => openEntry('create')}>
+                  <PlayTriangleIcon size={18} />
+                  Play Now
+                </button>
+                <button type="button" className="rv-btn rv-btn-ghost" onClick={() => openEntry('join')}>
+                  <PlayersIcon size={20} />
+                  Play with Friends
+                </button>
               </div>
 
-              {/* Right Column: Authentic 15x15 Tabletop Board Showcase */}
-              <div className="board-column">
+              <ul className="rv-features">
+                <li>
+                  <BoltIcon size={24} />
+                  <span>
+                    Real-time
+                    <br />
+                    Multiplayer
+                  </span>
+                </li>
+                <li>
+                  <ShieldIcon size={24} />
+                  <span>
+                    Private
+                    <br />
+                    Rooms
+                  </span>
+                </li>
+                <li>
+                  <GamepadIcon size={24} />
+                  <span>
+                    Classic
+                    <br />
+                    Rules
+                  </span>
+                </li>
+              </ul>
+            </div>
+
+            <div className="rv-hero-art" aria-hidden="true">
+              <span className="rv-ghost rv-ghost-a">
+                <DiceFaceSVG value={6} size={150} />
+              </span>
+              <span className="rv-ghost rv-ghost-b">
+                <DiceFaceSVG value={4} size={110} />
+              </span>
+              <span className="rv-glow rv-glow-a" />
+              <span className="rv-glow rv-glow-b" />
+              <svg className="rv-swoosh" viewBox="0 0 120 90" fill="none">
+                <path d="M8 80C24 46 52 24 90 16" stroke="#FFD23F" strokeWidth="7" strokeLinecap="round" />
+                <path
+                  d="M30 86C44 58 66 40 96 32"
+                  stroke="#FFD23F"
+                  strokeWidth="5"
+                  strokeLinecap="round"
+                  opacity="0.7"
+                />
+              </svg>
+              <div className="rv-die">
+                <DiceFaceSVG value={6} size={128} />
+              </div>
+              <div className="rv-board">
                 <LandingBoard2D />
               </div>
-            </section>
-          </div>
-          {renderModals()}
+            </div>
+          </section>
+
+          <section className="rv-bottom">
+            <div className="rv-quickplay">
+              <h2>Quick Play</h2>
+              <p>Start a new game or join an existing one.</p>
+              <div className="rv-quick-actions">
+                <button
+                  type="button"
+                  className="rv-quick-card is-primary"
+                  onClick={() => openEntry('create')}
+                >
+                  <span className="rv-quick-icon">
+                    <PlusIcon size={22} />
+                  </span>
+                  <span className="rv-quick-text">
+                    <strong>Create Private Table</strong>
+                    <small>Host a room and invite friends</small>
+                  </span>
+                </button>
+                <button type="button" className="rv-quick-card" onClick={() => openEntry('join')}>
+                  <span className="rv-quick-icon">
+                    <GridIcon size={22} />
+                  </span>
+                  <span className="rv-quick-text">
+                    <strong>Join with Code</strong>
+                    <small>Enter a room code to play</small>
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            <div className="rv-stats">
+              <div className="rv-stat">
+                <PlayersIcon size={26} />
+                <strong>2 – 4</strong>
+                <span>Players</span>
+              </div>
+              <span className="rv-stat-divider" aria-hidden="true" />
+              <div className="rv-stat">
+                <LayersIcon size={26} />
+                <strong>Zero</strong>
+                <span>Downloads</span>
+              </div>
+              <span className="rv-stat-divider" aria-hidden="true" />
+              <div className="rv-stat">
+                <BoltIcon size={26} />
+                <strong>Instant</strong>
+                <span>Play</span>
+              </div>
+            </div>
+          </section>
+
+          <Modal
+            isOpen={entryMode !== null}
+            onClose={() => setEntryMode(null)}
+            title={entryTitle}
+            eyebrow="ROLLVERSE TABLE"
+            ariaLabel={entryTitle}
+          >
+            <div className="rv-entry">
+              <label className="rv-field">
+                <span>YOUR NAME</span>
+                <input
+                  className="royal-input"
+                  value={name}
+                  onChange={(e) => {
+                    setName(e.target.value);
+                    if (message) setMessage('');
+                  }}
+                  maxLength={16}
+                  placeholder="Enter your name"
+                  autoFocus
+                  autoComplete="off"
+                />
+              </label>
+
+              {entryMode === 'join' && (
+                <label className="rv-field">
+                  <span>ROOM CODE</span>
+                  <input
+                    className="royal-input"
+                    value={roomInput}
+                    onChange={(e) => {
+                      setRoomInput(e.target.value.toUpperCase());
+                      if (message) setMessage('');
+                    }}
+                    maxLength={6}
+                    placeholder="ABC123"
+                    autoComplete="off"
+                  />
+                </label>
+              )}
+
+              {message && <div className="table-error-banner">{message}</div>}
+
+              <button
+                type="button"
+                className="rv-btn rv-btn-primary rv-entry-submit"
+                disabled={!entryReady || entryBusy}
+                onClick={() => (entryMode === 'join' ? join() : create())}
+              >
+                {entryBusy
+                  ? entryMode === 'join'
+                    ? 'Entering Table…'
+                    : 'Creating Table…'
+                  : entryMode === 'join'
+                    ? 'Join Table'
+                    : 'Create Table'}
+              </button>
+            </div>
+          </Modal>
+
+          <Modal
+            isOpen={infoSheet !== null}
+            onClose={() => setInfoSheet(null)}
+            title={infoSheet === 'leaderboard' ? 'Leaderboards' : 'How to Play'}
+            eyebrow="ROLLVERSE"
+            ariaLabel={infoSheet === 'leaderboard' ? 'Leaderboards' : 'How to Play'}
+          >
+            {infoSheet === 'leaderboard' ? (
+              <p className="rv-info-text">
+                Ranked boards arrive in the next update. Every table you create today is a private room
+                shared by code, so your results stay with you.
+              </p>
+            ) : (
+              <ol className="rv-info-list">
+                <li>Roll a 6 to bring a pawn out of your yard onto its start cell.</li>
+                <li>Land on an opponent and their pawn goes back to the yard — that earns you a bonus roll.</li>
+                <li>A 6, a capture or getting a pawn home all grant another roll.</li>
+                <li>The first player to bring all four pawns to the centre crown wins.</li>
+                <li>Each turn runs on the table clock (30s by default) and auto-passes when it runs out.</li>
+              </ol>
+            )}
+          </Modal>
         </main>
       </GameBackground>
     );

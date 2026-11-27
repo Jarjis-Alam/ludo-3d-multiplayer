@@ -5804,3 +5804,650 @@ body {
   }
 
 }
+/* ==========================================================================
+   ROLLVERSE HOME
+   Full-bleed homepage: nav bar, two-line headline, angled tabletop board and
+   the Quick Play / stat cards along the bottom.
+   ========================================================================== */
+.rv-home {
+  --rv-yellow: #ffc83d;
+  --rv-purple: #7c4dff;
+  --rv-ink: #2b1448;
+  --rv-text-dim: rgba(233, 222, 246, 0.72);
+  position: relative;
+  isolation: isolate;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(18px, 2.4vw, 36px);
+  padding: 0 clamp(18px, 4vw, 64px) clamp(26px, 3vw, 44px);
+  background:
+    radial-gradient(900px 620px at 84% 20%, rgba(124, 77, 255, 0.34), transparent 65%),
+    radial-gradient(760px 520px at 4% 96%, rgba(255, 200, 61, 0.07), transparent 62%),
+    linear-gradient(180deg, #190a2b 0%, #22103c 46%, #170827 100%);
+  color: #ffffff;
+  overflow-x: clip;
+}
+
+.rv-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: clamp(10px, 2vw, 28px);
+  padding-top: clamp(12px, 2vw, 22px);
+  position: relative;
+  z-index: 3;
+}
+
+.rv-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  background: none;
+  color: #ffffff;
+  cursor: pointer;
+  padding: 0;
+}
+
+.rv-brand-mark {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #ffffff;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 0 0 3px var(--rv-yellow), 0 8px 18px rgba(0, 0, 0, 0.4);
+  flex: 0 0 auto;
+}
+
+.rv-brand-name {
+  font-family: 'Baloo 2', var(--font-heading);
+  font-weight: 800;
+  font-size: clamp(19px, 1.6vw, 25px);
+  letter-spacing: 0.06em;
+  line-height: 1;
+}
+
+.rv-nav {
+  display: flex;
+  align-items: center;
+  gap: clamp(2px, 0.8vw, 10px);
+}
+
+.rv-nav-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: #ffffff;
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.18s ease;
+}
+
+.rv-nav-item:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.rv-nav-item.is-active {
+  background: linear-gradient(180deg, #6b3bd6, #4e1f9f);
+  box-shadow: 0 8px 18px rgba(76, 28, 157, 0.45);
+}
+
+.rv-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.rv-icon-btn {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  border: 1px solid rgba(160, 120, 255, 0.25);
+  background: rgba(255, 255, 255, 0.05);
+  color: #ffffff;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: background 0.18s ease;
+}
+
+.rv-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.rv-bell-dot {
+  position: absolute;
+  top: 10px;
+  right: 11px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--rv-yellow);
+  box-shadow: 0 0 0 2px #241043;
+}
+
+.rv-avatar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px 4px 4px;
+  border-radius: 9999px;
+  border: 1px solid rgba(160, 120, 255, 0.28);
+  background: rgba(255, 255, 255, 0.06);
+  color: #ffffff;
+  cursor: pointer;
+  transition: background 0.18s ease;
+}
+
+.rv-avatar-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/* ---------- Hero ---------- */
+.rv-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+  align-items: center;
+  gap: clamp(14px, 3vw, 44px);
+  position: relative;
+  z-index: 2;
+  flex: 1 1 auto;
+}
+
+.rv-title {
+  font-family: 'Baloo 2', var(--font-heading);
+  font-weight: 800;
+  font-size: clamp(40px, 5.9vw, 88px);
+  line-height: 0.98;
+  letter-spacing: -0.02em;
+  color: #ffffff;
+}
+
+.rv-title span {
+  color: var(--rv-yellow);
+  font-style: italic;
+}
+
+.rv-lede {
+  margin-top: clamp(14px, 1.6vw, 22px);
+  max-width: 46ch;
+  font-size: clamp(15px, 1.15vw, 19px);
+  line-height: 1.55;
+  color: var(--rv-text-dim);
+}
+
+.rv-cta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: clamp(20px, 2.4vw, 32px);
+}
+
+.rv-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 56px;
+  padding: 0 26px;
+  border: 2px solid transparent;
+  border-radius: 14px;
+  font-family: var(--font-body);
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.rv-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.rv-btn-primary {
+  background: linear-gradient(180deg, #ffd35c, #ffbe1f);
+  color: #3a1d00;
+  box-shadow: 0 12px 26px rgba(255, 190, 31, 0.28);
+}
+
+.rv-btn-ghost {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(146, 98, 255, 0.65);
+  color: #ffffff;
+}
+
+.rv-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.rv-features {
+  display: flex;
+  flex-wrap: wrap;
+  gap: clamp(16px, 2.4vw, 40px);
+  margin-top: clamp(24px, 3vw, 40px);
+  list-style: none;
+}
+
+.rv-features li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 1.35;
+  color: #ffffff;
+}
+
+.rv-features svg {
+  flex: 0 0 auto;
+  color: #ffffff;
+}
+
+/* ---------- Hero artwork ---------- */
+.rv-hero-art {
+  position: relative;
+  min-height: clamp(300px, 38vw, 540px);
+  display: grid;
+  place-items: center;
+}
+
+.rv-glow {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(40px);
+  opacity: 0.6;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.rv-glow-a {
+  width: 58%;
+  aspect-ratio: 1;
+  top: 4%;
+  right: 0;
+  background: radial-gradient(circle, rgba(124, 77, 255, 0.8), transparent 70%);
+}
+
+.rv-glow-b {
+  width: 42%;
+  aspect-ratio: 1;
+  bottom: -2%;
+  left: 14%;
+  background: radial-gradient(circle, rgba(255, 200, 61, 0.28), transparent 70%);
+}
+
+.rv-ghost {
+  position: absolute;
+  opacity: 0.07;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.rv-ghost-a {
+  top: 4%;
+  left: 0;
+  transform: rotate(-18deg);
+}
+
+.rv-ghost-b {
+  bottom: 2%;
+  right: 2%;
+  transform: rotate(12deg);
+}
+
+.rv-swoosh {
+  position: absolute;
+  width: clamp(80px, 9vw, 132px);
+  top: 10%;
+  left: 12%;
+  z-index: 3;
+  transform: rotate(-8deg);
+  filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.35));
+}
+
+.rv-die {
+  position: absolute;
+  top: 1%;
+  left: 33%;
+  z-index: 3;
+  transform: rotate(-12deg);
+  filter: drop-shadow(0 18px 26px rgba(0, 0, 0, 0.5));
+  animation: rvDieFloat 6s ease-in-out infinite;
+}
+
+.rv-board {
+  width: min(104%, 760px);
+  margin-right: -4%;
+  z-index: 1;
+  transform: perspective(1500px) rotateX(20deg) rotateZ(-11deg);
+  transform-style: preserve-3d;
+  filter: drop-shadow(0 40px 60px rgba(0, 0, 0, 0.55));
+}
+
+.rv-board-frame {
+  width: 100%;
+}
+
+@keyframes rvDieFloat {
+  0%,
+  100% {
+    transform: rotate(-12deg) translateY(0);
+  }
+  50% {
+    transform: rotate(-9deg) translateY(-10px);
+  }
+}
+
+/* ---------- Quick Play + stats ---------- */
+.rv-bottom {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  gap: clamp(14px, 1.6vw, 22px);
+  align-items: stretch;
+  position: relative;
+  z-index: 2;
+}
+
+.rv-quickplay {
+  background: linear-gradient(160deg, #fbf4e6, #f4e7cf);
+  color: var(--rv-ink);
+  border-radius: 22px;
+  padding: clamp(18px, 1.8vw, 28px);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
+}
+
+.rv-quickplay h2 {
+  font-family: 'Baloo 2', var(--font-heading);
+  font-size: clamp(20px, 1.7vw, 26px);
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.rv-quickplay p {
+  margin-top: 2px;
+  font-size: 14px;
+  color: rgba(43, 20, 72, 0.72);
+}
+
+.rv-quick-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.rv-quick-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  border-radius: 16px;
+  border: 2px solid rgba(124, 77, 255, 0.35);
+  background: #fffdf7;
+  color: var(--rv-ink);
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.rv-quick-card:hover {
+  transform: translateY(-1px);
+  border-color: rgba(124, 77, 255, 0.6);
+  box-shadow: 0 10px 20px rgba(43, 20, 72, 0.12);
+}
+
+.rv-quick-card.is-primary {
+  background: linear-gradient(180deg, #6d3ad8, #4a1d9c);
+  border-color: transparent;
+  color: #ffffff;
+  box-shadow: 0 14px 26px rgba(74, 29, 156, 0.35);
+}
+
+.rv-quick-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: rgba(124, 77, 255, 0.12);
+  color: #5b28c4;
+  flex: 0 0 auto;
+}
+
+.rv-quick-card.is-primary .rv-quick-icon {
+  background: rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+}
+
+.rv-quick-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.rv-quick-text strong {
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.rv-quick-text small {
+  font-size: 12.5px;
+  opacity: 0.72;
+}
+
+.rv-stats {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  gap: 8px;
+  padding: clamp(16px, 1.8vw, 26px);
+  border-radius: 22px;
+  background: linear-gradient(160deg, rgba(52, 25, 92, 0.92), rgba(37, 16, 66, 0.95));
+  border: 1px solid rgba(150, 100, 255, 0.22);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+}
+
+.rv-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  text-align: center;
+  font-size: 13px;
+}
+
+.rv-stat svg {
+  color: #e8dcff;
+  opacity: 0.9;
+  margin-bottom: 4px;
+}
+
+.rv-stat strong {
+  font-family: 'Baloo 2', var(--font-heading);
+  font-size: clamp(15px, 1.3vw, 19px);
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.rv-stat span {
+  color: rgba(233, 222, 246, 0.7);
+}
+
+.rv-stat-divider {
+  width: 1px;
+  align-self: stretch;
+  background: rgba(160, 120, 255, 0.22);
+}
+
+/* ---------- Entry sheet ---------- */
+.rv-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.rv-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.rv-field > span {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: rgba(233, 222, 246, 0.72);
+}
+
+.rv-entry-submit {
+  width: 100%;
+  margin-top: 4px;
+}
+
+.rv-info-text {
+  font-size: 14px;
+  line-height: 1.6;
+  color: rgba(233, 222, 246, 0.78);
+}
+
+.rv-info-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-left: 20px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: rgba(233, 222, 246, 0.82);
+}
+
+.rv-info-list li::marker {
+  color: #ffc83d;
+  font-weight: 800;
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 1080px) {
+  .rv-hero {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .rv-hero-art {
+    order: 2;
+    min-height: 300px;
+    margin-top: 4px;
+  }
+
+  .rv-board {
+    width: min(100%, 520px);
+    transform: perspective(1200px) rotateX(14deg) rotateZ(-8deg);
+  }
+
+  .rv-die {
+    top: -3%;
+    left: 46%;
+  }
+
+  .rv-swoosh {
+    top: 0;
+    left: 34%;
+  }
+
+  .rv-bottom {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .rv-nav {
+    display: none;
+  }
+}
+
+@media (max-width: 620px) {
+  .rv-home {
+    gap: 16px;
+  }
+
+  .rv-title {
+    font-size: clamp(34px, 10vw, 48px);
+  }
+
+  .rv-cta-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .rv-btn {
+    width: 100%;
+  }
+
+  .rv-features {
+    gap: 14px;
+    margin-top: 20px;
+  }
+
+  .rv-features li {
+    font-size: 12.5px;
+  }
+
+  .rv-quick-actions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .rv-stats {
+    justify-content: space-between;
+  }
+
+  .rv-brand-name {
+    font-size: 18px;
+  }
+
+  .rv-brand-mark {
+    width: 34px;
+    height: 34px;
+  }
+
+  .rv-hero-art {
+    min-height: 240px;
+  }
+
+  .rv-board {
+    transform: perspective(900px) rotateX(10deg) rotateZ(-5deg);
+  }
+
+  .rv-die {
+    left: 40%;
+  }
+
+  .rv-die svg {
+    width: 92px;
+    height: 92px;
+  }
+
+  .rv-swoosh {
+    width: 68px;
+    left: 28%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rv-die {
+    animation: none;
+  }
+}
+
+.rv-home.reduced-motion .rv-die {
+  animation: none;
+}

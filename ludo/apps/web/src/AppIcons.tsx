@@ -92,6 +92,109 @@ export const ChatIcon: React.FC<IconProps> = (props) => (
   </Icon>
 );
 
+/** House for the homepage nav. */
+export const HomeIcon: React.FC<IconProps> = (props) => (
+  <Icon {...props}>
+    <path d="M4 10.4 12 4l8 6.4V20a.9.9 0 0 1-.9.9h-5.3v-6.1H10.2v6.1H4.9A.9.9 0 0 1 4 20z" />
+  </Icon>
+);
+
+/** Gamepad for the Play entry. */
+export const GamepadIcon: React.FC<IconProps> = (props) => (
+  <Icon {...props}>
+    <path d="M7.2 7.6h9.6a4.4 4.4 0 0 1 4.3 3.6l.6 4.2a2.6 2.6 0 0 1-4.6 2.1L15.4 16H8.6l-1.7 1.5a2.6 2.6 0 0 1-4.6-2.1l.6-4.2a4.4 4.4 0 0 1 4.3-3.6z" />
+    <path d="M8 11.4v2.6M6.7 12.7h2.6" />
+    <circle cx="16" cy="11.9" r=".9" fill="currentColor" stroke="none" />
+    <circle cx="18.1" cy="13.9" r=".9" fill="currentColor" stroke="none" />
+  </Icon>
+);
+
+/** Trophy for leaderboards. */
+export const TrophyIcon: React.FC<IconProps> = (props) => (
+  <Icon {...props}>
+    <path d="M7.6 4.4h8.8v3.4a4.4 4.4 0 0 1-8.8 0z" />
+    <path d="M7.6 5.6H5a2 2 0 0 0 2 2h.6M16.4 5.6H19a2 2 0 0 1-2 2h-.6" />
+    <path d="M12 12.2v3.4M8.8 19.6h6.4M10 19.6l.4-4" />
+  </Icon>
+);
+
+/** Open book for the rules entry. */
+export const BookIcon: React.FC<IconProps> = (props) => (
+  <Icon {...props}>
+    <path d="M12 6.4C10.2 5 7.9 4.5 4.6 4.6v13c3.3-.1 5.6.4 7.4 1.8 1.8-1.4 4.1-1.9 7.4-1.8v-13c-3.3-.1-5.6.4-7.4 1.8z" />
+    <path d="M12 6.4v13" />
+  </Icon>
+);
+
+/** Bell used for the header notification slot. */
+export const BellIcon: React.FC<IconProps> = (props) => (
+  <Icon {...props}>
+    <path d="M18 16.4H6l1.1-2.2V10a4.9 4.9 0 0 1 9.8 0v4.2z" />
+    <path d="M10.3 19.2a1.9 1.9 0 0 0 3.4 0" />
+  </Icon>
+);
+
+/** Chevron for the profile menu. */
+export const ChevronDownIcon: React.FC<IconProps> = (props) => (
+  <Icon {...props}>
+    <path d="M6.8 9.8 12 15l5.2-5.2" />
+  </Icon>
+);
+
+/** Lightning for the feature strip. */
+export const BoltIcon: React.FC<IconProps> = (props) => (
+  <Icon {...props}>
+    <path d="M13.4 2.8 5.6 13.4h4.9l-1.1 7.8 8-10.8h-4.9z" />
+  </Icon>
+);
+
+/** Shield for private rooms. */
+export const ShieldIcon: React.FC<IconProps> = (props) => (
+  <Icon {...props}>
+    <path d="M12 3.2l7 2.6v5.5c0 4.3-2.8 7.7-7 9.5-4.2-1.8-7-5.2-7-9.5V5.8z" />
+    <path d="M9.3 12.1l1.9 1.9 3.5-3.7" />
+  </Icon>
+);
+
+/** Plus for the create-table card. */
+export const PlusIcon: React.FC<IconProps> = (props) => (
+  <Icon {...props}>
+    <path d="M12 5.4v13.2M5.4 12h13.2" />
+  </Icon>
+);
+
+/** Four-cell grid for the join-with-code card. */
+export const GridIcon: React.FC<IconProps> = (props) => (
+  <Icon {...props}>
+    <rect x="4.2" y="4.2" width="6.4" height="6.4" rx="1.8" />
+    <rect x="13.4" y="4.2" width="6.4" height="6.4" rx="1.8" />
+    <rect x="4.2" y="13.4" width="6.4" height="6.4" rx="1.8" />
+    <rect x="13.4" y="13.4" width="6.4" height="6.4" rx="1.8" />
+  </Icon>
+);
+
+/** Stacked layers for the zero-download stat. */
+export const LayersIcon: React.FC<IconProps> = (props) => (
+  <Icon {...props}>
+    <path d="M12 3.6l8.4 4.2-8.4 4.2L3.6 7.8z" />
+    <path d="M3.6 12.6 12 16.8l8.4-4.2M3.6 16.8 12 21l8.4-4.2" />
+  </Icon>
+);
+
+/** Solid play triangle for the primary CTA. */
+export const PlayTriangleIcon: React.FC<IconProps> = ({ className, size = 18 }) => (
+  <svg
+    className={className}
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    aria-hidden="true"
+    focusable="false"
+  >
+    <path d="M8.2 4.9 19 12 8.2 19.1z" fill="currentColor" />
+  </svg>
+);
+
 /** Two players for the seats/share entry point. */
 export const PlayersIcon: React.FC<IconProps> = (props) => (
   <Icon {...props}>
