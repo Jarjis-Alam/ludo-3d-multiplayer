@@ -9,12 +9,16 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import assert from 'node:assert/strict';
 import { createLudoServer } from '../src/index.js';
+import { createTable, joinTable } from './helpers/ui-entry.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const distPath = path.resolve(__dirname, '../../web/dist');
-const outDir = path.resolve(__dirname, '../../../../docs/screenshots');
+/** Capture output directory. Override with LUDO_ARTIFACT_DIR; defaults to docs/artifacts. */
+const outDir = process.env.LUDO_ARTIFACT_DIR
+  ? path.resolve(process.env.LUDO_ARTIFACT_DIR)
+  : path.resolve(__dirname, '../../../../docs/artifacts');
 
 if (!fs.existsSync(outDir)) {
   fs.mkdirSync(outDir, { recursive: true });
@@ -81,23 +85,18 @@ async function runRealMultiplayerE2E() {
     // Step 1: Alice creates private salon in real browser
     console.log('[Step 1] Alice creates private room via browser UI...');
     await p0.goto(`http://localhost:${WEB_PORT}`);
-    await p0.waitForSelector('.royal-input', { timeout: 10000 });
-    await p0.fill('.royal-input', 'Alice');
-    await p0.click('button:has-text("Create Private Salon")');
 
     // Wait for lobby to render and retrieve room code from real server
-    await p0.waitForSelector('.room-code-tag', { timeout: 10000 });
+    const createdCode = await createTable(p0, 'Alice');
+    assert.equal(createdCode.length, 6);
     const roomCode = await p0.evaluate(() => (window as any).__GET_SNAPSHOT__().roomCode);
     console.log(`  - Real room code created: ${roomCode}`);
     assert.equal(roomCode.length, 6);
 
     // Step 2: Bob joins the room via browser UI
     console.log('[Step 2] Bob joins room via browser UI...');
-    await p1.goto(`http://localhost:${WEB_PORT}`);
-    await p1.click('button:has-text("Join with Code")');
-    await p1.fill('input[placeholder="Enter your name"]', 'Bob');
-    await p1.fill('input[placeholder="ROOM CODE"]', roomCode);
-    await p1.click('button:has-text("Enter Room Table")');
+    await p1.goto(`http://localhost:${WEB_PORT}/?room=${roomCode}`);
+    await joinTable(p1, 'Bob', roomCode);
 
     // Wait for lobby to synchronize 2 connected players across both clients
     await p0.waitForSelector('.lobby-footer-bar:has-text("2/4 Players · 2 Connected")', { timeout: 5000 });
@@ -146,16 +145,17 @@ async function runRealMultiplayerE2E() {
       el?.click();
     });
 
-    // Wait for token to land on track cell 0 (progress 0)
-    await sleep(600);
+    // Wait for the deployment flight to settle on the start cell (progress 0)
+    await p0.waitForSelector('.track-arm.track-left .cell-red-start .traditional-pawn-wrapper', { timeout: 8000 });
+    await p1.waitForSelector('.track-arm.track-left .cell-red-start .traditional-pawn-wrapper', { timeout: 8000 });
 
     // Assert server authoritative state
     assert.deepEqual(room.state.tokens[0][0], { kind: 'path', progress: 0 });
     assert.equal(room.state.currentPlayer, 0); // Bonus turn for rolling 6!
 
     // Assert SVG DOM on both players
-    const p0Cell0Pawn = await p0.locator('.track-left .cell-red-start .traditional-pawn-wrapper').count();
-    const p1Cell0Pawn = await p1.locator('.track-left .cell-red-start .traditional-pawn-wrapper').count();
+    const p0Cell0Pawn = await p0.locator('.track-arm.track-left .cell-red-start .traditional-pawn-wrapper').count();
+    const p1Cell0Pawn = await p1.locator('.track-arm.track-left .cell-red-start .traditional-pawn-wrapper').count();
     console.log(`  - Alice sees red pawn on start cell 0: ${p0Cell0Pawn === 1 ? 'PASS ✅' : 'FAIL ❌'}`);
     console.log(`  - Bob sees red pawn on start cell 0: ${p1Cell0Pawn === 1 ? 'PASS ✅' : 'FAIL ❌'}`);
     assert.equal(p0Cell0Pawn, 1);
@@ -225,8 +225,10 @@ async function runRealMultiplayerE2E() {
 
     // Assert SVG DOM on both players
     // Cell 50 is in .track-left, 2nd row (Row 7), 1st cell
-    const p0Cell50Pawn = await p0.locator('.track-left .cell-track:has(.traditional-pawn-wrapper)').first().count();
-    const p1Cell50Pawn = await p1.locator('.track-left .cell-track:has(.traditional-pawn-wrapper)').first().count();
+    await p0.waitForSelector('.track-arm.track-left .cell-track:has(.traditional-pawn-wrapper)', { timeout: 8000 });
+    await p1.waitForSelector('.track-arm.track-left .cell-track:has(.traditional-pawn-wrapper)', { timeout: 8000 });
+    const p0Cell50Pawn = await p0.locator('.track-arm.track-left .cell-track:has(.traditional-pawn-wrapper)').first().count();
+    const p1Cell50Pawn = await p1.locator('.track-arm.track-left .cell-track:has(.traditional-pawn-wrapper)').first().count();
     console.log(`  - Alice sees red pawn on junction cell 50: ${p0Cell50Pawn === 1 ? 'PASS ✅' : 'FAIL ❌'}`);
     console.log(`  - Bob sees red pawn on junction cell 50: ${p1Cell50Pawn === 1 ? 'PASS ✅' : 'FAIL ❌'}`);
     assert.equal(p0Cell50Pawn, 1);
@@ -289,6 +291,8 @@ async function runRealMultiplayerE2E() {
     console.log('  - Server authoritative state: Red token at { kind: "home", progress: 1 } ✅');
 
     // Assert SVG DOM: pawn rendered inside Red Home Lane Cell 0
+    await p0.waitForSelector('.cell-red-lane:has(.traditional-pawn-wrapper)', { timeout: 8000 });
+    await p1.waitForSelector('.cell-red-lane:has(.traditional-pawn-wrapper)', { timeout: 8000 });
     const p0Home0Pawn = await p0.locator('.cell-red-lane').first().locator('.traditional-pawn-wrapper').count();
     const p1Home0Pawn = await p1.locator('.cell-red-lane').first().locator('.traditional-pawn-wrapper').count();
     console.log(`  - Alice sees red pawn inside first red home lane cell: ${p0Home0Pawn === 1 ? 'PASS ✅' : 'FAIL ❌'}`);
@@ -350,6 +354,16 @@ async function runRealMultiplayerE2E() {
 
       assert.deepEqual(room.state.tokens[0][0], { kind: 'home', progress: hp });
       const cellIdx = hp - 1;
+      await p0
+        .waitForFunction(
+          (idx) => {
+            const cells = document.querySelectorAll('.cell-red-lane');
+            return !!cells[idx]?.querySelector('.traditional-pawn-wrapper');
+          },
+          cellIdx,
+          { timeout: 8000 }
+        )
+        .catch(() => undefined);
       const inLane = await p0.locator('.cell-red-lane').nth(cellIdx).locator('.traditional-pawn-wrapper').count();
       assert.equal(inLane, 1);
       console.log(`  - Red pawn in home lane cell ${cellIdx} (home progress ${hp}): PASS ✅`);
@@ -405,6 +419,7 @@ async function runRealMultiplayerE2E() {
     await sleep(750);
 
     assert.deepEqual(room.state.tokens[0][0], { kind: 'home', progress: 6 });
+    await p0.waitForSelector('.goal-quadrant-red .traditional-pawn-wrapper', { timeout: 8000 });
     const inGoal = await p0.locator('.goal-quadrant-red .traditional-pawn-wrapper').count();
     console.log(`  - Red pawn in Center Victory Goal: ${inGoal === 1 ? 'PASS ✅' : 'FAIL ❌'}`);
     assert.equal(inGoal, 1);
@@ -423,10 +438,7 @@ async function runRealMultiplayerE2E() {
 
     // Create 4-player room
     await pageHost.goto(`http://localhost:${WEB_PORT}`);
-    await pageHost.waitForSelector('.royal-input');
-    await pageHost.fill('.royal-input', 'HostP0');
-    await pageHost.click('button:has-text("Create Private Salon")');
-    await pageHost.waitForSelector('.room-code-tag');
+    await createTable(pageHost, 'HostP0');
     const code4P = await pageHost.evaluate(() => (window as any).__GET_SNAPSHOT__().roomCode);
 
     // Connect 3 socket clients for seats 1 (Green), 2 (Yellow), 3 (Blue)
@@ -560,13 +572,20 @@ async function runRealMultiplayerE2E() {
     console.log('\n================================================================');
     console.log('--- ALL REAL MULTIPLAYER E2E HOME-LANE TESTS PASSED 100% ✅ ---');
     console.log('================================================================');
-  } finally {
-    await browser.close();
-    await new Promise((res) => webServer.close(res));
-    await new Promise((res) => ludoServer.httpServer.close(res));
+  } catch (err) {
+    console.error('E2E TEST RUNNER ERROR:', err);
+    await browser.close().catch(() => undefined);
+    webServer.close();
+    ludoServer.httpServer.close();
     ludoServer.service.close();
-    process.exit(0);
+    process.exit(1);
   }
+
+  await browser.close().catch(() => undefined);
+  webServer.close();
+  ludoServer.httpServer.close();
+  ludoServer.service.close();
+  process.exit(0);
 }
 
 runRealMultiplayerE2E().catch((err) => {

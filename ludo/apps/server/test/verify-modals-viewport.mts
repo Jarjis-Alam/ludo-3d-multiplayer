@@ -9,6 +9,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import assert from 'node:assert/strict';
 import { createLudoServer } from '../src/index.js';
+import { createTable } from './helpers/ui-entry.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -123,11 +124,8 @@ async function runModalsViewportAudit() {
 
       const page = await context.newPage();
       await page.goto(`http://localhost:${WEB_PORT}`);
-      await page.waitForSelector('#player-name-input');
-      await page.fill('#player-name-input', 'Host');
-      await page.click('button:has-text("Create Private Salon")');
-      await page.waitForSelector('.room-code-tag');
-      const roomCode = (await page.textContent('.room-code-tag'))?.replace('ROOM #', '').trim();
+      const roomCode = await createTable(page, 'Host');
+      assert.equal(roomCode.length, 6, 'Room code has six characters');
 
       // 1. Test Settings Modal
       console.log('  1. Opening Settings Modal...');
@@ -169,14 +167,8 @@ async function runModalsViewportAudit() {
       await sleep(200);
       assert.equal(await page.evaluate(() => document.body.style.overflow), '', 'Body scroll restored after closing share modal');
 
-      // 4. Test Activity Feed Drawer
-      console.log('  4. Opening Activity Feed...');
-      await page.click('.activity-feed-toggle-btn');
-      await verifyModalInViewport(page, vp, '.activity-feed-drawer', 'activity_feed');
-
-      // Close activity feed
-      await page.click('.activity-feed-drawer .feed-close-btn');
-      await sleep(200);
+      // The activity-feed drawer is no longer reachable from the lobby header, so it is not a
+      // modal this audit can exercise; the in-screen feed is covered by the quality-of-life E2E.
 
       // 5. Test Lobby Layout
       if (['desktop_1440x900', 'mobile_390x844'].includes(vp.name)) {
@@ -194,12 +186,20 @@ async function runModalsViewportAudit() {
     console.log('\n================================================================');
     console.log('🎉 ALL MODALS AND VIEWPORTS (DESKTOP & MOBILE) AUDITED & PASSED!');
     console.log('================================================================\n');
-  } finally {
-    await browser.close();
+  } catch (err) {
+    console.error('VIEWPORT AUDIT FAILED:', err);
+    await browser.close().catch(() => undefined);
     webServer.close();
     ludoServer.httpServer.close();
     ludoServer.io.close();
+    process.exit(1);
   }
+
+  await browser.close().catch(() => undefined);
+  webServer.close();
+  ludoServer.httpServer.close();
+  ludoServer.io.close();
+  process.exit(0);
 }
 
 runModalsViewportAudit().catch((err) => {

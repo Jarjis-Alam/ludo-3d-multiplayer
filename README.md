@@ -10,6 +10,7 @@
 [![Socket.IO](https://img.shields.io/badge/Socket.IO-4.8-010101?style=flat-square&logo=socket.io&logoColor=white)](https://socket.io/)
 [![Vite](https://img.shields.io/badge/Vite-5.4-646CFF?style=flat-square&logo=vite&logoColor=white)](https://vitejs.dev/)
 [![Vitest](https://img.shields.io/badge/Vitest-2.1-6E9F18?style=flat-square&logo=vitest&logoColor=white)](https://vitest.dev/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)](LICENSE)
 
 </div>
 
@@ -193,6 +194,9 @@ Browser-level scripts require a production build and, for Playwright, one browse
 ```bash
 pnpm --dir ludo exec playwright install chromium
 
+# Every Playwright audit against the current landing page, lobby, match and victory screens
+pnpm --dir ludo --filter @ludo/server test:audits
+
 # Responsive layout audit over 8 viewports (writes captures to docs/layout-qa/after)
 pnpm --dir ludo --filter @ludo/server test:visual
 
@@ -209,7 +213,7 @@ pnpm qa:players
 pnpm sim:20
 ```
 
-These scripts are part of the repository but were not re-run for the documentation cleanup in which this README was rewritten; [STATUS.md](STATUS.md) records exactly what has and has not been verified.
+The seven audits behind `test:audits` (homepage, 8-viewport rendered geometry, modals and viewports, mobile polish, quality of life, real multiplayer home lanes) were run against this revision and pass. [STATUS.md](STATUS.md) records each audit's scope and result, together with the scripts that were not re-run.
 
 ## Deployment
 
@@ -250,4 +254,9 @@ See [STATUS.md](STATUS.md) for the verification history behind these notes.
 
 ## License
 
-No licence has been chosen for this project yet, so no `LICENSE` file is included and default copyright applies. If you intend to reuse or redistribute the code, open an issue to agree on a licence first.
+[MIT](LICENSE) © 2026 Jarjis Alam.
+
+You may use, modify and redistribute this code, including commercially, provided the copyright notice
+and permission notice in [LICENSE](LICENSE) are kept with it. The software is provided without warranty.
+
+Third-party dependencies keep their own licences; see their packages for details.

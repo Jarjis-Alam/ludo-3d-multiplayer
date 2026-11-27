@@ -9,6 +9,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import assert from 'node:assert/strict';
 import { createLudoServer } from '../src/index.js';
+import { createTable, joinTable } from './helpers/ui-entry.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -80,7 +81,7 @@ async function runLayoutVerification() {
         hasTouch: true,
       });
       await page.goto(`http://localhost:${WEB_PORT}`);
-      await page.waitForSelector('.landing-stage', { timeout: 10000 });
+      await page.waitForSelector('main.rv-home', { timeout: 15000 });
 
       const hasHorizScroll = await page.evaluate(() => {
         return document.documentElement.scrollWidth > document.documentElement.clientWidth;
@@ -108,26 +109,18 @@ async function runLayoutVerification() {
     const ctx1 = await browser.newContext(mobileOpts);
     const p1 = await ctx1.newPage();
     await p1.goto(`http://localhost:${WEB_PORT}`);
-    await p1.waitForSelector('#player-name-input');
-    await p1.fill('#player-name-input', 'Jarvis');
-    await p1.click('button:has-text("Create Private Salon")');
-    await p1.waitForSelector('.room-code-tag');
-    const roomCodeTag = await p1.textContent('.room-code-tag');
-    const roomCode = roomCodeTag?.replace('ROOM #', '').trim();
+    const roomCode = await createTable(p1, 'Jarvis');
     console.log(`  - Jarvis created room: ${roomCode}`);
 
     const ctx2 = await browser.newContext(mobileOpts);
     const p2 = await ctx2.newPage();
     await p2.goto(`http://localhost:${WEB_PORT}/?room=${roomCode}`);
-    await p2.waitForSelector('#player-name-input');
-    await p2.fill('#player-name-input', 'Odonil');
-    await p2.click('button:has-text("Enter Room Table")');
-    await p2.waitForSelector('.lobby-container');
+    await joinTable(p2, 'Odonil', roomCode);
     console.log('  - Odonil joined room');
 
     // Start 2-player game
-    await p1.waitForSelector('button:has-text("Start game")');
-    await p1.click('button:has-text("Start game")');
+    await p1.waitForSelector('button:has-text("Start game"):not([disabled])');
+    await p1.click('button:has-text("Start game"):not([disabled])');
     await p1.waitForSelector('#ludoBoard', { timeout: 10000 });
     await p2.waitForSelector('#ludoBoard', { timeout: 10000 });
     await sleep(600);
@@ -149,12 +142,7 @@ async function runLayoutVerification() {
     const hostCtx3 = await browser.newContext(mobileOpts);
     const host3 = await hostCtx3.newPage();
     await host3.goto(`http://localhost:${WEB_PORT}`);
-    await host3.waitForSelector('#player-name-input');
-    await host3.fill('#player-name-input', 'Jarvis');
-    await host3.click('button:has-text("Create Private Salon")');
-    await host3.waitForSelector('.room-code-tag');
-    const roomCodeTag3 = await host3.textContent('.room-code-tag');
-    const roomCode3 = roomCodeTag3?.replace('ROOM #', '').trim();
+    const roomCode3 = await createTable(host3, 'Jarvis');
 
     const guestContexts3: any[] = [];
     for (const name of ['Odonil', 'Jaggu']) {
@@ -162,10 +150,7 @@ async function runLayoutVerification() {
       guestContexts3.push(gCtx);
       const p = await gCtx.newPage();
       await p.goto(`http://localhost:${WEB_PORT}/?room=${roomCode3}`);
-      await p.waitForSelector('#player-name-input');
-      await p.fill('#player-name-input', name);
-      await p.click('button:has-text("Enter Room Table")');
-      await p.waitForSelector('.lobby-container');
+      await joinTable(p, name, roomCode3);
     }
 
     await host3.waitForSelector('button:has-text("Start game")');
@@ -189,12 +174,7 @@ async function runLayoutVerification() {
     const hostCtx4 = await browser.newContext(mobileOpts);
     const host4 = await hostCtx4.newPage();
     await host4.goto(`http://localhost:${WEB_PORT}`);
-    await host4.waitForSelector('#player-name-input');
-    await host4.fill('#player-name-input', 'Jarvis');
-    await host4.click('button:has-text("Create Private Salon")');
-    await host4.waitForSelector('.room-code-tag');
-    const roomCodeTag4 = await host4.textContent('.room-code-tag');
-    const roomCode4 = roomCodeTag4?.replace('ROOM #', '').trim();
+    const roomCode4 = await createTable(host4, 'Jarvis');
 
     const guestContexts4: any[] = [];
     for (const name of ['Odonil', 'Jaggu', 'Tinni']) {
@@ -202,10 +182,7 @@ async function runLayoutVerification() {
       guestContexts4.push(gCtx);
       const p = await gCtx.newPage();
       await p.goto(`http://localhost:${WEB_PORT}/?room=${roomCode4}`);
-      await p.waitForSelector('#player-name-input');
-      await p.fill('#player-name-input', name);
-      await p.click('button:has-text("Enter Room Table")');
-      await p.waitForSelector('.lobby-container');
+      await joinTable(p, name, roomCode4);
     }
 
     await host4.waitForSelector('button:has-text("Start game")');
@@ -267,12 +244,20 @@ async function runLayoutVerification() {
     console.log('\n================================================================');
     console.log('🎉 ALL UI ALIGNMENT & LAYOUT CORRECTION CHECKS PASSED!');
     console.log('================================================================\n');
-  } finally {
-    await browser.close();
+  } catch (err) {
+    console.error('VERIFICATION ERROR:', err);
+    await browser.close().catch(() => undefined);
     webServer.close();
     ludoServer.httpServer.close();
     ludoServer.io.close();
+    process.exit(1);
   }
+
+  await browser.close().catch(() => undefined);
+  webServer.close();
+  ludoServer.httpServer.close();
+  ludoServer.io.close();
+  process.exit(0);
 }
 
 runLayoutVerification().catch((err) => {

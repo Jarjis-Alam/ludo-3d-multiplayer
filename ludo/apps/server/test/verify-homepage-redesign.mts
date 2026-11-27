@@ -2,13 +2,14 @@ process.env.NODE_ENV = 'test';
 process.env.PORT = '3001';
 process.env.CLIENT_ORIGIN = '*';
 
-import { chromium, type Browser } from 'playwright';
+import { chromium } from 'playwright';
 import http from 'http';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import assert from 'node:assert/strict';
 import { createLudoServer } from '../src/index.js';
+import { createTable } from './helpers/ui-entry.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -46,9 +47,16 @@ const webServer = http.createServer((req, res) => {
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+const heroColumns = (page: any) =>
+  page.evaluate(() => {
+    const el = document.querySelector('.rv-hero');
+    if (!el) return 0;
+    return window.getComputedStyle(el).gridTemplateColumns.trim().split(/\s+/).length;
+  });
+
 async function runHomepageVerification() {
   console.log('================================================================');
-  console.log('--- STARTING HOMEPAGE REDESIGN PLAYWRIGHT AUDIT ---');
+  console.log('--- STARTING HOMEPAGE (ROLLVERSE) PLAYWRIGHT AUDIT ---');
   console.log('================================================================\n');
 
   const ludoServer = await createLudoServer();
@@ -63,93 +71,117 @@ async function runHomepageVerification() {
   try {
     const page = await browser.newPage();
 
-    // 1. Desktop Test (1280x800)
-    await page.setViewportSize({ width: 1280, height: 800 });
+    // 1. Desktop landing (1440x900)
+    await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto(`http://localhost:${WEB_PORT}`);
-    await page.waitForSelector('.landing-stage', { timeout: 10000 });
+    await page.waitForSelector('main.rv-home', { timeout: 15000 });
+    await page.evaluate(() => document.fonts.ready);
     await sleep(400);
 
-    // Verify Title & Subtitle
-    const titleText = await page.textContent('.hero-headline');
-    assert.ok(titleText?.includes('ROLL THE DICE'), 'Contains headline "ROLL THE DICE."');
-    assert.ok(
-      titleText?.includes('RULE THE BOARD') || titleText?.includes('MAKE YOUR MOVE'),
-      'Contains headline accent "RULE THE BOARD." or "MAKE YOUR MOVE."'
-    );
-    console.log('  - Desktop headline verified ✅');
+    const titleText = (await page.textContent('.rv-title'))?.replace(/\s+/g, ' ').trim();
+    assert.ok(titleText?.includes('Classic Ludo.'), 'Headline reads "Classic Ludo."');
+    assert.ok(titleText?.includes('Multiplayer Fun.'), 'Headline accent reads "Multiplayer Fun."');
+    console.log('  - Hero headline verified ✅');
 
-    // Verify Board Showcase
-    const boardTitle = await page.textContent('.board-showcase-title');
-    assert.equal(boardTitle?.trim(), 'THE GAME BOARD', 'Title is "THE GAME BOARD"');
-    const boardSubtitle = await page.textContent('.board-showcase-subtitle');
-    assert.ok(boardSubtitle?.includes('Classic four-colour Ludo'), 'Subtitle is "Classic four-colour Ludo"');
-    console.log('  - Authentic Board Showcase title & subtitle verified ✅');
+    const lede = (await page.textContent('.rv-lede')) ?? '';
+    assert.ok(lede.includes('Create private rooms'), 'Description explains private rooms and codes');
+    console.log('  - Hero description verified ✅');
 
-    // Verify Board2D rendered inside showcase
-    const ludoGridCount = await page.locator('.landing-board-showcase .ludo-grid').count();
-    assert.equal(ludoGridCount, 1, 'Authentic 15x15 Ludo grid rendered in showcase');
+    const ctaLabels = await page.locator('.rv-cta-row > button').allTextContents();
+    assert.equal(ctaLabels.length, 2, 'Two calls to action render');
+    assert.ok(ctaLabels[0].includes('Play Now'), 'Primary call to action is "Play Now"');
+    assert.ok(ctaLabels[1].includes('Play with Friends'), 'Secondary call to action is "Play with Friends"');
+    console.log('  - Both calls to action verified ✅');
+
+    const navLabels = await page.locator('.rv-nav-item').allTextContents();
+    for (const expected of ['Home', 'Play', 'Leaderboard', 'How to Play']) {
+      assert.ok(
+        navLabels.some((label) => label.includes(expected)),
+        `Navigation keeps "${expected}"`
+      );
+    }
+    console.log('  - Header navigation verified ✅');
+
+    // The hero artwork is the real board renderer, not an image.
+    const ludoGridCount = await page.locator('.rv-board .ludo-grid').count();
+    assert.equal(ludoGridCount, 1, 'The real 15x15 Ludo grid renders in the hero artwork');
+    const boardCells = await page.locator('.rv-board .ludo-grid .cell').count();
+    assert.ok(boardCells >= 16, `Hero board renders its grid cells (${boardCells})`);
     console.log('  - Genuine 15x15 Ludo board rendering verified ✅');
 
-    await page.screenshot({ path: path.join(artifactDir, 'homepage_desktop_1280.png'), fullPage: true });
-    console.log('  - Captured homepage_desktop_1280.png ✅');
+    const statLabels = await page.locator('.rv-stat').allTextContents();
+    assert.equal(statLabels.length, 3, 'Three hero facts render (players, downloads, instant play)');
+    console.log('  - Hero stats strip verified ✅');
 
-    // 2. Mobile Viewports Audit: 320px, 360px, 375px, 390px, 430px
+    assert.equal(await heroColumns(page), 2, 'Desktop hero uses a two-column layout');
+
+    await page.screenshot({ path: path.join(artifactDir, 'homepage_desktop_1440.png'), fullPage: true });
+    console.log('  - Captured homepage_desktop_1440.png ✅');
+
+    // 2. Mobile viewports: 320, 360, 375, 390, 430
     const mobileWidths = [
-      { name: 'iphone_390', w: 390, h: 844 },
-      { name: 'android_360', w: 360, h: 780 },
       { name: 'compact_320', w: 320, h: 650 },
+      { name: 'android_360', w: 360, h: 780 },
       { name: 'iphone_375', w: 375, h: 812 },
+      { name: 'iphone_390', w: 390, h: 844 },
       { name: 'max_430', w: 430, h: 932 },
     ];
 
     for (const dev of mobileWidths) {
       await page.setViewportSize({ width: dev.w, height: dev.h });
-      await sleep(200);
+      await sleep(250);
 
-      // Verify single column grid on mobile (not side-by-side)
-      const gridCols = await page.locator('.landing-content-grid').evaluate((el) => {
-        return window.getComputedStyle(el).gridTemplateColumns.trim().split(/\s+/).length;
+      assert.equal(await heroColumns(page), 1, `Hero collapses to one column on ${dev.name} (${dev.w}px)`);
+
+      const artBelowCopy = await page.evaluate(() => {
+        const copy = document.querySelector('.rv-hero-copy')?.getBoundingClientRect();
+        const art = document.querySelector('.rv-hero-art')?.getBoundingClientRect();
+        if (!copy || !art) return false;
+        return art.top >= copy.bottom - 8;
       });
-      assert.equal(gridCols, 1, `Grid must be 1 column on ${dev.name} (${dev.w}px), got ${gridCols} columns`);
+      assert.ok(artBelowCopy, `Board artwork stacks below the copy on ${dev.name}`);
 
-      // Check horizontal overflow
       const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
       const clientWidth = await page.evaluate(() => document.documentElement.clientWidth);
       assert.ok(scrollWidth <= clientWidth, `No horizontal overflow on ${dev.name} (${dev.w}px)`);
 
-      // Ensure room entry card is visible immediately
-      const cardVisible = await page.locator('.table-entry-card').isVisible();
-      assert.ok(cardVisible, `Room entry card visible on ${dev.name}`);
+      const ctaVisible = await page.locator('.rv-cta-row > button').first().isVisible();
+      assert.ok(ctaVisible, `Primary call to action is visible on ${dev.name}`);
 
       await page.screenshot({ path: path.join(artifactDir, `homepage_${dev.name}.png`), fullPage: false });
-      console.log(`  - Verified ${dev.name} (${dev.w}px): 1-col layout, 0 overflow, clean layout ✅`);
+      console.log(`  - Verified ${dev.name} (${dev.w}px): single column, art stacked, 0 overflow ✅`);
     }
 
-    // Capture full-page mobile view on iPhone 390
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.screenshot({ path: path.join(artifactDir, `homepage_iphone_390_fullpage.png`), fullPage: true });
+    await page.screenshot({ path: path.join(artifactDir, 'homepage_iphone_390_fullpage.png'), fullPage: true });
 
-    // 3. Test Room Creation from Redesigned Interface
+    // 3. Entry sheet: create a table from the landing page
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.fill('.table-name-input', 'Maharaja');
-    await page.click('button:has-text("Create Private Salon")');
+    const roomCode = await createTable(page, 'Maharaja');
+    assert.equal(roomCode.length, 6, `Room creation returns a six-character code (${roomCode})`);
+    console.log(`  - Room creation tested successfully: ROOM #${roomCode} ✅`);
 
-    await page.waitForSelector('.room-code-tag', { timeout: 10000 });
-    const roomCodeTag = await page.textContent('.room-code-tag');
-    console.log(`  - Room creation tested successfully: ${roomCodeTag} ✅`);
+    const seatCount = await page.locator('.master-slot-card').count();
+    assert.equal(seatCount, 4, 'Lobby renders all four seats after creation');
+    console.log('  - Lobby reached with four seats ✅');
 
     console.log('\n================================================================');
-    console.log('--- ALL HOMEPAGE REDESIGN AUDIT TESTS PASSED! ---');
+    console.log('--- ALL HOMEPAGE AUDIT TESTS PASSED! ---');
     console.log('================================================================\n');
   } catch (err) {
     console.error('Homepage audit failed:', err);
-    throw err;
-  } finally {
-    await browser.close();
-    await new Promise((resolve) => ludoServer.httpServer.close(resolve));
-    await new Promise((resolve) => webServer.close(resolve));
-    process.exit(0);
+    await browser.close().catch(() => undefined);
+    ludoServer.httpServer.close();
+    ludoServer.io.close();
+    webServer.close();
+    process.exit(1);
   }
+
+  await browser.close();
+  ludoServer.httpServer.close();
+  ludoServer.io.close();
+  webServer.close();
+  process.exit(0);
 }
 
 runHomepageVerification().catch((err) => {

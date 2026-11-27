@@ -9,6 +9,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import assert from 'node:assert/strict';
 import { createLudoServer } from '../src/index.js';
+import { createTable, joinTable } from './helpers/ui-entry.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -74,17 +75,9 @@ async function runMobilePolishE2E() {
     const pageAlice = await context.newPage();
     await pageAlice.goto(`http://localhost:${WEB_PORT}`);
 
-    // Enter name & create room
-    await pageAlice.waitForSelector('.royal-input', { timeout: 10000 });
-    await pageAlice.fill('.royal-input', 'Alice');
-    await pageAlice.click('button:has-text("Create Private Salon")');
-
-    await pageAlice.waitForSelector('.room-code-tag', { timeout: 10000 });
+    // Enter name & create room through the homepage entry sheet
+    const roomCode = await createTable(pageAlice, 'Alice');
     console.log('  - Alice created room and reached lobby ✅');
-
-    // Extract room code
-    const roomCodeTag = await pageAlice.textContent('.room-code-tag');
-    const roomCode = roomCodeTag?.replace('ROOM #', '').trim() || '';
     assert.ok(roomCode.length === 6, 'Valid 6-char room code');
     console.log(`  - Room Code: ${roomCode} ✅`);
 
@@ -148,10 +141,7 @@ async function runMobilePolishE2E() {
     const pageBob = await contextBob.newPage();
     await pageBob.goto(`http://localhost:${WEB_PORT}/?room=${roomCode}`);
 
-    await pageBob.waitForSelector('.royal-input', { timeout: 10000 });
-    await pageBob.fill('.royal-input', 'Bob');
-    await pageBob.click('button:has-text("Enter Room Table")');
-    await pageBob.waitForSelector('.lobby-container', { timeout: 10000 });
+    await joinTable(pageBob, 'Bob', roomCode);
     console.log('  - Bob joined room ✅');
 
     // Alice starts game
@@ -250,13 +240,16 @@ async function runMobilePolishE2E() {
     console.log('================================================================\n');
   } catch (err) {
     console.error('Test execution error:', err);
-    throw err;
-  } finally {
-    await browser.close();
-    await new Promise((resolve) => ludoServer.httpServer.close(resolve));
-    await new Promise((resolve) => webServer.close(resolve));
-    process.exit(0);
+    await browser.close().catch(() => undefined);
+    ludoServer.httpServer.close();
+    webServer.close();
+    process.exit(1);
   }
+
+  await browser.close().catch(() => undefined);
+  ludoServer.httpServer.close();
+  webServer.close();
+  process.exit(0);
 }
 
 runMobilePolishE2E().catch((err) => {

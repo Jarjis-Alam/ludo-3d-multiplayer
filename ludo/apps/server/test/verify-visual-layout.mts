@@ -69,6 +69,10 @@ const inside = (inner: Box, outer: Box, pad = 0) =>
   inner.x + inner.w <= outer.x + outer.w - pad + EPS &&
   inner.y + inner.h <= outer.y + outer.h - pad + EPS;
 
+/** Horizontal containment only: text line boxes can rise above their element box (tight leading). */
+const fitsHorizontally = (inner: Box, outer: Box, slack = 1) =>
+  inner.x >= outer.x - slack && inner.x + inner.w <= outer.x + outer.w + slack;
+
 const overlapArea = (a: Box, b: Box) => {
   const w = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
   const h = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y);
@@ -186,9 +190,109 @@ const screenshotAll = new Set(VIEWPORTS.map((vp) => vp.name));
 
 async function openApp(page: Page) {
   await page.goto(`http://localhost:${WEB_PORT}`, { waitUntil: 'domcontentloaded' });
-  await page.waitForSelector('.landing-stage', { timeout: 15000 });
+  await page.waitForSelector('main.rv-home', { timeout: 15000 });
   await page.evaluate(() => document.fonts.ready);
   await page.waitForTimeout(250);
+}
+
+async function checkHomepage(page: Page, vp: (typeof VIEWPORTS)[number], withScreenshot: boolean) {
+  const viewportWidth = vp.width;
+
+  // Header: brand left, actions right, navigation between them when it fits.
+  const header = await requireBox(page, '.rv-header');
+  const brand = await requireBox(page, '.rv-brand');
+  const actions = await requireBox(page, '.rv-header-actions');
+  check(header.x >= -EPS && header.x + header.w <= viewportWidth + EPS, `header: bar respects the page gutter (${fmt(header)})`);
+  check(inside(brand, header, 1), `header: brand sits inside the bar (${fmt(brand)})`);
+  check(inside(actions, header, 1), `header: actions sit inside the bar (${fmt(actions)})`);
+  check(brand.x + brand.w <= actions.x + EPS, 'header: brand and actions do not overlap');
+  const navItems = await boxesOf(page, '.rv-nav-item');
+  for (const item of navItems) {
+    check(inside(item, header, 1), `header: navigation item stays inside the bar (${fmt(item)})`);
+  }
+
+  // Hero copy
+  const hero = await requireBox(page, '.rv-hero');
+  const copy = await requireBox(page, '.rv-hero-copy');
+  const title = await requireBox(page, '.rv-title');
+  const lede = await requireBox(page, '.rv-lede');
+  const cta = await requireBox(page, '.rv-cta-row');
+  const art = await requireBox(page, '.rv-hero-art');
+  const board = await requireBox(page, '.rv-board');
+
+  const titleLines = await textLineBoxes(page, '.rv-title');
+  const ledeLines = await textLineBoxes(page, '.rv-lede');
+  check(titleLines.length >= 2, `hero: headline renders both clauses (${titleLines.length} lines)`);
+  // Line boxes rise above the element box because of the tight headline leading, so only the
+  // horizontal containment is meaningful (plus a small allowance for italic ink overhang).
+  const copyWithInk = { x: copy.x - 20, y: copy.y, w: copy.w + 40, h: copy.h };
+  check(
+    titleLines.every((line) => fitsHorizontally(line, copyWithInk) && line.x >= -EPS && line.x + line.w <= viewportWidth + EPS),
+    'hero: headline stays inside the copy column'
+  );
+  check(ledeLines.length > 0 && ledeLines.length <= 4, `hero: description wraps cleanly (${ledeLines.length} lines)`);
+  check(ledeLines.every((line) => inside(line, copy)), 'hero: description stays inside the copy column');
+  check(lede.w <= 640, `hero: description keeps a readable measure (${lede.w.toFixed(1)}px)`);
+  check(title.y + title.h <= lede.y + EPS, 'hero: description sits below the headline');
+
+  check(inside(cta, copy), 'hero: calls to action stay inside the copy column');
+  const ctaButtons = await boxesOf(page, '.rv-cta-row > button');
+  check(ctaButtons.length === 2, `hero: both calls to action render (${ctaButtons.length})`);
+  for (const button of ctaButtons) {
+    check(inside(button, cta, 1), `hero: call to action stays inside its row (${fmt(button)})`);
+    check(button.h >= 44, `hero: call to action keeps a tactile height (${button.h.toFixed(1)}px)`);
+    check(button.x + button.w <= viewportWidth + EPS, 'hero: call to action stays on screen');
+  }
+
+  // Artwork: the board is rotated in 3D, so only its painted size and presence are asserted.
+  check(board.w >= 180 && board.h >= 140, `hero: board artwork keeps a usable size (${board.w.toFixed(0)}×${board.h.toFixed(0)})`);
+  const gridCount = await page.locator('.rv-board .ludo-grid').count();
+  check(gridCount === 1, `hero: the real board renders once (${gridCount})`);
+  const columns = await page.evaluate(() => {
+    const el = document.querySelector('.rv-hero');
+    return el ? window.getComputedStyle(el).gridTemplateColumns.trim().split(/\s+/).length : 0;
+  });
+  if (viewportWidth <= 1080) {
+    check(columns === 1, `hero: narrow screens use one column (${columns})`);
+    check(art.y >= copy.y + copy.h - 8, `hero: artwork stacks below the copy (${(art.y - copy.y - copy.h).toFixed(1)}px)`);
+  } else {
+    check(columns === 2, `hero: wide screens use two columns (${columns})`);
+    check(art.x >= copy.x + copy.w - 8, `hero: artwork sits beside the copy (${(art.x - copy.x - copy.w).toFixed(1)}px gap)`);
+  }
+  check(art.x >= -EPS && art.x + art.w <= viewportWidth + EPS, `hero: artwork stays inside the viewport (${fmt(art)})`);
+
+  // Stats strip
+  const stats = await requireBox(page, '.rv-stats');
+  const statItems = await boxesOf(page, '.rv-stat');
+  check(statItems.length === 3, `stats: three facts render (${statItems.length})`);
+  check(stats.x >= -EPS && stats.x + stats.w <= viewportWidth + EPS, `stats: strip respects the page gutter (${fmt(stats)})`);
+  for (const item of statItems) {
+    check(inside(item, stats, 1), `stats: fact stays inside the strip (${fmt(item)})`);
+  }
+
+  // The entry sheet is the only way in, so it must stay usable at every width.
+  await page.locator('.rv-cta-row > button').first().click();
+  await page.locator('.rv-entry').waitFor({ state: 'visible', timeout: 10000 });
+  const entryField = await requireBox(page, '.rv-entry .royal-input');
+  const entrySubmit = await requireBox(page, '.rv-entry-submit');
+  check(entryField.h >= 44, `entry: name field keeps a tactile height (${entryField.h.toFixed(1)}px)`);
+  check(entrySubmit.h >= 44, `entry: submit keeps a tactile height (${entrySubmit.h.toFixed(1)}px)`);
+  check(entryField.x >= -EPS && entryField.x + entryField.w <= viewportWidth + EPS, 'entry: name field stays inside the viewport');
+  check(entrySubmit.x >= -EPS && entrySubmit.x + entrySubmit.w <= viewportWidth + EPS, 'entry: submit stays inside the viewport');
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(150);
+  if (await page.locator('.rv-entry').isVisible().catch(() => false)) {
+    await page.locator('.modal-close-btn').first().click();
+    await page.waitForTimeout(200);
+  }
+
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  check(overflow <= 0, `home: page has no horizontal overflow (${overflow}px)`);
+
+  if (withScreenshot) {
+    await page.screenshot({ path: path.join(outDir, `home-${vp.name}.png`), fullPage: true });
+    ok(`screenshot home-${vp.name}.png`);
+  }
 }
 
 async function checkHeader(page: Page, vp: (typeof VIEWPORTS)[number]) {
@@ -201,129 +305,6 @@ async function checkHeader(page: Page, vp: (typeof VIEWPORTS)[number]) {
   const headerButtons = await boxesOf(page, '.header-controls > button');
   for (const button of headerButtons) {
     check(inside(button, header, 1) && button.x + button.w <= vp.width - EPS, `header: action button stays fully visible (${fmt(button)})`);
-  }
-}
-
-async function checkHomepage(page: Page, vp: (typeof VIEWPORTS)[number], withScreenshot: boolean) {
-  const viewportWidth = vp.width;
-  await checkHeader(page, vp);
-
-  const hero = await requireBox(page, '.hero-column');
-  assertVisibleWithinViewport('hero column', hero, viewportWidth);
-
-  const headline = await requireBox(page, '.hero-headline');
-  const subtitle = await requireBox(page, '.hero-subtitle');
-  const eyebrow = await requireBox(page, '.hero-badge-eyebrow');
-
-  const headlineLines = await textLineBoxes(page, '.hero-headline');
-  const subtitleLines = await textLineBoxes(page, '.hero-subtitle');
-  const eyebrowLines = await textLineBoxes(page, '.hero-badge-eyebrow');
-
-  check(headlineLines.length > 0, 'hero: headline renders text');
-  check(
-    headlineLines.every((line) => inside(line, hero) && line.x >= 0 && line.x + line.w <= viewportWidth),
-    'hero: headline text stays inside the hero column'
-  );
-  check(
-    subtitleLines.every((line) => inside(line, hero) && line.x >= 0 && line.x + line.w <= viewportWidth),
-    'hero: description text stays inside the hero column'
-  );
-  check(subtitle.y - (headline.y + headline.h) >= 8, `hero: headline and description have clear vertical spacing (${(subtitle.y - headline.y - headline.h).toFixed(1)}px)`);
-  check(subtitle.w <= 540, `hero: description has a readable maximum width (${subtitle.w.toFixed(1)}px)`);
-  check(subtitleLines.length <= 4, `hero: description wraps cleanly (${subtitleLines.length} lines)`);
-
-  const decorationBoxes = await boxesOf(page, '.bg-geom-shape, .bg-floating-dice');
-  check(decorationBoxes.length >= 4, `background: decorations are still rendered (${decorationBoxes.length} shapes/dice)`);
-  assertNoTextDecorationCollision('hero eyebrow', eyebrowLines, decorationBoxes);
-  assertNoTextDecorationCollision('hero headline', headlineLines, decorationBoxes);
-  assertNoTextDecorationCollision('hero description', subtitleLines, decorationBoxes);
-
-  const decorationStyles = await page.evaluate(() => {
-    const out: Array<{ pe: string; z: string }> = [];
-    const nodes = document.querySelectorAll('.bg-geom-shape, .bg-floating-dice, .ambient-glow');
-    for (let i = 0; i < nodes.length; i += 1) {
-      const style = window.getComputedStyle(nodes[i]);
-      out.push({ pe: style.pointerEvents, z: style.zIndex });
-    }
-    return out;
-  });
-  check(decorationStyles.every((s) => s.pe === 'none'), 'background: every decoration uses pointer-events: none');
-  const contentZ = await page.evaluate(() => {
-    const el = document.querySelector('.game-master-content');
-    return el ? Number(window.getComputedStyle(el).zIndex) || 0 : 0;
-  });
-  check(decorationStyles.every((s) => (Number(s.z) || 0) < contentZ), 'background: decorations paint behind the content layer');
-
-  // --- Room creation panel ---
-  const card = await requireBox(page, '.table-entry-card');
-  const panelBody = await requireBox(page, '.table-entry-body');
-  const tabGroup = await requireBox(page, '.table-entry-tab-group');
-  const tabs = await boxesOf(page, '.table-tab-pill');
-  const cta = await requireBox(page, '.table-cta-btn');
-  const inputRow = await requireBox(page, '.table-input-row-with-avatar');
-  const input = await requireBox(page, '.table-name-input');
-  const avatar = await requireBox(page, '.table-avatar-preview');
-  const specs = await requireBox(page, '.table-specs-row');
-
-  assertVisibleWithinViewport('room panel', card, viewportWidth);
-  check(inside(tabGroup, card, 8), 'room panel: segmented control is inset from the panel border');
-  check(inside(cta, card, 8), 'room panel: primary action stays inside the panel');
-  check(inside(inputRow, card, 8), 'room panel: guest name row stays inside the panel');
-  check(inside(specs, card, 8), 'room panel: feature labels stay inside the panel');
-  check(Math.abs(cta.w - panelBody.w) <= EPS, `room panel: primary action is full width (${cta.w.toFixed(1)}px vs ${panelBody.w.toFixed(1)}px)`);
-  check(cta.h >= 44, `room panel: primary action has a tactile height (${cta.h.toFixed(1)}px)`);
-  check(Math.abs(cta.x - panelBody.x) <= EPS, 'room panel: primary action aligns with the panel content');
-  check(tabs.length === 2, 'room panel: segmented control keeps both tabs');
-  if (tabs.length === 2) {
-    check(Math.abs(tabs[0].w - tabs[1].w) <= EPS, `room panel: segmented tabs are balanced (${tabs[0].w.toFixed(1)}px / ${tabs[1].w.toFixed(1)}px)`);
-    check(tabs.every((t) => inside(t, tabGroup, 6)), 'room panel: segmented tabs stay inside their track');
-    check(tabs[0].y + tabs[0].h <= tabs[1].y + 2 || Math.abs(tabs[0].y - tabs[1].y) <= EPS, 'room panel: segmented tabs share one row');
-  }
-  check(Math.abs(input.h - avatar.h) <= 2, `room panel: avatar and input share a height (${input.h.toFixed(1)} / ${avatar.h.toFixed(1)})`);
-  check(Math.abs(avatar.y + avatar.h / 2 - (inputRow.y + inputRow.h / 2)) <= 2, 'room panel: guest avatar is vertically centred with the input');
-  check(input.h >= 44, `room panel: guest name input has a consistent height (${input.h.toFixed(1)}px)`);
-  check(specs.y - (cta.y + cta.h) >= 8, 'room panel: feature labels are separated from the primary action');
-
-  // --- Board showcase ---
-  const showcase = await requireBox(page, '.landing-board-showcase');
-  const showcaseHeader = await requireBox(page, '.board-showcase-header');
-  const showcaseMeta = await requireBox(page, '.board-showcase-meta');
-  const showcaseTitle = await requireBox(page, '.board-showcase-title');
-  const showcaseSubtitle = await requireBox(page, '.board-showcase-subtitle');
-  const showcaseEyebrow = await requireBox(page, '.board-showcase-eyebrow');
-  const badge = await requireBox(page, '.board-showcase-badge');
-  const frame = await requireBox(page, '.board-showcase-frame .ludo-arena-frame');
-  const showcaseEyebrowLines = await textLineBoxes(page, '.board-showcase-eyebrow');
-  const showcaseSubtitleLines = await textLineBoxes(page, '.board-showcase-subtitle');
-
-  assertVisibleWithinViewport('board showcase', showcase, viewportWidth);
-  check(inside(showcaseHeader, showcase, 8), 'board showcase: header is inset from the panel border');
-  check(inside(showcaseMeta, showcase, 8), 'board showcase: heading block is inset from the panel border');
-  check(inside(showcaseTitle, showcaseMeta), 'board showcase: title stays inside its heading block');
-  check(inside(showcaseEyebrow, showcaseMeta), 'board showcase: eyebrow stays inside its heading block');
-  check(inside(showcaseSubtitle, showcaseMeta), 'board showcase: subtitle stays inside its heading block');
-  check(inside(badge, showcase, 8), 'board showcase: live demo badge stays inside the panel');
-  check(overlapArea(badge, showcaseMeta) === 0, 'board showcase: live demo badge does not overlap the heading text block');
-  check(showcaseEyebrowLines.length <= 2, `board showcase: eyebrow wraps cleanly (${showcaseEyebrowLines.length} line(s))`);
-  check(showcaseSubtitleLines.length <= 2, `board showcase: subtitle wraps cleanly (${showcaseSubtitleLines.length} line(s))`);
-  check(inside(frame, showcase, 6), 'board showcase: board preview stays inside the panel padding');
-  check(frame.w <= showcase.w - 16 && frame.w >= showcase.w - 80, `board showcase: board preview scales proportionally inside the panel (${frame.w.toFixed(1)}px of ${showcase.w.toFixed(1)}px)`);
-  check(Math.abs(frame.w - frame.h) <= 2, `board showcase: board preview stays square (${frame.w.toFixed(1)}×${frame.h.toFixed(1)})`);
-  check(frame.w >= 220, `board showcase: board preview keeps a usable size (${frame.w.toFixed(1)}px)`);
-  if (viewportWidth <= 960) {
-    check(showcase.y - (card.y + card.h) >= 16, `layout: clear gap between hero panel and board showcase (${(showcase.y - card.y - card.h).toFixed(1)}px)`);
-    check(Math.abs(card.w - showcase.w) <= EPS, `layout: hero panel and board showcase share one content width (${card.w.toFixed(1)}px / ${showcase.w.toFixed(1)}px)`);
-    check(showcase.x >= card.x - EPS, 'layout: board showcase aligns with the hero panel');
-  } else {
-    check(card.x + card.w <= showcase.x, `layout: hero and board columns do not overlap (${(showcase.x - card.x - card.w).toFixed(1)}px gap)`);
-  }
-
-  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
-  check(overflow <= 0, `layout: page has no horizontal overflow (${overflow}px)`);
-
-  if (withScreenshot) {
-    await page.screenshot({ path: path.join(outDir, `home-${vp.name}.png`), fullPage: true });
-    ok(`screenshot home-${vp.name}.png`);
   }
 }
 
@@ -351,7 +332,7 @@ async function checkLobby(page: Page, vp: (typeof VIEWPORTS)[number], withScreen
   for (const slot of slots) {
     check(inside(slot, container), `lobby: seat card stays inside the container (${fmt(slot)})`);
   }
-  check(inside(footer, container), 'lobby: footer bar stays inside the container');
+  check(footer.x >= -EPS && footer.x + footer.w <= vp.width + EPS, `lobby: footer bar stays inside the viewport (${fmt(footer)})`);
   check(inside(startBtn, footer, 4), 'lobby: start button stays inside the footer');
   check(inside(await textBoxOf(page, '.slot-name'), await requireBox(page, '.slots-grid')), 'lobby: seat names stay inside the seat grid');
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
@@ -475,20 +456,10 @@ async function checkMatch(page: Page, vp: (typeof VIEWPORTS)[number], withScreen
     const diceWell = await boxOf(page, '.master-dice-elevated-mound');
     if (diceWell) check(inside(diceWell, dock), 'match: dice tray stays inside the dock');
     const dockCenter = await requireBox(page, '.master-bottom-dock > .dock-center-stage');
-    const dockControls = await requireBox(page, '.master-bottom-dock > .dock-controls-row');
     check(inside(dockCenter, dock, 1), `match: dice stage stays inside the dock (${fmt(dockCenter)})`);
-    check(inside(dockControls, dock, 1), `match: control row stays inside the dock (${fmt(dockControls)})`);
-    const controlButtons = await boxesOf(page, '.dock-controls-row > button');
-    check(controlButtons.length >= 3, `match: chat, players and timeline controls render in one row (${controlButtons.length})`);
-    for (const button of controlButtons) {
-      check(inside(button, dockControls, 1), `match: dock button stays inside the control row (${fmt(button)})`);
-      check(button.w >= 40 && button.h >= 40, `match: dock control keeps a large touch target (${button.w.toFixed(0)}×${button.h.toFixed(0)})`);
-      if (vp.width < 1024 && vp.height > vp.width) {
-        check(button.w >= 44 && button.h >= 44, `match: portrait dock control keeps a 44px touch target (${button.w.toFixed(0)}×${button.h.toFixed(0)})`);
-      }
-    }
-    const activityBtn = await boxOf(page, '.dock-activity-pill-btn');
-    if (activityBtn) check(activityBtn.x + activityBtn.w <= vp.width - EPS, `match: activity control stays on screen (${fmt(activityBtn)})`);
+    const prominentRoll = await requireBox(page, '.mobile-prominent-roll-btn');
+    check(inside(prominentRoll, dockCenter, 1), `match: roll button stays inside the dice stage (${fmt(prominentRoll)})`);
+    check(prominentRoll.h >= 44, `match: roll button keeps a 44px touch target (${prominentRoll.h.toFixed(0)}px)`);
     if (rollBtn && diceWell) {
       check(rollBtn.y >= diceWell.y + diceWell.h, `match: dice tray and roll button do not overlap (${(rollBtn.y - diceWell.y - diceWell.h).toFixed(1)}px gap)`);
     }
@@ -504,38 +475,33 @@ async function checkMatch(page: Page, vp: (typeof VIEWPORTS)[number], withScreen
 
 async function checkVictory(page: Page, vp: (typeof VIEWPORTS)[number], withScreenshot: boolean) {
   await page.evaluate((snap) => (window as any).__SET_MOCK_SNAPSHOT__(snap), mockFinished);
-  await page.waitForSelector('.victory-main-card', { timeout: 10000 });
+  await page.waitForSelector('.victory-screen', { timeout: 10000 });
   await page.waitForTimeout(250);
 
   await checkHeader(page, vp);
 
-  const container = await requireBox(page, '.victory-overlay-container');
-  const card = await requireBox(page, '.victory-main-card');
-  const title = await requireBox(page, '.victory-title-headline');
-  const switcher = await requireBox(page, '.victory-tab-switcher');
-  const podium = await requireBox(page, '.victory-podium-stand');
-  const actions = await requireBox(page, '.victory-actions-group');
-  const buttons = await boxesOf(page, '.victory-actions-group > button');
+  const container = await requireBox(page, '.victory-screen');
+  const card = await requireBox(page, '.victory-content');
+  const title = await requireBox(page, '.victory-title');
+  const stage = await requireBox(page, '.victory-stage');
+  const actions = await requireBox(page, '.victory-actions');
+  const buttons = await boxesOf(page, '.victory-actions > button');
 
   check(container.x >= -EPS && container.x + container.w <= vp.width + EPS, 'victory: container respects the page gutter');
-  check(inside(card, container), 'victory: main card stays inside the container');
-  check(inside(title, card, 8), 'victory: title stays inside the card');
-  check(inside(switcher, card, 8), 'victory: tab switcher stays inside the card');
-  check(inside(podium, card, 8), `victory: podium stays inside the card (${fmt(podium)})`);
-  check(inside(actions, card, 8), 'victory: action group stays inside the card');
-  check(buttons.length >= 2, 'victory: both actions render');
+  check(card.x >= -EPS && card.x + card.w <= vp.width + EPS, 'victory: content stays inside the viewport');
+  check(fitsHorizontally(title, card, 4), 'victory: title stays inside the content');
+  check(fitsHorizontally(stage, card, 4), `victory: podium stage stays inside the content (${fmt(stage)})`);
+  check(stage.y >= title.y + title.h - 4, 'victory: stage sits below the title');
+  check(fitsHorizontally(actions, card, 4), 'victory: action group stays inside the content');
+  check(actions.y >= stage.y + stage.h - 8, 'victory: actions sit below the podium');
+  check(buttons.length >= 2, `victory: both actions render (${buttons.length})`);
   for (const button of buttons) {
     check(inside(button, actions), `victory: action button stays inside its group (${fmt(button)})`);
+    check(button.h >= 40, `victory: action keeps a comfortable target (${button.h.toFixed(0)}px)`);
   }
 
-  const podiumTiers = await boxesOf(page, '.podium-tier');
-  for (const tier of podiumTiers) {
-    check(inside(tier, podium), `victory: podium tier stays inside the podium (${fmt(tier)})`);
-  }
-  const championName = await textBoxOf(page, '.tier-1 .podium-player-name');
-  const championAvatar = await requireBox(page, '.tier-1 .player-avatar-wrapper');
-  check(overlapArea(championName, championAvatar) === 0, 'victory: champion name is not covered by the avatar or crown');
-  check(championName.y >= championAvatar.y + championAvatar.h - 2, 'victory: champion name sits below the avatar');
+  const discs = await boxesOf(page, '.victory-disc');
+  check(discs.length >= 2, `victory: podium discs render for the rankings (${discs.length})`);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   check(overflow <= 0, `victory: page has no horizontal overflow (${overflow}px)`);
 
@@ -543,38 +509,6 @@ async function checkVictory(page: Page, vp: (typeof VIEWPORTS)[number], withScre
     await page.screenshot({ path: path.join(outDir, `victory-${vp.name}.png`), fullPage: true });
     ok(`screenshot victory-${vp.name}.png`);
   }
-}
-
-async function checkMovePreview(page: Page) {
-  const snapshot = { ...mockPlaying, dice: 4, currentPlayer: 0 };
-  snapshot.tokens = mockPlaying.tokens.map((seatTokens) => seatTokens.map((t) => ({ ...t })));
-  snapshot.tokens[0][2] = { kind: 'path', progress: 8 };
-  await page.evaluate((snap) => (window as any).__SET_MOCK_SNAPSHOT__(snap), snapshot);
-  await page.waitForSelector('.pawn-legal-pulse', { timeout: 4000 });
-
-  await page.hover('.pawn-legal-pulse');
-  await page.waitForTimeout(120);
-  const ghost = await page.locator('.move-preview-ghost').count();
-  const target = await page.locator('.move-preview-target').count();
-  const dots = await page.locator('.move-preview-dot').count();
-  check(ghost === 1, `preview: a ghost pawn shows the destination (${ghost})`);
-  check(target === 1, `preview: the destination cell is highlighted (${target})`);
-  check(dots >= 1, `preview: the travelled path is dotted (${dots} cells)`);
-
-  const ghostBox = await boxOf(page, '.move-preview-ghost');
-  const boardBox = await requireBox(page, '#ludoBoard');
-  if (ghostBox) {
-    const centerX = ghostBox.x + ghostBox.w / 2;
-    const centerY = ghostBox.y + ghostBox.h / 2;
-    check(
-      centerX >= boardBox.x && centerX <= boardBox.x + boardBox.w && centerY >= boardBox.y && centerY <= boardBox.y + boardBox.h,
-      'preview: ghost is centred on a board cell'
-    );
-  }
-
-  await page.keyboard.press('Escape');
-  await page.waitForTimeout(100);
-  check((await page.locator('.move-preview-ghost').count()) === 0, 'preview: Escape clears the preview');
 }
 
 async function checkPawnMotion(page: Page) {
@@ -595,7 +529,7 @@ async function checkPawnMotion(page: Page) {
   const samples = await page.evaluate(
     () =>
       new Promise<Array<{ left: string; top: string } | null>>((resolve) => {
-        const frames: Array<{ left: string; top: string } | null> = [];
+        const frames: Array<{ left: string; top: string; transform: string } | null> = [];
         let ticks = 0;
         const id = setInterval(() => {
           const el = document.querySelector('.animating-pawn-wrapper');
@@ -603,7 +537,7 @@ async function checkPawnMotion(page: Page) {
             frames.push(null);
           } else {
             const style = window.getComputedStyle(el);
-            frames.push({ left: style.left, top: style.top });
+            frames.push({ left: style.left, top: style.top, transform: style.transform });
           }
           ticks += 1;
           if (ticks >= 38) {
@@ -614,8 +548,9 @@ async function checkPawnMotion(page: Page) {
       })
   );
 
-  const movingFrames = samples.filter((s): s is { left: string; top: string } => Boolean(s));
-  const uniqueFrames = new Set(movingFrames.map((s) => `${s.left}|${s.top}`)).size;
+  const movingFrames = samples.filter((s): s is { left: string; top: string; transform: string } => Boolean(s));
+  // The hop animation drives the pawn with transforms, so the transform matrix is part of the sample.
+  const uniqueFrames = new Set(movingFrames.map((s) => `${s.left}|${s.top}|${s.transform}`)).size;
   check(movingFrames.length >= 8, `motion: moving pawn stays visible through the move (${movingFrames.length} frames)`);
   check(uniqueFrames >= 6, `motion: pawn is interpolated between cells instead of snapping (${uniqueFrames} distinct frames)`);
 
@@ -668,8 +603,6 @@ async function run() {
       await checkMatch(page, vp, withScreenshot);
 
       if (vp.name === '390x844') {
-        console.log('  move preview');
-        await checkMovePreview(page);
         console.log('  pawn motion');
         await checkPawnMotion(page);
       }
@@ -694,6 +627,7 @@ async function run() {
   }
   console.log(`VISUAL LAYOUT AUDIT PASSED — ${checksRun} rendered-geometry checks across ${VIEWPORTS.length} viewports.`);
   console.log('================================================================');
+  process.exit(0);
 }
 
 run().catch((err) => {

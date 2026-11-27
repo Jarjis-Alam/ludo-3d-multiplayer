@@ -52,8 +52,27 @@ The workspace is a single canonical pnpm monorepo under `ludo/`:
 4. **Browser coverage.** Verified manually in Chromium and on one physical iPhone (iOS 18.7, Safari 27.2). Landscape phone layout and other browsers are not covered by an automated matrix.
 5. **No social features.** No in-match chat, spectators or global leaderboard; the leaderboard entry on the landing page is a placeholder.
 6. **Bundle shape.** The client ships as one ~280 kB chunk (87 kB gzip) plus Socket.IO; there is no route-level splitting.
-7. **Stale browser audits.** Some scripts under `ludo/apps/server/test/` predate the current landing page and still wait on removed selectors (for example `.landing-stage` in `verify-homepage-redesign.mts`), so they fail before asserting anything. They need updating before they can be used as a release gate.
-8. **Licence.** No licence file is present; reuse needs the author's agreement.
+7. **Decorated mock states.** The visual audit drives lobby, match and victory through `__SET_MOCK_SNAPSHOT__`; a mock has no signed-in seat, so the legal-move preview check is skipped there rather than exercised.
+
+## Browser audits
+
+The Playwright audits were moved onto the Rollverse landing page (entry sheet, `.rv-*` hero) and the current victory screen, and now pass against this revision:
+
+| Script | Scope | Result |
+| :--- | :--- | :--- |
+| `test/verify-homepage-redesign.mts` | Hero copy, board artwork, 320–430 px stacking, entry sheet, room creation | Passed |
+| `test/verify-visual-layout.mts` | 933 rendered-geometry checks across 8 viewports (home, lobby, match, victory, pawn motion) | Passed |
+| `test/verify-modals-viewport.mts` | Settings, leave confirmation, share/QR and lobby layout across 7 viewports | Passed |
+| `test/verify-layout-alignment.mts` | 320–430 px homepage and 2/3/4-player board alignment | Passed |
+| `test/e2e-mobile-polish.mts` | Mobile share, settings toggles, gameplay polish | Passed |
+| `test/e2e-quality-of-life.mts` | Auto-move, bonus turns, two-podium lifecycle | Passed |
+| `test/e2e-real-multiplayer-home-lane.mts` | Two real clients through home lanes to the centre goal | Passed |
+
+They need a production build (`pnpm build`) and one Playwright browser install (`pnpm --dir ludo exec playwright install chromium`). Run them all with `pnpm --dir ludo --filter @ludo/server test:audits`.
+
+## Licence
+
+MIT — see [LICENSE](LICENSE). Every workspace manifest declares `"license": "MIT"`.
 
 ## Historical audits
 
