@@ -5637,3 +5637,46 @@ body {
   pointer-events: none;
 }
 
+/* ==========================================================================
+   320-360px HEADER
+   Five controls plus the brand only just fit here, so tighten the row instead
+   of letting the feed badge crowd the exit button.
+   ========================================================================== */
+@media (max-width: 360px) {
+  .master-app-header {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  .header-controls {
+    gap: 4px;
+  }
+
+  .master-circle-btn,
+  .master-exit-btn {
+    width: 30px;
+    height: 30px;
+  }
+
+  .master-circle-btn > svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .master-exit-btn > svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  /* With 30px circles the badge has less room, so pull it back inside the
+     button rim instead of letting it close on the exit control. */
+  .master-circle-btn .activity-unread-badge {
+    top: -1px;
+    right: 0;
+    min-width: 12px;
+    height: 13px;
+    padding: 0 3px;
+    font-size: 0.5rem;
+  }
+
+}
