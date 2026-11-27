@@ -13,6 +13,7 @@ import {
   legalTokens,
   absoluteCell,
   SAFE_CELLS,
+  DEFAULT_TURN_DURATION_MS,
   TURN_DURATION_OPTIONS,
 } from '@ludo/game-engine';
 import type { Persistence, PersistedRoom } from './persistence.js';
@@ -59,13 +60,20 @@ export type ActionResult = {
   history?: RoomSnapshot[];
   reconnected?: boolean;
   roomCode?: string;
+  autoMoved?: boolean;
+  autoToken?: number;
+  autoReason?: 'single' | 'timeout';
+};
+export type LudoServiceOptions = {
+  invitationOrigin?: string;
+  sessionGraceMs?: number;
 };
 type Room = {
   code: string;
   host: string;
   players: Map<string, RoomPlayer>;
   state: GameState;
-  expiry?: NodeJS.Timeout;
+  expiryTimers: Map<string, NodeJS.Timeout>;
   turnTimer?: NodeJS.Timeout;
   turnTimerVersion?: number;
   actionTail: Promise<void>;
@@ -110,8 +118,18 @@ export class LudoService {
   private readonly failedJoins = new Map<string, { count: number; lockedUntil: number }>();
   private readonly pendingPersistence = new Set<Promise<unknown>>();
   private io?: Server;
+  private readonly invitationOrigin: string;
+  private readonly sessionGraceMs: number;
 
-  constructor(private readonly persistence: Persistence, private readonly invitationOrigin = 'http://localhost:5173') {}
+  constructor(private readonly persistence: Persistence, originOrOptions: string | LudoServiceOptions = 'http://localhost:5173') {
+    if (typeof originOrOptions === 'string') {
+      this.invitationOrigin = originOrOptions;
+      this.sessionGraceMs = SESSION_GRACE_MS;
+    } else {
+      this.invitationOrigin = originOrOptions.invitationOrigin ?? 'http://localhost:5173';
+      this.sessionGraceMs = originOrOptions.sessionGraceMs ?? SESSION_GRACE_MS;
+    }
+  }
 
   public trackPersistence<T>(promise: Promise<T>): Promise<T> {
     const p = promise.then(() => undefined, () => undefined);
@@ -132,10 +150,10 @@ export class LudoService {
         clearTimeout(room.turnTimer);
         room.turnTimer = undefined;
       }
-      if (room.expiry) {
-        clearTimeout(room.expiry);
-        room.expiry = undefined;
+      for (const timer of room.expiryTimers.values()) {
+        clearTimeout(timer);
       }
+      room.expiryTimers.clear();
     }
   }
 
@@ -154,6 +172,7 @@ export class LudoService {
         host: saved.host,
         players,
         state: saved.state,
+        expiryTimers: new Map(),
         actionTail: Promise.resolve(),
         processedActions: new Map(),
         snapshotHistory: new Map(),
@@ -254,15 +273,29 @@ export class LudoService {
   private attach(socket: Socket, session: Session, room: Room) {
     const player = room.players.get(session.id);
     if (!player) return false;
+    const wasDisconnected = !player.connected;
     player.connected = true;
     player.socketId = socket.id;
     player.lastSeenAt = Date.now();
     session.roomCode = room.code;
     socket.join(room.code);
     this.socketSessions.set(socket.id, session);
-    if (room.expiry) {
-      clearTimeout(room.expiry);
-      room.expiry = undefined;
+
+    const pendingExpiry = room.expiryTimers.get(session.id);
+    if (pendingExpiry) {
+      clearTimeout(pendingExpiry);
+      room.expiryTimers.delete(session.id);
+    }
+
+    // If the active player reconnects during grace, restore a valid turn window
+    // so they can act on their preserved state instead of timing out immediately.
+    if (wasDisconnected && room.state.status === 'playing' && room.state.currentPlayer === player.seat) {
+      const duration = room.state.turnDurationMs || DEFAULT_TURN_DURATION_MS;
+      const now = Date.now();
+      if (!room.state.turnExpiresAt || room.state.turnExpiresAt <= now + 500 || room.state.turnExpiresAt > now + duration) {
+        room.state.turnExpiresAt = now + duration;
+        this.resetTurnTimer(room);
+      }
     }
     return true;
   }
@@ -376,28 +409,127 @@ export class LudoService {
     }
   }
 
-  /**
-   * Auto-play choice: advance the most advanced legal pawn. Ties keep the board
-   * order, so a timeout is deterministic for the same state.
-   */
-  private pickAutoToken(state: GameState, seat: PlayerIndex, dice: number, random = false): number | null {
+  private pickRandomLegalToken(state: GameState, seat: PlayerIndex, dice: number): { token: number; legalCount: number } | null {
     const legal = legalTokens(state, seat, dice);
     if (legal.length === 0) return null;
-    if (legal.length === 1) return legal[0];
-    if (random) {
-      // Fisher-Yates shuffle: pick a random index from the legal moves list
-      const shuffled = [...legal];
-      for (let i = shuffled.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-      }
-      return shuffled[0];
+    if (legal.length === 1) return { token: legal[0], legalCount: 1 };
+    return { token: legal[randomInt(0, legal.length)], legalCount: legal.length };
+  }
+
+  private getTimeoutTargetSeats(room: Room): PlayerIndex[] {
+    const finishedSet = new Set(room.state.rankings || []);
+    const connectedSeats = [...room.players.values()]
+      .filter((p) => p.connected && !finishedSet.has(p.seat))
+      .map((p) => p.seat);
+    const allOccupiedSeats = [...room.players.values()]
+      .filter((p) => !finishedSet.has(p.seat))
+      .map((p) => p.seat);
+    return connectedSeats.length > 0 ? connectedSeats : allOccupiedSeats;
+  }
+
+  private async executeAuthoritativeMove(
+    room: Room,
+    seat: PlayerIndex,
+    token: number,
+    options?: { autoReason?: 'single' | 'timeout' }
+  ): Promise<ActionResult> {
+    if (room.state.status !== 'playing') {
+      return { ok: false, error: 'Game is not active', version: room.state.version, state: this.snapshot(room) };
     }
-    const rank = (pos: TokenPosition) =>
-      pos.kind === 'base' ? -1 : pos.kind === 'home' ? 1000 + pos.progress : pos.progress;
-    return legal.reduce((best, idx) =>
-      rank(state.tokens[seat][idx]) > rank(state.tokens[seat][best]) ? idx : best
-    , legal[0]);
+    if (room.state.currentPlayer !== seat) {
+      return { ok: false, error: 'not your turn', version: room.state.version, state: this.snapshot(room) };
+    }
+    if (room.state.rankings && room.state.rankings.includes(seat)) {
+      return { ok: false, error: 'Player already finished', version: room.state.version, state: this.snapshot(room) };
+    }
+    const activeDice = room.state.dice;
+    if (activeDice === null) {
+      return { ok: false, error: 'No active dice', version: room.state.version, state: this.snapshot(room) };
+    }
+
+    const legal = legalTokens(room.state, seat, activeDice);
+    if (!Number.isInteger(token) || !legal.includes(token)) {
+      return { ok: false, error: 'illegal token move', version: room.state.version, state: this.snapshot(room) };
+    }
+
+    const playerName = [...room.players.values()].find((p) => p.seat === seat)?.name || `Player ${seat + 1}`;
+    const moveResult = moveToken(room.state, seat, token, activeDice);
+    room.state = moveResult.state;
+
+    if (options?.autoReason && !moveResult.winner && !moveResult.finished) {
+      room.state = {
+        ...room.state,
+        lastNotice:
+          options.autoReason === 'single'
+            ? {
+                type: 'auto_move',
+                autoReason: 'single',
+                message: 'Only one legal move — moving automatically.',
+                seat,
+                playerName,
+                dice: activeDice,
+                timestamp: Date.now(),
+              }
+            : {
+                type: 'timeout',
+                autoReason: 'timeout',
+                message: "Time's up! A random legal move was selected.",
+                seat,
+                playerName,
+                dice: activeDice,
+                timestamp: Date.now(),
+              },
+      };
+    }
+
+    this.recordMoveStats(room, seat, token, moveResult);
+    this.resetTurnTimer(room);
+    await this.save(room);
+
+    this.emitRoom(this.io, room, 'token_moved', {
+      seat,
+      playerName,
+      token,
+      dice: activeDice,
+      captured: moveResult.captured,
+      capturedSeat: moveResult.capturedSeat,
+      winner: moveResult.winner,
+      finished: moveResult.finished,
+      pawnReachedHome: moveResult.pawnReachedHome,
+      rank: moveResult.rank,
+      auto: Boolean(options?.autoReason),
+      ...(options?.autoReason ? { autoReason: options.autoReason } : {}),
+    });
+
+    return {
+      ok: true,
+      version: room.state.version,
+      state: this.snapshot(room),
+      ...(options?.autoReason ? { autoMoved: true, autoToken: token, autoReason: options.autoReason } : {}),
+    };
+  }
+
+  private async forfeitActiveTurn(
+    room: Room,
+    timedOutSeat: PlayerIndex,
+    timedOutPlayerName: string
+  ): Promise<ActionResult> {
+    const previousDice = room.state.dice;
+    const targetSeats = this.getTimeoutTargetSeats(room);
+    room.state = forfeitTurn(room.state, targetSeats, Date.now());
+    this.resetTurnTimer(room);
+    await this.save(room);
+
+    this.emitRoom(this.io, room, 'turn_timeout', {
+      timedOutSeat,
+      timedOutPlayer: timedOutPlayerName,
+      hadRolled: previousDice !== null,
+      previousDice,
+      autoMoved: false,
+      nextPlayerSeat: room.state.currentPlayer,
+    });
+
+    return { ok: true, version: room.state.version, autoMoved: false, state: this.snapshot(room) };
   }
 
   private async handleTurnTimeout(roomCode: string, expectedVersion: number): Promise<ActionResult> {
@@ -410,70 +542,59 @@ export class LudoService {
       }
 
       const timedOutSeat = room.state.currentPlayer;
+      const finishedSet = new Set(room.state.rankings || []);
       const timedOutPlayer = [...room.players.values()].find((p) => p.seat === timedOutSeat);
       const timedOutPlayerName = timedOutPlayer?.name || `Player ${timedOutSeat + 1}`;
 
-      // Next candidate seats: prioritize connected active players, skip vacant seats and finished players
-      const finishedSet = new Set(room.state.rankings || []);
-      const connectedSeats = [...room.players.values()].filter((p) => p.connected && !finishedSet.has(p.seat)).map((p) => p.seat);
-      const allOccupiedSeats = [...room.players.values()].filter((p) => !finishedSet.has(p.seat)).map((p) => p.seat);
-      const fallbackSeats = [...room.players.values()].filter((p) => !finishedSet.has(p.seat)).map((p) => p.seat);
-      const targetSeats = connectedSeats.length > 0 ? connectedSeats : (allOccupiedSeats.length > 0 ? allOccupiedSeats : fallbackSeats);
+      // Ineligible or removed players cannot receive automated token moves; advance cleanly.
+      if (!timedOutPlayer || finishedSet.has(timedOutSeat)) {
+        return this.forfeitActiveTurn(room, timedOutSeat, timedOutPlayerName);
+      }
 
-      // The player ran out of time with a dice waiting: play the move for them
-      // instead of throwing the roll away. Without a legal move the turn is
-      // forfeited exactly as before.
-      const previousDice = room.state.dice;
-      const autoToken = previousDice !== null ? this.pickAutoToken(room.state, timedOutSeat, previousDice) : null;
-      if (previousDice !== null && autoToken !== null) {
-        try {
-          const moveResult = moveToken(room.state, timedOutSeat, autoToken, previousDice);
-          room.state = moveResult.state;
-          this.recordMoveStats(room, timedOutSeat, autoToken, moveResult);
+      // Apply reconnect grace before taking automated action on a disconnected player's turn.
+      if (!timedOutPlayer.connected) {
+        const now = Date.now();
+        const graceEndsAt = timedOutPlayer.lastSeenAt + this.sessionGraceMs;
+        if (now < graceEndsAt) {
+          room.state.turnExpiresAt = graceEndsAt;
           this.resetTurnTimer(room);
-          await this.save(room);
-          this.emitRoom(this.io, room, 'token_moved', {
-            seat: timedOutSeat,
-            playerName: timedOutPlayerName,
-            token: autoToken,
-            captured: moveResult.captured,
-            capturedSeat: moveResult.capturedSeat,
-            winner: moveResult.winner,
-            finished: moveResult.finished,
-            pawnReachedHome: moveResult.pawnReachedHome,
-            rank: moveResult.rank,
-            auto: true,
+          return {
+            ok: false,
+            error: 'Player disconnected within grace period',
+            version: room.state.version,
+            state: this.snapshot(room),
+          };
+        }
+        return this.forfeitActiveTurn(room, timedOutSeat, timedOutPlayerName);
+      }
+
+      const previousDice = room.state.dice;
+      const pick = previousDice !== null ? this.pickRandomLegalToken(room.state, timedOutSeat, previousDice) : null;
+      if (previousDice !== null && pick !== null) {
+        try {
+          const moveResult = await this.executeAuthoritativeMove(room, timedOutSeat, pick.token, {
+            autoReason: 'timeout',
           });
-          this.emitRoom(this.io, room, 'turn_timeout', {
-            timedOutSeat,
-            timedOutPlayer: timedOutPlayerName,
-            hadRolled: true,
-            previousDice,
-            autoMoved: true,
-            autoToken,
-            nextPlayerSeat: room.state.currentPlayer,
-          });
-          return { ok: true, version: room.state.version, state: this.snapshot(room) };
+          if (moveResult.ok) {
+            this.emitRoom(this.io, room, 'turn_timeout', {
+              timedOutSeat,
+              timedOutPlayer: timedOutPlayerName,
+              hadRolled: true,
+              previousDice,
+              autoMoved: true,
+              autoToken: pick.token,
+              autoReason: 'timeout',
+              legalCount: pick.legalCount,
+              nextPlayerSeat: room.state.currentPlayer,
+            });
+            return moveResult;
+          }
         } catch {
           // Fall through to the forfeit path if the auto move could not be applied.
         }
       }
 
-      const now = Date.now();
-      room.state = forfeitTurn(room.state, targetSeats, now);
-
-      this.resetTurnTimer(room);
-      await this.save(room);
-
-      this.emitRoom(this.io, room, 'turn_timeout', {
-        timedOutSeat,
-        timedOutPlayer: timedOutPlayerName,
-        hadRolled: previousDice !== null,
-        previousDice,
-        nextPlayerSeat: room.state.currentPlayer,
-      });
-
-      return { ok: true, version: room.state.version, state: this.snapshot(room) };
+      return this.forfeitActiveTurn(room, timedOutSeat, timedOutPlayerName);
     });
   }
 
@@ -505,7 +626,7 @@ export class LudoService {
           host: session.id,
           players: new Map([[session.id, player]]),
           state: initialState([player]),
-          expiry: undefined,
+          expiryTimers: new Map(),
           turnTimer: undefined,
           turnTimerVersion: undefined,
           actionTail: Promise.resolve(),
@@ -590,9 +711,18 @@ export class LudoService {
               clearTimeout(room.turnTimer);
               room.turnTimer = undefined;
             }
+            for (const timer of room.expiryTimers.values()) {
+              clearTimeout(timer);
+            }
+            room.expiryTimers.clear();
             this.rooms.delete(room.code);
             await this.trackPersistence(this.persistence.deleteRoom(room.code));
           } else {
+            const leavingTimer = room.expiryTimers.get(session.id);
+            if (leavingTimer) {
+              clearTimeout(leavingTimer);
+              room.expiryTimers.delete(session.id);
+            }
             if (room.host === session.id) room.host = [...room.players.keys()][0];
             if (room.state.status === 'lobby') {
               // Rebuilding the lobby state must keep the host's chosen turn clock.
@@ -763,18 +893,36 @@ export class LudoService {
             : randomInt(1, 7);
 
           try {
-            const moves = legalTokens(room.state, player.seat, value);
             room.state = roll(room.state, player.seat, value);
             room.matchStats.rolls += 1;
+            const postRollLegal =
+              room.state.status === 'playing' && room.state.dice !== null
+                ? legalTokens(room.state, player.seat, room.state.dice)
+                : [];
+            const willAutoMove = postRollLegal.length === 1;
+
             this.resetTurnTimer(room);
             await this.save(room);
             this.emitRoom(io, room, 'dice_rolled', {
               seat: player.seat,
               playerName: player.name,
               value,
-              hasLegalMoves: moves.length > 0,
+              hasLegalMoves: postRollLegal.length > 0,
+              legalCount: postRollLegal.length,
+              autoMoved: willAutoMove,
+              ...(willAutoMove ? { autoToken: postRollLegal[0], autoReason: 'single' } : {}),
               isExtraTurn: value === 6,
             });
+
+            if (willAutoMove) {
+              const autoResult = await this.executeAuthoritativeMove(room, player.seat, postRollLegal[0], {
+                autoReason: 'single',
+              });
+              if (autoResult.ok) {
+                return { ...autoResult, value };
+              }
+            }
+
             return { ok: true, value, version: room.state.version, state: this.snapshot(room) };
           } catch (error) {
             return isObj
@@ -807,44 +955,12 @@ export class LudoService {
             };
           }
 
-          if (room.state.rankings && room.state.rankings.includes(player.seat)) {
-            return isObj
-              ? { ok: false, error: 'Player already finished', version: room.state.version, state: this.snapshot(room) }
-              : { ok: false, error: 'Player already finished' };
-          }
-
-          if (room.state.dice === null) {
-            return isObj
-              ? { ok: false, error: 'No active dice', version: room.state.version, state: this.snapshot(room) }
-              : { ok: false, error: 'No active dice' };
-          }
-
-          const token = Number(payload.token);
-          const legal = legalTokens(room.state, player.seat, room.state.dice);
-          if (!legal.includes(token)) {
-            return isObj
-              ? { ok: false, error: 'illegal token move', version: room.state.version, state: this.snapshot(room) }
-              : { ok: false, error: 'illegal token move' };
-          }
-
           try {
-            const moveResult = moveToken(room.state, player.seat, token, room.state.dice);
-            room.state = moveResult.state;
-            this.recordMoveStats(room, player.seat, token, moveResult);
-            this.resetTurnTimer(room);
-            await this.save(room);
-            this.emitRoom(io, room, 'token_moved', {
-              seat: player.seat,
-              playerName: player.name,
-              token,
-              captured: moveResult.captured,
-              capturedSeat: moveResult.capturedSeat,
-              winner: moveResult.winner,
-              finished: moveResult.finished,
-              pawnReachedHome: moveResult.pawnReachedHome,
-              rank: moveResult.rank,
-            });
-            return { ok: true, version: room.state.version, state: this.snapshot(room) };
+            const res = await this.executeAuthoritativeMove(room, player.seat, Number(payload.token));
+            if (!res.ok && !isObj) {
+              return { ok: false, error: res.error };
+            }
+            return res;
           } catch (error) {
             return isObj
               ? { ok: false, error: (error as Error).message, version: room.state.version, state: this.snapshot(room) }
@@ -864,6 +980,7 @@ export class LudoService {
           const snap = this.snapshot(room);
           socket.emit('state', snap);
           socket.emit('room_state', snap);
+          socket.to(room.code).emit('player_reconnected', snap);
 
           let history: RoomSnapshot[] | undefined;
           if (typeof payload === 'object' && typeof payload.sinceVersion === 'number') {
@@ -902,27 +1019,50 @@ export class LudoService {
         await this.save(room);
         this.emitRoom(io, room, 'player_disconnected');
 
-        room.expiry = setTimeout(async () => {
-          const currentPlayer = room.players.get(current.id);
-          if (currentPlayer && !currentPlayer.connected) {
+        const existingExpiry = room.expiryTimers.get(current.id);
+        if (existingExpiry) clearTimeout(existingExpiry);
+
+        const disconnectAt = player.lastSeenAt;
+        const expiryTimer = setTimeout(async () => {
+          await this.queueAction(room, undefined, async () => {
+            room.expiryTimers.delete(current.id);
+            const currentPlayer = room.players.get(current.id);
+            if (!currentPlayer || currentPlayer.connected || currentPlayer.lastSeenAt !== disconnectAt) {
+              return { ok: false, error: 'Player reconnected' };
+            }
+
+            const removedSeat = currentPlayer.seat;
+            const removedName = currentPlayer.name;
             room.players.delete(current.id);
+
             if (room.state.status === 'lobby') {
               // Rebuilding the lobby state must keep the host's chosen turn clock.
-        room.state = initialState([...room.players.values()], room.state.version, room.state.turnDurationMs);
+              room.state = initialState([...room.players.values()], room.state.version, room.state.turnDurationMs);
             }
+
             if (room.players.size === 0) {
               if (room.turnTimer) {
                 clearTimeout(room.turnTimer);
                 room.turnTimer = undefined;
               }
+              for (const t of room.expiryTimers.values()) clearTimeout(t);
+              room.expiryTimers.clear();
               this.rooms.delete(room.code);
               await this.trackPersistence(this.persistence.deleteRoom(room.code));
-            } else {
-              await this.save(room);
-              this.emitRoom(io, room, 'lobby_updated');
+              return { ok: true };
             }
-          }
-        }, SESSION_GRACE_MS);
+
+            if (room.state.status === 'playing' && room.state.currentPlayer === removedSeat) {
+              return this.forfeitActiveTurn(room, removedSeat, removedName);
+            }
+
+            await this.save(room);
+            this.emitRoom(io, room, room.state.status === 'lobby' ? 'lobby_updated' : 'room_state');
+            return { ok: true, version: room.state.version, state: this.snapshot(room) };
+          });
+        }, this.sessionGraceMs);
+
+        room.expiryTimers.set(current.id, expiryTimer);
       });
     });
   }

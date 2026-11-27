@@ -96,10 +96,10 @@ describe('Turn Timer and Rules Integration Suite', () => {
     expect(timeoutResult.hadRolled).toBe(true);
     expect(timeoutResult.previousDice).toBe(6);
     expect(timeoutResult.autoMoved).toBe(true);
-    expect(timeoutResult.autoToken).toBe(0);
+    expect([0, 1, 2, 3]).toContain(timeoutResult.autoToken);
     // The roll was spent on the board instead of discarded, and the 6 keeps the turn.
     expect(timeoutResult.state.dice).toBeNull();
-    expect(timeoutResult.state.tokens[0][0]).toEqual({ kind: 'path', progress: 0 });
+    expect(timeoutResult.state.tokens[0][timeoutResult.autoToken]).toEqual({ kind: 'path', progress: 0 });
     expect(timeoutResult.nextPlayerSeat).toBe(0);
     expect(timeoutResult.state.currentPlayer).toBe(0);
     // This room runs a 50ms test timer, so the deadline is fresh but short.
@@ -120,15 +120,19 @@ describe('Turn Timer and Rules Integration Suite', () => {
     await emit(p1.socket, 'join_room', { roomCode: code, name: 'Bob' });
     await emit(p0.socket, 'start_game', { roomCode: code });
 
-    // P0 rolls 6 and moves token 0 out to path
+    // P0 rolls 6 and deploys token 0 (version 2 -> 3, extra turn)
     await emit(p0.socket, 'roll_dice', { roomCode: code, deterministicDice: 6, expectedVersion: 1 });
     const moveRes = await emit(p0.socket, 'move_token', { roomCode: code, token: 0, expectedVersion: 2 });
     expect(moveRes.ok).toBe(true);
     expect(moveRes.state.currentPlayer).toBe(0); // Extra turn
 
-    // P0 rolls 3 and advances token 0
-    await emit(p0.socket, 'roll_dice', { roomCode: code, deterministicDice: 3, expectedVersion: 3 });
-    const moveRes2 = await emit(p0.socket, 'move_token', { roomCode: code, token: 0, expectedVersion: 4 });
+    // P0 rolls 6 and deploys token 1 so 2 pawns are legal on the next roll (version 4 -> 5)
+    await emit(p0.socket, 'roll_dice', { roomCode: code, deterministicDice: 6, expectedVersion: 3 });
+    await emit(p0.socket, 'move_token', { roomCode: code, token: 1, expectedVersion: 4 });
+
+    // P0 rolls 3 and manually advances token 0 (multiple legal moves, version 6 -> 7)
+    await emit(p0.socket, 'roll_dice', { roomCode: code, deterministicDice: 3, expectedVersion: 5 });
+    const moveRes2 = await emit(p0.socket, 'move_token', { roomCode: code, token: 0, expectedVersion: 6 });
     expect(moveRes2.ok).toBe(true);
     expect(moveRes2.state.currentPlayer).toBe(1); // Turned passed to P1
     expect(moveRes2.state.turnExpiresAt).toBeGreaterThan(Date.now() + 1000);

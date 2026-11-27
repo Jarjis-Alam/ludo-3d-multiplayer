@@ -3,7 +3,7 @@ import cors from 'cors';
 import { createServer } from 'node:http';
 import { Server } from 'socket.io';
 import { createPersistence } from './persistence.js';
-import { LudoService } from './game-server.js';
+import { LudoService, type LudoServiceOptions } from './game-server.js';
 
 export function parseOrigin(raw?: string): string | string[] {
   if (!raw) return 'http://localhost:5173';
@@ -24,7 +24,10 @@ export function parseOrigin(raw?: string): string | string[] {
 
 export type LudoServer = { app: Express; httpServer: ReturnType<typeof createServer>; io: Server; service: LudoService };
 
-export async function createLudoServer(persistence = createPersistence()): Promise<LudoServer> {
+export async function createLudoServer(
+  persistence = createPersistence(),
+  options?: LudoServiceOptions
+): Promise<LudoServer> {
   const app = express();
   const rawOrigin = process.env.CLIENT_ORIGIN;
   const origin = parseOrigin(rawOrigin);
@@ -53,7 +56,10 @@ export async function createLudoServer(persistence = createPersistence()): Promi
     cors: { origin, credentials: true },
     transports: ['websocket', 'polling'],
   });
-  const service = new LudoService(persistence, invitationOrigin);
+  const service = new LudoService(persistence, {
+    invitationOrigin,
+    sessionGraceMs: options?.sessionGraceMs,
+  });
   await service.init();
   service.bind(io);
   return { app, httpServer, io, service };

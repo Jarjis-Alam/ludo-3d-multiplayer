@@ -6,11 +6,12 @@ export type TokenPosition =
 export type Player = { id: string; name: string; color: string; seat: PlayerIndex };
 
 export type TurnNotice = {
-  type: 'timeout' | 'auto_pass' | 'three_sixes' | 'extra_turn' | 'podium_finish';
+  type: 'timeout' | 'auto_pass' | 'three_sixes' | 'extra_turn' | 'podium_finish' | 'auto_move';
   message: string;
   seat: PlayerIndex;
   playerName?: string;
   dice?: number;
+  autoReason?: 'single' | 'timeout';
   timestamp: number;
 };
 

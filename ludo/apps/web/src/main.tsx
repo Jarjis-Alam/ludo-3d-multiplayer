@@ -49,11 +49,12 @@ type Token = { kind: 'base' | 'path' | 'home'; progress: number };
 type ClientPlayer = { id: string; name: string; color: string; seat: number; connected?: boolean };
 
 type LastNotice = {
-  type: 'timeout' | 'three_sixes' | 'auto_pass' | 'extra_turn';
+  type: 'timeout' | 'three_sixes' | 'auto_pass' | 'extra_turn' | 'podium_finish' | 'auto_move';
   seat: number;
   message: string;
   timestamp: number;
   dice?: number;
+  autoReason?: 'single' | 'timeout';
 };
 
 type Snapshot = {
@@ -538,6 +539,12 @@ function App() {
   const [isMuted, setIsMuted] = useState(AudioEngine.isMuted());
   const [turnTimeLeft, setTurnTimeLeft] = useState(15);
   const [activityNotice, setActivityNotice] = useState<string | null>(null);
+  const [autoMoveNotice, setAutoMoveNotice] = useState<{
+    id: number;
+    message: string;
+    reason: 'single' | 'timeout';
+  } | null>(null);
+  const autoMoveNoticeTimerRef = useRef<number | null>(null);
   const [copiedCode, setCopiedCode] = useState(false);
   const [copiedInvite, setCopiedInvite] = useState(false);
   const [shareModalOpen, setShareModalOpen] = useState(false);
@@ -749,11 +756,26 @@ function App() {
       setRolling(false);
       setIsMoving(false);
     };
+    const showAutoNotice = (messageText: string, reason: 'single' | 'timeout') => {
+      if (autoMoveNoticeTimerRef.current) {
+        window.clearTimeout(autoMoveNoticeTimerRef.current);
+      }
+      setAutoMoveNotice({ id: Date.now() + Math.random(), message: messageText, reason });
+      setActivityNotice(messageText);
+      autoMoveNoticeTimerRef.current = window.setTimeout(() => {
+        setAutoMoveNotice(null);
+        setActivityNotice((cur) => (cur === messageText ? null : cur));
+        autoMoveNoticeTimerRef.current = null;
+      }, 3300);
+    };
+
     const onDiceRolled = (data: {
       seat: number;
       playerName: string;
       value: number;
       hasLegalMoves: boolean;
+      legalCount?: number;
+      autoMoved?: boolean;
       isExtraTurn: boolean;
     }) => {
       setRolling(true);
@@ -790,6 +812,8 @@ function App() {
           triggerHaptic('success');
         }
 
+        if (data.autoMoved) return;
+
         const isMe = data.seat === localSeat;
         let noticeText = '';
         if (isMe) {
@@ -825,8 +849,17 @@ function App() {
       finished: boolean;
       pawnReachedHome: boolean;
       rank?: number;
+      auto?: boolean;
+      autoReason?: 'single' | 'timeout';
     }) => {
       const pColor = snapshotRef.current?.players.find((p) => p.seat === data.seat)?.color;
+      const isAutoSingle = Boolean(data.auto && data.autoReason === 'single');
+      const isAutoTimeout = Boolean(data.auto && data.autoReason === 'timeout');
+
+      if (isAutoSingle) {
+        showAutoNotice('Only one legal move — moving automatically.', 'single');
+      }
+
       if (data.captured) {
         AudioEngine.playCapture();
         triggerHaptic('heavy');
@@ -846,7 +879,9 @@ function App() {
         addActivityItem({
           type: 'capture',
           icon: '⚔️',
-          message: `${data.playerName} captured an opponent's pawn! (Bonus turn)`,
+          message: isAutoSingle
+            ? `${data.playerName} captured an opponent's pawn automatically (only one legal move)!`
+            : `${data.playerName} captured an opponent's pawn! (Bonus turn)`,
           seat: data.seat,
           color: pColor,
         });
@@ -866,31 +901,42 @@ function App() {
         addActivityItem({
           type: 'home',
           icon: '🎯',
-          message: `${data.playerName}'s pawn entered home goal!`,
+          message: isAutoSingle
+            ? `${data.playerName}'s pawn entered home automatically (only one legal move)!`
+            : `${data.playerName}'s pawn entered home goal!`,
           seat: data.seat,
           color: pColor,
         });
       } else {
         const prevTokens = snapshotRef.current?.tokens;
         const wasInYard = prevTokens && prevTokens[data.seat]?.[data.token]?.kind === 'base';
-        if (wasInYard) {
-          AudioEngine.playMove();
+        AudioEngine.playMove();
+        if (isAutoSingle) {
           addActivityItem({
-            type: 'deploy',
-            icon: '🚀',
-            message: `${data.playerName} deployed pawn to start.`,
+            type: wasInYard ? 'deploy' : 'move',
+            icon: '⚡',
+            message: `${data.playerName}: Only one legal move — moving automatically.`,
             seat: data.seat,
             color: pColor,
           });
-        } else {
-          AudioEngine.playMove();
-          addActivityItem({
-            type: 'move',
-            icon: '♟️',
-            message: `${data.playerName} moved pawn.`,
-            seat: data.seat,
-            color: pColor,
-          });
+        } else if (!isAutoTimeout) {
+          if (wasInYard) {
+            addActivityItem({
+              type: 'deploy',
+              icon: '🚀',
+              message: `${data.playerName} deployed pawn to start.`,
+              seat: data.seat,
+              color: pColor,
+            });
+          } else {
+            addActivityItem({
+              type: 'move',
+              icon: '♟️',
+              message: `${data.playerName} moved pawn.`,
+              seat: data.seat,
+              color: pColor,
+            });
+          }
         }
       }
     };
@@ -898,18 +944,20 @@ function App() {
       AudioEngine.playTimeout();
       const name = data.timedOutPlayer || 'Player';
       const autoMoved = Boolean(data.autoMoved);
-      const notice = autoMoved
-        ? `⏰ ${name} ran out of time — the game played their pawn automatically.`
-        : `⏰ ${name} timed out! Turn forfeited.`;
-      setActivityNotice(notice);
-      setTimeout(() => setActivityNotice(null), 4000);
+      if (autoMoved) {
+        showAutoNotice("Time's up! A random legal move was selected.", 'timeout');
+      } else {
+        const notice = `⏰ ${name} timed out! Turn forfeited.`;
+        setActivityNotice(notice);
+        setTimeout(() => setActivityNotice((cur) => (cur === notice ? null : cur)), 4000);
+      }
       addActivityItem({
         type: 'timeout',
         icon: '⏰',
         message: autoMoved
-          ? `${name} ran out of time — pawn moved automatically.`
+          ? `${name}: Time's up! A random legal move was selected.`
           : `${name} timed out! Turn forfeited.`,
-        seat: data.seat,
+        seat: data.timedOutSeat ?? data.seat,
         playerName: name,
       });
       currentTurnRef.current = null;
@@ -1420,6 +1468,17 @@ function App() {
         <div className="reconnect-success-toast" role="status">
           <span className="reconnect-success-icon">✓</span>
           <span>Reconnected — you're back at the table.</span>
+        </div>
+      )}
+
+      {autoMoveNotice && snapshot?.status === 'playing' && (
+        <div
+          key={autoMoveNotice.id}
+          className={`auto-move-toast auto-move-toast-${autoMoveNotice.reason}`}
+          role="status"
+          aria-live="polite"
+        >
+          <span>{autoMoveNotice.message}</span>
         </div>
       )}
     </>
@@ -1957,7 +2016,10 @@ function App() {
     turnPhase = 'extra';
   } else if (
     recentNotice &&
-    (recentNotice.type === 'timeout' || recentNotice.type === 'auto_pass' || recentNotice.type === 'three_sixes')
+    (recentNotice.type === 'timeout' ||
+      recentNotice.type === 'auto_pass' ||
+      recentNotice.type === 'three_sixes' ||
+      recentNotice.type === 'auto_move')
   ) {
     turnPhase = 'notice';
     turnNoticeMessage = recentNotice.message;
