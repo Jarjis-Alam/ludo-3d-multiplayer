@@ -4274,7 +4274,9 @@ body {
   letter-spacing: 0.04em;
 }
 
-.turn-notice .turn-headline-text {
+/* A timeout/pass notice is the subline now, so the warm tint follows the event
+   instead of colouring the current player's name. */
+.turn-notice .turn-subline-text {
   color: #ffd6a8;
 }
 

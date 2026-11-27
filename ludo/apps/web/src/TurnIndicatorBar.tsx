@@ -32,23 +32,26 @@ export const TurnIndicatorBar: React.FC<TurnIndicatorBarProps> = ({
   const isUrgent = timeLeft <= 5 && timeLeft > 0;
   const isExtra = phase === 'extra';
 
+  // The bar always answers "whose turn is it?" first; the last event or the next
+  // action sits underneath, so a timeout notice can never read as if it were
+  // describing the player who is up now.
   let headline = isMyTurn ? 'Your Turn' : `${playerName}’s Turn`;
   let subline: string | null = null;
 
   if (phase === 'notice' && noticeMessage) {
-    headline = noticeMessage;
+    subline = noticeMessage;
   } else if (phase === 'passed') {
-    headline = isMyTurn ? 'Turn passed' : `${playerName} passed`;
+    subline = 'Turn passed to the next player';
   } else if (isExtra) {
-    headline = 'EXTRA TURN — ROLL AGAIN';
-    subline = isMyTurn ? 'Six, capture or home entry awarded a bonus roll' : `${playerName} earned a bonus roll`;
+    subline = isMyTurn
+      ? 'Bonus roll — six, capture or home entry'
+      : `${playerName} earned a bonus roll`;
   } else if (isMyTurn && diceValue !== null) {
-    headline = hasLegalMoves ? `Rolled ${diceValue} — Choose a pawn` : `No moves for ${diceValue} — turn passed`;
+    subline = hasLegalMoves ? `Rolled ${diceValue} — choose a pawn` : `No moves for ${diceValue} — turn passed`;
   } else if (isMyTurn) {
-    headline = 'Your Turn — Roll the dice';
-    subline = 'Tap the dice or press Space';
+    subline = 'Tap the dice or press Space to roll';
   } else if (diceValue !== null) {
-    headline = `${playerName} rolled ${diceValue}`;
+    subline = `Rolled ${diceValue}`;
   }
 
   return (
